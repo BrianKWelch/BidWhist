@@ -71,26 +71,6 @@ const PlayerPortalFixed = () => {
     return teamSchedules.sort((a, b) => a.round - b.round);
   };
 
-  const getTeamRecord = () => {
-    const results = games.filter(game => 
-      (game.teamA.id === team?.id || game.teamB.id === team?.id) && game.confirmed
-    ).map(game => ({
-      ...game,
-      isWin: (game.teamA.id === team?.id && game.winner === 'teamA') || 
-             (game.teamB.id === team?.id && game.winner === 'teamB'),
-      teamScore: game.teamA.id === team?.id ? game.scoreA : game.scoreB,
-      opponentScore: game.teamA.id === team?.id ? game.scoreB : game.scoreA,
-      opponent: game.teamA.id === team?.id ? game.teamB : game.teamA
-    }));
-    
-    const wins = results.filter(r => r.isWin).length;
-    const totalGames = results.length;
-    const totalPoints = results.reduce((sum, r) => sum + r.teamScore, 0);
-    const avgPoints = totalGames > 0 ? (totalPoints / totalGames).toFixed(1) : '0.0';
-    
-    return { wins, totalGames, totalPoints, avgPoints, results };
-  };
-
   if (!team) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -152,9 +132,6 @@ const PlayerPortalFixed = () => {
     );
   }
 
-  const teamSchedule = getTeamSchedule();
-  const teamRecord = getTeamRecord();
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-blue-600 text-white p-4">
@@ -184,116 +161,96 @@ const PlayerPortalFixed = () => {
       </div>
 
       <div className="max-w-4xl mx-auto p-4">
-        <Tabs defaultValue="scores" className="space-y-4">
+        <Tabs defaultValue="schedule" className="space-y-4">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="scores"><Target className="h-4 w-4 mr-1" />Scores</TabsTrigger>
-            <TabsTrigger value="schedule"><Calendar className="h-4 w-4 mr-1" />Schedule</TabsTrigger>
-            <TabsTrigger value="results"><Trophy className="h-4 w-4 mr-1" />Results & Record</TabsTrigger>
+            <TabsTrigger value="schedule" className="text-xs sm:text-sm">
+              <Calendar className="h-4 w-4 mr-1" />
+              Schedule
+            </TabsTrigger>
+            <TabsTrigger value="score" className="text-xs sm:text-sm">
+              <Target className="h-4 w-4 mr-1" />
+              Score
+            </TabsTrigger>
+            <TabsTrigger value="results" className="text-xs sm:text-sm">
+              <Trophy className="h-4 w-4 mr-1" />
+              Results
+            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="scores">
-            <ScoreEntryCard team={team} />
-          </TabsContent>
 
           <TabsContent value="schedule">
             <Card>
-              <CardHeader><CardTitle>Your Schedule</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Your Schedule
+                </CardTitle>
+              </CardHeader>
               <CardContent>
-                {teamSchedule.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No scheduled matches found</p>
-                ) : (
-                  <div className="space-y-3">
-                    {teamSchedule.map((match: any, index: number) => (
-                      <div key={index} className="border rounded-lg p-4 bg-white">
-                        <p className="font-medium text-sm">{match.tournamentName}</p>
-                        <p className="text-xs text-gray-600 mb-2">Round {match.round}</p>
-                        {match.isBye ? (
-                          <Badge variant="secondary">BYE ROUND</Badge>
-                        ) : (
-                          <p className="text-sm">vs Team {match.opponentTeam?.teamNumber || 'TBD'}</p>
-                        )}
+                <div className="space-y-3">
+                  {getTeamSchedule().length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500 mb-2">No scheduled matches found</p>
+                      <p className="text-sm text-gray-400">Matches will appear here once tournaments are scheduled</p>
+                      {testMode && (
+                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-xs text-blue-800">Debug: {schedules.length} schedules found, {teams.length} teams total</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    getTeamSchedule().map((match: any, index: number) => (
+                      <div key={index} className={`border rounded-lg p-4 ${
+                        match.isBye ? 'bg-yellow-50 border-yellow-200' : 'bg-white'
+                      }`}>
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{match.tournamentName}</p>
+                            <p className="text-xs text-gray-600 mb-2">Round {match.round}</p>
+                            {match.isBye ? (
+                              <Badge variant="secondary" className="text-xs">BYE ROUND</Badge>
+                            ) : (
+                              <div>
+                                <p className="text-sm font-medium">
+                                  vs Team {match.opponentTeam?.teamNumber || 'TBD'}
+                                </p>
+                                {match.opponentTeam && (
+                                  <p className="text-xs text-gray-600">
+                                    {match.opponentTeam.player1FirstName} {match.opponentTeam.player1LastName} & {match.opponentTeam.player2FirstName} {match.opponentTeam.player2LastName}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {match.table && (
+                            <Badge variant="outline" className="text-xs">
+                              Table {match.table}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="results">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader><CardTitle>Team Record</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <p className="text-2xl font-bold text-blue-600">{teamRecord.wins}</p>
-                      <p className="text-sm text-gray-600">Wins</p>
-                    </div>
-                    <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <p className="text-2xl font-bold">{teamRecord.totalGames}</p>
-                      <p className="text-sm text-gray-600">Games Played</p>
-                    </div>
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
-                      <p className="text-2xl font-bold text-green-600">{teamRecord.avgPoints}</p>
-                      <p className="text-sm text-gray-600">Avg Points/Game</p>
-                    </div>
-                    <div className="text-center p-4 bg-purple-50 rounded-lg">
-                      <p className="text-2xl font-bold text-purple-600">{teamRecord.totalPoints}</p>
-                      <p className="text-sm text-gray-600">Total Points</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5" />
-                    Your Game Results
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {teamRecord.results.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p className="font-medium">No completed games yet</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {teamRecord.results.map((game) => (
-                        <div 
-                          key={game.id} 
-                          className={`p-4 rounded-lg border ${
-                            game.isWin 
-                              ? 'bg-green-50 border-green-200' 
-                              : 'bg-red-50 border-red-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Badge variant="outline">Round {game.round}</Badge>
-                              <span className={`font-semibold ${
-                                game.isWin ? 'text-green-700' : 'text-red-700'
-                              }`}>
-                                {game.isWin ? 'WIN' : 'LOSS'}
-                              </span>
-                              <span className="font-bold">
-                                {game.teamScore} - {game.opponentScore}
-                              </span>
-                              <span className="text-sm text-gray-600">
-                                vs Team {game.opponent.teamNumber}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+          <TabsContent value="score">
+            <ScoreEntryCard team={team} />
           </TabsContent>
+
+          <TabsContent value="results">
+            <Card>
+              <CardHeader>
+                <CardTitle>Game Results</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-center text-gray-500 py-8">No games played yet</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
         </Tabs>
       </div>
     </div>

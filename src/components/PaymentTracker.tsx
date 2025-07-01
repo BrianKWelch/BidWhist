@@ -120,13 +120,14 @@ const PaymentTracker: React.FC = () => {
     const tournament = tournaments.find(t => t.id === tournamentId);
     const paymentStatus = getPlayerPaymentStatus(player, tournamentId);
     const isPaid = paymentStatus.status === 'paid';
+    const team = teams.find(t => t.id === player.teamId);
     
     return (
       <div className="p-4 bg-gray-50 rounded-lg space-y-3">
         <div className="flex items-center justify-between">
           <div className="font-semibold text-lg">{player.firstName} {player.lastName}</div>
           <Badge variant={isPaid ? 'default' : 'secondary'} className={isPaid ? 'bg-green-500' : 'bg-red-500'}>
-            {isPaid ? 'Paid' : 'Pending'}
+            {isPaid ? 'Paid' : 'Unpaid'}
           </Badge>
         </div>
         
@@ -143,7 +144,7 @@ const PaymentTracker: React.FC = () => {
         
         <div className="flex items-center gap-2 text-sm">
           <User className="w-4 h-4" />
-          <span>Team: {player.teamName}</span>
+          <span>Team: {team ? `Team ${team.teamNumber}: ${player.teamName}` : player.teamName}</span>
         </div>
         
         <div className="flex items-center justify-between p-3 border rounded-lg">
@@ -153,10 +154,11 @@ const PaymentTracker: React.FC = () => {
           </div>
           <Button
             size="sm"
-            variant={isPaid ? 'destructive' : 'default'}
+            variant={isPaid ? 'secondary' : 'default'}
+            className={isPaid ? 'bg-gray-400 hover:bg-gray-500' : 'bg-blue-500 hover:bg-blue-600'}
             onClick={() => handlePlayerPayment(player, tournamentId, isPaid)}
           >
-            {isPaid ? 'Mark Unpaid' : 'Mark Paid'}
+            {isPaid ? 'Reverse' : 'Pay Now'}
           </Button>
         </div>
       </div>

@@ -12,7 +12,7 @@ import { TextScoreSystem } from './TextScoreSystem';
 import { ScheduleMessenger } from './ScheduleMessenger';
 import { SchedulePreview } from './SchedulePreview';
 import { ScheduleDisplay } from './ScheduleDisplay';
-import { generateFourRounds } from '@/lib/scheduler';
+import { generateTournamentRounds } from '@/lib/scheduler';
 import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
 
 export const TournamentScheduler: React.FC = () => {
@@ -61,7 +61,7 @@ export const TournamentScheduler: React.FC = () => {
     }));
 
     // Generate matches using the updated algorithm with bye support
-    const roundMatches = generateFourRounds(schedulerTeams);
+    const roundMatches = generateTournamentRounds(schedulerTeams, parseInt(numberOfRounds));
     const matches: ScheduleMatch[] = [];
     let matchId = 1;
     let tableNum = 1;
@@ -82,7 +82,7 @@ export const TournamentScheduler: React.FC = () => {
           // Handle bye match
           matches.push({
             id: `${selectedTournament}-r${roundIndex + 1}-bye${matchId++}`,
-            teamA: match.team.name,
+            teamA: match.team.id,
             teamB: 'BYE',
             round: roundIndex + 1,
             table: 0,
@@ -90,12 +90,12 @@ export const TournamentScheduler: React.FC = () => {
             isBye: true,
             isSameCity: false
           });
-        } else {
+        } else if ('teamA' in match && 'teamB' in match) {
           // Handle regular match
           matches.push({
             id: `${selectedTournament}-r${roundIndex + 1}-m${matchId++}`,
-            teamA: match.teamA.name,
-            teamB: match.teamB.name,
+            teamA: match.teamA.id,
+            teamB: match.teamB.id,
             round: roundIndex + 1,
             table: Math.min(tableNum++, maxTables),
             tournamentId: selectedTournament,

@@ -21,9 +21,9 @@ const IndividualPlayerPayment: React.FC<IndividualPlayerPaymentProps> = ({
     const tournament = tournaments.find(t => t.id === tournamentId);
     if (!tournament) return 0;
     
-    let cost = tournament.cost / 2;
+    let cost = tournament.cost;
     if (team.bostonPotTournaments?.includes(tournamentId)) {
-      cost += tournament.bostonPotCost / 2;
+      cost += tournament.bostonPotCost;
     }
     return cost;
   };
@@ -39,6 +39,7 @@ const IndividualPlayerPayment: React.FC<IndividualPlayerPaymentProps> = ({
     const payments = player === 'player1' ? team.player1TournamentPayments : team.player2TournamentPayments;
     return payments?.[tournamentId] || false;
   };
+console.log('Registered tournaments:', team.registeredTournaments);
 
   const handleTournamentPayment = (playerId: 'player1' | 'player2', tournamentId: string, paid: boolean) => {
     updatePlayerTournamentPayment(team.id, playerId, tournamentId, paid);
@@ -46,6 +47,7 @@ const IndividualPlayerPayment: React.FC<IndividualPlayerPaymentProps> = ({
 
   const handlePayForAll = (playerId: 'player1' | 'player2') => {
     if (!team.registeredTournaments) return;
+    console.log(`Paying all for ${playerId}:`, team.registeredTournaments);
     team.registeredTournaments.forEach(tournamentId => {
       updatePlayerTournamentPayment(team.id, playerId, tournamentId, true);
     });

@@ -1,67 +1,57 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { ArrowUpDown, Trophy } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 
 export const TournamentResults: React.FC = () => {
-  const { tournaments, teams, getTournamentResults, updateTournamentResult } = useAppContext();
+  const { tournaments, teams, schedules, games } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState('1');
-  const [sortApplied, setSortApplied] = useState(false);
-  const sortedOrderRef = useRef<any[]>([]);
 
   const tournament = tournaments.find(t => t.id === selectedTournament);
-  const results = getTournamentResults(selectedTournament);
-  const numRounds = 5;
+  const schedule = schedules.find(s => s.tournamentId === selectedTournament);
+  const registeredTeams = useMemo(() => {
+    if (!schedule) return [];
+    // Get unique team IDs from the schedule
+    const teamIds = Array.from(new Set(
+      schedule.matches.flatMap(m => [m.teamA, m.teamB])
+        .filter(id => typeof id === 'string' && id !== 'BYE' && id !== 'TBD')
+    ));
+    return teamIds
+      .filter((id): id is string => typeof id === 'string')
+      .map(id => teams.find(t => t.id === id))
+      .filter((t): t is typeof teams[number] => Boolean(t));
+  }, [schedule, teams]);
+  const numRounds = schedule ? schedule.rounds : 5;
 
-  // Only sort when sortApplied is true and maintain that exact order
-  const displayResults = useMemo(() => {
-    if (!sortApplied) {
-      // Return results in original order (by team number)
-      const originalOrder = [...results].sort((a, b) => a.teamNumber - b.teamNumber);
-      sortedOrderRef.current = originalOrder;
-      return originalOrder;
-    }
-    
-    // If we have a previously sorted order, maintain it with updated data
-    if (sortedOrderRef.current.length > 0) {
-      return sortedOrderRef.current.map(sortedTeam => 
-        results.find(r => r.teamId === sortedTeam.teamId) || sortedTeam
-      );
-    }
-    
-    return results;
-  }, [results, sortApplied]);
-
-  const handleSortByWinsAndPoints = () => {
-    // Create a new sorted order and store it
-    const newSortedOrder = [...results].sort((a, b) => {
-      if (a.totalWins !== b.totalWins) return b.totalWins - a.totalWins;
-      return b.totalPoints - a.totalPoints;
-    });
-    
-    sortedOrderRef.current = newSortedOrder;
-    setSortApplied(true);
-  };
-
-  const handleInputChange = (teamId: string, round: number, field: 'points' | 'wl' | 'boston', value: string) => {
-    let processedValue: any = value;
-    if (field === 'points' || field === 'boston') {
-      processedValue = parseInt(value) || 0;
-    } else if (field === 'wl') {
-      processedValue = value.toUpperCase();
-      if (processedValue !== '' && processedValue !== 'W' && processedValue !== 'L') {
-        return;
+  // Build a matrix of results: { [teamId]: { [round]: { wl, points, boston } } }
+  const resultsMatrix: Record<string, Record<number, { wl: string; points: number; boston: number }>> = {};
+  registeredTeams.forEach(team => {
+    if (!team) return;
+    resultsMatrix[team.id] = {};
+    for (let round = 1; round <= numRounds; round++) {
+      // Find the match for this team in this round
+      const match = schedule?.matches.find(m => m.round === round && (m.teamA === team.id || m.teamB === team.id));
+      if (match) {
+        const game = games.find(g => g.matchId === match.id && g.confirmed);
+        if (game) {
+          const isTeamA = (typeof game.teamA === 'object' ? game.teamA.id : game.teamA) === team.id;
+          const myScore = isTeamA ? game.scoreA : game.scoreB;
+          const oppScore = isTeamA ? game.scoreB : game.scoreA;
+          const wl = myScore > oppScore ? 'W' : 'L';
+          const boston = (game.boston === 'teamA' && isTeamA) || (game.boston === 'teamB' && !isTeamA) ? 1 : 0;
+          resultsMatrix[team.id][round] = { wl, points: myScore, boston };
+        } else {
+          resultsMatrix[team.id][round] = { wl: '', points: 0, boston: 0 };
+        }
+      } else {
+        resultsMatrix[team.id][round] = { wl: '', points: 0, boston: 0 };
       }
     }
-    updateTournamentResult(selectedTournament, teamId, round, field, processedValue);
-    // Maintain current sort state - do not change sorting
-  };
+  });
 
-  if (!tournament) {
+  if (!tournament || !schedule) {
     return (
       <Card>
         <CardHeader>
@@ -98,14 +88,6 @@ export const TournamentResults: React.FC = () => {
           <Trophy className="h-5 w-5" />
           {tournament.name} - Results
         </CardTitle>
-        <div className="flex gap-2">
-          <Button 
-            onClick={handleSortByWinsAndPoints} 
-            variant={sortApplied ? 'default' : 'outline'}
-          >
-            Sort by Wins then Points
-          </Button>
-        </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -114,84 +96,43 @@ export const TournamentResults: React.FC = () => {
               <TableRow>
                 <TableHead rowSpan={2} className="bg-yellow-200 border border-gray-400 text-center align-middle">TEAM<br />#</TableHead>
                 {Array.from({ length: numRounds }, (_, i) => (
-                  <TableHead key={i} colSpan={3} className={`text-center border border-gray-400 ${
-                    i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'
-                  }`}>
-                    Round {i + 1}
-                  </TableHead>
+                  <TableHead key={i} colSpan={3} className={`text-center border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Round {i + 1}</TableHead>
                 ))}
-                <TableHead colSpan={4} className="text-center bg-gray-100 border border-gray-400">Totals</TableHead>
               </TableRow>
               <TableRow>
                 {Array.from({ length: numRounds }, (_, i) => (
                   <React.Fragment key={i}>
-                    <TableHead className={`text-center text-xs border border-gray-400 ${
-                      i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'
-                    }`}>Game<br />Win=W<br />Loss=L</TableHead>
-                    <TableHead className={`text-center text-xs border border-gray-400 ${
-                      i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'
-                    }`}>Points</TableHead>
-                    <TableHead className={`text-center text-xs border border-gray-400 ${
-                      i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'
-                    }`}>Boston</TableHead>
+                    <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Game<br />Win=W<br />Loss=L</TableHead>
+                    <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Points</TableHead>
+                    <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Boston</TableHead>
                   </React.Fragment>
                 ))}
-                <TableHead className="text-center text-xs bg-gray-100 border border-gray-400">Wins</TableHead>
-                <TableHead className="text-center text-xs bg-gray-100 border border-gray-400">Losses</TableHead>
-                <TableHead className="text-center text-xs bg-gray-100 border border-gray-400">Points</TableHead>
-                <TableHead className="text-center text-xs bg-gray-100 border border-gray-400">Bostons</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayResults.map((team) => (
-                <TableRow key={team.teamId}>
-                  <TableCell className="font-medium border border-gray-400 bg-yellow-100">
-                    <div className="flex flex-col items-center">
-                      <Badge variant="outline" className="mb-1">#{team.teamNumber}</Badge>
-                      <span className="text-sm">{team.teamName}</span>
-                    </div>
-                  </TableCell>
-                  {Array.from({ length: numRounds }, (_, roundIndex) => {
-                    const round = roundIndex + 1;
-                    const roundData = team.rounds[round] || { points: 0, wl: '', boston: 0 };
-                    return (
-                      <React.Fragment key={round}>
-                        <TableCell className="text-center border border-gray-400">
-                          <Input
-                            type="text"
-                            value={roundData.wl}
-                            onChange={(e) => handleInputChange(team.teamId, round, 'wl', e.target.value)}
-                            className="w-12 h-8 text-center"
-                            maxLength={1}
-                          />
-                        </TableCell>
-                        <TableCell className="text-center border border-gray-400">
-                          <Input
-                            type="number"
-                            value={roundData.points}
-                            onChange={(e) => handleInputChange(team.teamId, round, 'points', e.target.value)}
-                            className="w-16 h-8 text-center"
-                            min="0"
-                          />
-                        </TableCell>
-                        <TableCell className="text-center border border-gray-400">
-                          <Input
-                            type="number"
-                            value={roundData.boston}
-                            onChange={(e) => handleInputChange(team.teamId, round, 'boston', e.target.value)}
-                            className="w-16 h-8 text-center"
-                            min="0"
-                          />
-                        </TableCell>
-                      </React.Fragment>
-                    );
-                  })}
-                  <TableCell className="text-center font-bold bg-gray-100 border border-gray-400">{team.totalWins}</TableCell>
-                  <TableCell className="text-center font-bold bg-gray-100 border border-gray-400">{Object.values(team.rounds).filter(r => r.wl === 'L').length}</TableCell>
-                  <TableCell className="text-center font-bold bg-gray-100 border border-gray-400">{team.totalPoints}</TableCell>
-                  <TableCell className="text-center font-bold bg-gray-100 border border-gray-400">{team.totalBoston}</TableCell>
-                </TableRow>
-              ))}
+              {registeredTeams
+                .sort((a, b) => a.teamNumber - b.teamNumber)
+                .map(team => (
+                  <TableRow key={team.id}>
+                    <TableCell className="font-medium border border-gray-400 bg-yellow-100">
+                      <div className="flex flex-col items-center">
+                        <Badge variant="outline" className="mb-1">#{team.teamNumber}</Badge>
+                        <span className="text-sm">{team.name}</span>
+                      </div>
+                    </TableCell>
+                    {Array.from({ length: numRounds }, (_, roundIndex) => {
+                      const round = roundIndex + 1;
+                      const roundData = resultsMatrix[team.id][round] || { wl: '', points: 0, boston: 0 };
+                      return (
+                        <React.Fragment key={round}>
+                          <TableCell className="text-center border border-gray-400">{roundData.wl}</TableCell>
+                          <TableCell className="text-center border border-gray-400">{roundData.points}</TableCell>
+                          <TableCell className="text-center border border-gray-400">{roundData.boston}</TableCell>
+                        </React.Fragment>
+                      );
+                    })}
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </div>

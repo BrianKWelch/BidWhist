@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { sampleTeams } from './AppContextTeams';
 import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket } from './AppContext';
@@ -7,52 +7,31 @@ import { createTournamentResultMethods } from './AppContextMethods';
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [teams, setTeams] = useState<Team[]>(sampleTeams);
-  const [games, setGames] = useState<Game[]>([]);
-  const [scoreSubmissions, setScoreSubmissions] = useState<ScoreSubmission[]>([]);
+  const [games, setGames] = useState<Game[]>(() => {
+    const saved = localStorage.getItem('games');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [scoreSubmissions, setScoreSubmissions] = useState<ScoreSubmission[]>(() => {
+    const saved = localStorage.getItem('scoreSubmissions');
+    return saved ? JSON.parse(saved) : [];
+  });
   
-  const createFullTournamentSchedule = (currentTeams: Team[]) => {
-    const matches = [];
-    const numTeams = currentTeams.length;
-    
-    // Round 1 - pair up all teams
-    for (let i = 0; i < numTeams - 1; i += 2) {
-      if (currentTeams[i] && currentTeams[i + 1]) {
-        matches.push({
-          id: `round1-match-${Math.floor(i/2) + 1}`,
-          teamA: currentTeams[i].id,
-          teamB: currentTeams[i + 1].id,
-          round: 1,
-          tournamentId: '1'
-        });
-      }
-    }
-    
-    // Create placeholder matches for rounds 2-4
-    const round1Matches = Math.floor(numTeams / 2);
-    for (let round = 2; round <= 4; round++) {
-      const matchesInRound = Math.max(1, Math.floor(round1Matches / Math.pow(2, round - 1)));
-      for (let i = 0; i < matchesInRound; i++) {
-        matches.push({
-          id: `round${round}-match-${i + 1}`,
-          teamA: 'TBD',
-          teamB: 'TBD',
-          round,
-          tournamentId: '1'
-        });
-      }
-    }
-    
-    return { matches, rounds: 4 };
-  };
+  const [schedules, setSchedules] = useState<TournamentSchedule[]>(() => {
+    const saved = localStorage.getItem('schedules');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('schedules', JSON.stringify(schedules));
+  }, [schedules]);
   
-  const initialSchedule = createFullTournamentSchedule(sampleTeams);
-  const [schedules, setSchedules] = useState<TournamentSchedule[]>([
-    {
-      tournamentId: '1',
-      rounds: initialSchedule.rounds,
-      matches: initialSchedule.matches
-    }
-  ]);
+  useEffect(() => {
+    localStorage.setItem('games', JSON.stringify(games));
+  }, [games]);
+  
+  useEffect(() => {
+    localStorage.setItem('scoreSubmissions', JSON.stringify(scoreSubmissions));
+  }, [scoreSubmissions]);
   
   const [scoreTexts, setScoreTexts] = useState<ScoreText[]>([]);
   const [tournamentResults, setTournamentResults] = useState<{ [tournamentId: string]: TournamentResult[] }>({});
@@ -67,6 +46,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { updateTournamentResult, getTournamentResults, formatTeamName } = createTournamentResultMethods(
     tournamentResults, setTournamentResults, teams
   );
+  const updatePlayerTournamentPayment = (
+  teamId: string,
+  player: 'player1' | 'player2',
+  tournamentId: string,
+  paid: boolean
+) => {
+  setTeams(prev =>
+    prev.map(team => {
+      if (team.id !== teamId) return team;
+      const field =
+        player === 'player1' ? 'player1TournamentPayments' : 'player2TournamentPayments';
+      return {
+        ...team,
+        [field]: {
+          ...team[field],
+          [tournamentId]: paid,
+        },
+      };
+    })
+  );
+};
+
+  // Automatically update tournamentResults when a new confirmed game is added
+  useEffect(() => {
+    games.forEach(game => {
+      if (!game.confirmed) return;
+      // Try to get tournamentId from the schedule using matchId
+      let tournamentId = '1';
+      if (game.matchId) {
+        const matchSchedule = schedules.find(sch => sch.matches.some(m => m.id === game.matchId));
+        if (matchSchedule) {
+          tournamentId = matchSchedule.tournamentId;
+        }
+      }
+      const round = game.round;
+      const teamAId = typeof game.teamA === 'object' ? game.teamA.id : game.teamA;
+      const teamBId = typeof game.teamB === 'object' ? game.teamB.id : game.teamB;
+      const teamAWin = game.scoreA > game.scoreB;
+      const teamBWin = game.scoreB > game.scoreA;
+      const bostonA = game.boston === 'teamA' ? 1 : 0;
+      const bostonB = game.boston === 'teamB' ? 1 : 0;
+
+      setTournamentResults(prev => {
+        const results = prev[tournamentId] || [];
+        // Update teamA
+        let updatedResults = results.map(result => {
+          if (result.teamId === teamAId) {
+            const updatedRounds = { ...result.rounds };
+            updatedRounds[round] = {
+              points: game.scoreA,
+              wl: teamAWin ? 'W' : 'L',
+              boston: bostonA
+            };
+            // Recalculate totals
+            const totalPoints = Object.values(updatedRounds).reduce((sum, r) => sum + (r.points || 0), 0);
+            const totalWins = Object.values(updatedRounds).filter(r => r.wl === 'W').length;
+            const totalBoston = Object.values(updatedRounds).reduce((sum, r) => sum + (r.boston || 0), 0);
+            return { ...result, rounds: updatedRounds, totalPoints, totalWins, totalBoston };
+          }
+          return result;
+        });
+        // Update teamB
+        updatedResults = updatedResults.map(result => {
+          if (result.teamId === teamBId) {
+            const updatedRounds = { ...result.rounds };
+            updatedRounds[round] = {
+              points: game.scoreB,
+              wl: teamBWin ? 'W' : 'L',
+              boston: bostonB
+            };
+            // Recalculate totals
+            const totalPoints = Object.values(updatedRounds).reduce((sum, r) => sum + (r.points || 0), 0);
+            const totalWins = Object.values(updatedRounds).filter(r => r.wl === 'W').length;
+            const totalBoston = Object.values(updatedRounds).reduce((sum, r) => sum + (r.boston || 0), 0);
+            return { ...result, rounds: updatedRounds, totalPoints, totalWins, totalBoston };
+          }
+          return result;
+        });
+        return { ...prev, [tournamentId]: updatedResults };
+      });
+    });
+  }, [games, schedules]);
 
   const submitGame = (gameData: any) => {
     const matchId = gameData.matchId;
@@ -209,16 +270,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           player2PaymentStatus: 'pending'
         };
         
-        setTeams(prev => {
-          const updated = [...prev, newTeam];
-          const newSchedule = createFullTournamentSchedule(updated);
-          setSchedules([{
-            tournamentId: '1',
-            rounds: newSchedule.rounds,
-            matches: newSchedule.matches
-          }]);
-          return updated;
-        });
+        setTeams(prev => [...prev, newTeam]);
         
         toast({ title: `Team ${teamName} registered successfully!` });
         return newTeam.id;
@@ -233,7 +285,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       getPendingGames: () => games.filter(game => !game.confirmed),
       getTeamStats: () => ({ wins: 0, losses: 0, totalPoints: 0, bostons: 0 }),
       updateTournamentResult, getTournamentResults,
-      addTournament: () => {}, updateTournament: () => {}, updatePaymentStatus: () => {}, updatePlayerPaymentStatus: () => {}, updatePlayerTournamentPayment: () => {}, updateTeamPayment: () => {}, sendScoreSheetLinks: async () => {}, submitScore: async () => {}, confirmScore: async () => {}, saveBracket: () => {}, getBracket: () => null, updateBracket: () => {}, deleteBracket: () => {}, addCity: () => {}, removeCity: () => {}, updateCities: () => {}
+      addTournament: (name: string, cost: number, bostonPotCost: number, description?: string) => {
+        const newTournament: Tournament = {
+          id: Date.now().toString(),
+          name,
+          cost,
+          bostonPotCost,
+          description
+        };
+        setTournaments(prev => [...prev, newTournament]);
+        toast({ title: `Tournament "${name}" added successfully!` });
+      },
+      updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => {
+        setTournaments(prev => prev.map(tournament => 
+          tournament.id === id 
+            ? { ...tournament, name, cost, bostonPotCost, description }
+            : tournament
+        ));
+        toast({ title: `Tournament "${name}" updated successfully!` });
+      },
+      updatePaymentStatus: () => {}, 
+      updatePlayerPaymentStatus: () => {}, 
+      updatePlayerTournamentPayment, 
+      updateTeamPayment: () => {}, 
+      sendScoreSheetLinks: async () => {}, 
+      submitScore: async () => {}, 
+      confirmScore: async () => {}, 
+      saveBracket: () => {}, 
+      getBracket: () => null, 
+      updateBracket: () => {}, 
+      deleteBracket: () => {}, 
+      addCity: (city: string) => {
+        if (!cities.includes(city)) {
+          setCities(prev => [...prev, city]);
+          toast({ title: `City "${city}" added successfully!` });
+        } else {
+          toast({ 
+            title: "City already exists", 
+            description: `"${city}" is already in the list.`,
+            variant: "destructive"
+          });
+        }
+      },
+      removeCity: (city: string) => {
+        // Check if any teams are using this city
+        const teamsUsingCity = teams.filter(team => team.city === city);
+        if (teamsUsingCity.length > 0) {
+          toast({ 
+            title: "Cannot remove city", 
+            description: `${teamsUsingCity.length} team(s) are using "${city}". Remove or update teams first.`,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        setCities(prev => prev.filter(c => c !== city));
+        toast({ title: `City "${city}" removed successfully!` });
+      },
+      updateCities: (cities: string[]) => {
+        setCities(cities);
+        toast({ title: "Cities updated successfully!" });
+      }
     }}>
       {children}
     </AppContext.Provider>

@@ -14,15 +14,22 @@ const TeamsByTournament: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [collapsedTournaments, setCollapsedTournaments] = useState<Set<string>>(new Set());
 
+  // Debug logging
+  console.log('Available tournaments:', tournaments.map(t => `${t.id}: ${t.name}`));
+  console.log('Total teams:', teams.length);
+  console.log('Teams with registeredTournaments:', teams.filter(t => t.registeredTournaments && t.registeredTournaments.length > 0).length);
+
   const getTeamsForTournament = (tournamentId: string) => {
-    return teams.filter(team => 
+    const tournamentTeams = teams.filter(team => 
       team.registeredTournaments?.includes(tournamentId)
     );
+    console.log(`Tournament ${tournamentId} teams:`, tournamentTeams.length, tournamentTeams.map(t => `${t.teamNumber}: ${t.name}`));
+    return tournamentTeams;
   };
 
-  const getPaymentStatus = (team: any) => {
-    const player1Paid = team.player1PaymentStatus === 'paid';
-    const player2Paid = team.player2PaymentStatus === 'paid';
+  const getPaymentStatus = (team: any, tournamentId: string) => {
+    const player1Paid = team.player1TournamentPayments?.[tournamentId] || false;
+    const player2Paid = team.player2TournamentPayments?.[tournamentId] || false;
     
     if (player1Paid && player2Paid) return 'fully-paid';
     if (player1Paid || player2Paid) return 'partially-paid';
@@ -43,7 +50,7 @@ const TeamsByTournament: React.FC = () => {
   const filterTeams = (teams: any[]) => {
     if (!searchTerm) return teams;
     
-    return teams.filter(team => {
+    const filtered = teams.filter(team => {
       const searchLower = searchTerm.toLowerCase();
       return (
         team.name.toLowerCase().includes(searchLower) ||
@@ -54,6 +61,9 @@ const TeamsByTournament: React.FC = () => {
         team.player2LastName.toLowerCase().includes(searchLower)
       );
     });
+    
+    console.log(`Filtered teams for search "${searchTerm}":`, filtered.length, 'out of', teams.length);
+    return filtered;
   };
 
   const toggleTournament = (tournamentId: string) => {
@@ -87,8 +97,11 @@ const TeamsByTournament: React.FC = () => {
         <CardContent>
           <div className="space-y-4">
             {tournaments.map((tournament) => {
-              const tournamentTeams = filterTeams(getTeamsForTournament(tournament.id));
+              const allTournamentTeams = getTeamsForTournament(tournament.id);
+              const tournamentTeams = filterTeams(allTournamentTeams);
               const isCollapsed = collapsedTournaments.has(tournament.id);
+              
+              console.log(`Tournament ${tournament.name} (${tournament.id}): ${allTournamentTeams.length} total teams, ${tournamentTeams.length} after filtering`);
               
               return (
                 <Collapsible key={tournament.id} open={!isCollapsed}>
@@ -117,14 +130,14 @@ const TeamsByTournament: React.FC = () => {
                         ) : (
                           <div className="space-y-2">
                             {tournamentTeams.map((team) => {
-                              const paymentStatus = getPaymentStatus(team);
+                              const paymentStatus = getPaymentStatus(team, tournament.id);
                               const inBostonPot = team.bostonPotTournaments?.includes(tournament.id);
                               
                               return (
                                 <div key={team.id} className="p-3 bg-gray-50 rounded space-y-2">
                                   <div className="flex items-center justify-between">
                                     <div>
-                                      <div className="font-medium">{team.name}</div>
+                                      <div className="font-medium">Team {team.teamNumber}: {team.name}</div>
                                       <div className="text-sm text-gray-600">
                                         {team.player1FirstName} {team.player1LastName} & {team.player2FirstName} {team.player2LastName}
                                       </div>
@@ -139,12 +152,40 @@ const TeamsByTournament: React.FC = () => {
                                       </Button>
                                       <div className="text-right">
                                         {getPaymentBadge(paymentStatus)}
-                                        <div className="text-xs text-gray-500 mt-1">
-                                          ${team.totalOwed} each
-                                        </div>
                                       </div>
                                     </div>
                                   </div>
+                                  
+                                  {/* Payment Details Section */}
+                                  {(() => {
+                                    const player1Paid = team.player1TournamentPayments?.[tournament.id] || false;
+                                    const player2Paid = team.player2TournamentPayments?.[tournament.id] || false;
+                                    const tournamentData = tournaments.find(t => t.id === tournament.id);
+                                    const baseCost = tournamentData ? tournamentData.cost / 2 : 15;
+                                    const bostonPotCost = tournamentData ? tournamentData.bostonPotCost / 2 : 5;
+                                    const isInBostonPot = team.bostonPotTournaments?.includes(tournament.id);
+                                    const totalCost = baseCost + (isInBostonPot ? bostonPotCost : 0);
+                                    
+                                    if (player1Paid && player2Paid) {
+                                      return null; // Both paid, show nothing
+                                    } else if (!player1Paid && !player2Paid) {
+                                      return (
+                                        <div className="text-center text-sm text-red-600 py-1">
+                                          <div>{team.player1FirstName} {team.player1LastName} owes ${totalCost}</div>
+                                          <div>{team.player2FirstName} {team.player2LastName} owes ${totalCost}</div>
+                                        </div>
+                                      );
+                                    } else {
+                                      const unpaidPlayer = !player1Paid ? 
+                                        `${team.player1FirstName} ${team.player1LastName}` : 
+                                        `${team.player2FirstName} ${team.player2LastName}`;
+                                      return (
+                                        <div className="text-center text-sm text-red-600 py-1">
+                                          {unpaidPlayer} owes ${totalCost}
+                                        </div>
+                                      );
+                                    }
+                                  })()}
                                   
                                   <div className="flex items-center justify-between text-sm">
                                     <div className="flex items-center gap-4">
