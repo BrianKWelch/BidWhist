@@ -115,7 +115,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tournaments, setTournaments] = useState<Tournament[]>(() => {
     const saved = localStorage.getItem('tournaments');
     if (saved) return JSON.parse(saved);
-    return [];
+    return [
+      { id: '1', name: '2025 New Year Classic', cost: 30, bostonPotCost: 10, status: 'finished' },
+      { id: '2', name: '2025 Winter Championship', cost: 40, bostonPotCost: 10, status: 'active' }
+    ];
   });
 
   // Persist tournaments to localStorage and sync across tabs
@@ -380,24 +383,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Reset all tournament data: clears games, schedules, results, brackets, score submissions, but keeps preloaded teams/tournaments
-  const resetAllTournamentData = () => {
-    setGames([]);
-    setSchedules([]);
-    setScoreSubmissions([]);
-    setTournamentResults({});
-    setBrackets({});
-    // Optionally reset teams to round 1 if you track round per team (not shown in current Team type)
-    localStorage.removeItem('games');
-    localStorage.removeItem('schedules');
-    localStorage.removeItem('scoreSubmissions');
-    localStorage.removeItem('tournamentResults');
-    localStorage.removeItem('brackets');
-    // Optionally clear resultsOverrides for TournamentResults table display
-    localStorage.removeItem('resultsOverrides');
-    toast({ title: 'All tournament data reset. Preloaded teams and tournaments remain.' });
-  };
-
   return (
     <AppContext.Provider value={{
       sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, games, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions,
@@ -529,8 +514,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       clearTournamentResults,
       clearGames,
-      clearScoreSubmissions,
-      resetAllTournamentData
+      clearScoreSubmissions
     }}>
       {children}
     </AppContext.Provider>

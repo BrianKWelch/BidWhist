@@ -8,11 +8,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
     return to.concat(ar || Array.prototype.slice.call(from));
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateNRoundsWithByeAndFinal = generateNRoundsWithByeAndFinal;
-// --- CITY-AWARE ROUND ROBIN SCHEDULER ---
-// This replaces the old generateNRoundsWithByeAndFinal logic
-function generateNRoundsWithByeAndFinal(inputTeams, numRounds) {
+export function generateNRoundsWithByeAndFinal(inputTeams, numRounds) {
     // 1. Group teams by city
     var cityMap = {};
     for (var _i = 0, inputTeams_1 = inputTeams; _i < inputTeams_1.length; _i++) {

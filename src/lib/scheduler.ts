@@ -129,7 +129,7 @@ export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: nu
     .map(id => byeTeams.find(t => t.id === id)!);
 
   // If 2 or more teams had a bye, schedule a single round where all play (no repeats)
-  if (uniqueByeTeams.length >= 2) {
+  if (uniqueByeTeams.length >= 1) {
     // Gather all previous matches for rematch prevention
     const previousMatches: PreviousMatch[] = [];
     for (const round of rounds) {
