@@ -12,7 +12,12 @@ import CityManager from './CityManager';
 import { IntegratedScoreSystem } from './IntegratedScoreSystem';
 
 const TournamentManagement: React.FC = () => {
-  const { tournaments, addTournament, updateTournament } = useAppContext();
+  const { tournaments, addTournament, updateTournament, getActiveTournament, setTournaments } = useAppContext();
+  const activeTournament = getActiveTournament();
+  // Handler to set a tournament as active
+  const handleSetActiveTournament = (tournamentId: string) => {
+    setTournaments(prev => prev.map(t => ({ ...t, status: t.id === tournamentId ? 'active' : 'finished' })));
+  };
   const [tournamentName, setTournamentName] = useState('');
   const [tournamentCost, setTournamentCost] = useState('');
   const [bostonPotCost, setBostonPotCost] = useState('10');
@@ -88,6 +93,34 @@ const TournamentManagement: React.FC = () => {
         </TabsList>
         
         <TabsContent value="tournaments" className="space-y-6">
+          {/* Active Tournament Selector */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="w-5 h-5" />
+                Active Tournament
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <label htmlFor="active-tournament-select" className="font-medium">Select Active Tournament:</label>
+                <select
+                  id="active-tournament-select"
+                  className="border rounded p-2"
+                  value={activeTournament?.id || ''}
+                  onChange={e => handleSetActiveTournament(e.target.value)}
+                >
+                  <option value="" disabled>Select a tournament...</option>
+                  {tournaments.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                {activeTournament && (
+                  <Badge variant="default" className="bg-green-500 text-white ml-2">Active</Badge>
+                )}
+              </div>
+            </CardContent>
+          </Card>
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -160,7 +193,7 @@ const TournamentManagement: React.FC = () => {
                 {tournaments.map((tournament) => (
                   <div
                     key={tournament.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    className={`flex items-center justify-between p-3 rounded-lg ${tournament.status === 'active' ? 'bg-green-50 border border-green-300' : 'bg-gray-50'}`}
                   >
                     {editingId === tournament.id ? (
                       <div className="flex-1 space-y-2">
@@ -201,7 +234,15 @@ const TournamentManagement: React.FC = () => {
                     ) : (
                       <>
                         <div className="flex-1">
-                          <div className="font-semibold">{tournament.name}</div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold">{tournament.name}</span>
+                            {tournament.status === 'active' && (
+                              <Badge variant="default" className="bg-green-500 text-white">Active</Badge>
+                            )}
+                            {tournament.status === 'finished' && (
+                              <Badge variant="secondary">Finished</Badge>
+                            )}
+                          </div>
                           {tournament.description && (
                             <div className="text-sm text-gray-600">
                               {tournament.description}
@@ -229,6 +270,7 @@ const TournamentManagement: React.FC = () => {
                           >
                             <Edit2 className="w-3 h-3" />
                           </Button>
+                          {/* No Finish Tournament button, use selector above */}
                         </div>
                       </>
                     )}

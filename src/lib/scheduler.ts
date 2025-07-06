@@ -23,47 +23,100 @@ interface PreviousMatch {
   teamBId: string;
 }
 
-/**
- * Generate a tournament schedule with proper bye handling for odd team counts
- * @param inputTeams List of teams
- * @param numRounds Number of rounds (must be even if teams are odd)
- */
-export function generateTournamentRounds(inputTeams: Team[], numRounds: number): GameMatch[][] {
-  if (inputTeams.length % 2 === 1 && numRounds % 2 !== 0) {
-    throw new Error('Number of rounds must be even if there are an odd number of teams.');
+
+// --- CITY-AWARE ROUND ROBIN SCHEDULER ---
+// This replaces the old generateNRoundsWithByeAndFinal logic
+export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: number): GameMatch[][] {
+  // 1. Group teams by city
+  const cityMap: Record<string, Team[]> = {};
+  for (const team of inputTeams) {
+    if (!cityMap[team.city]) cityMap[team.city] = [];
+    cityMap[team.city].push(team);
   }
-  const rounds: GameMatch[][] = [];
-  let previousMatches: PreviousMatch[] = [];
-  let byeTeams: Team[] = [];
+  const cities = Object.keys(cityMap);
 
-  for (let round = 1; round <= numRounds; round++) {
-    const roundMatches = generateOneRoundParam(inputTeams, previousMatches, round, byeTeams);
-    rounds.push(roundMatches);
-
-    // Track previous matches (excluding byes)
-    for (const match of roundMatches) {
-      if (!('isBye' in match)) {
-        previousMatches.push({
-          teamAId: match.teamA.id,
-          teamBId: match.teamB.id,
-        });
-      } else {
-        // Track bye teams
-        byeTeams.push(match.team);
+  // 2. Find the best split city (minimizes column difference)
+  let bestSplit: { splitCity: string; left: string[]; right: string[]; diff: number } | null = null;
+  for (const splitCity of cities) {
+    const otherCities = cities.filter(c => c !== splitCity);
+    // Try all possible assignments of other cities to left/right
+    const assignments: string[][] = [[]];
+    for (const city of otherCities) {
+      const newAssignments: string[][] = [];
+      for (const assign of assignments) {
+        newAssignments.push([...assign, city]);
+        newAssignments.push(assign);
+      }
+      assignments.push(...newAssignments);
+    }
+    for (const assign of assignments) {
+      const leftCities = assign;
+      const rightCities = otherCities.filter(c => !leftCities.includes(c));
+      const leftCount = leftCities.reduce((sum, c) => sum + cityMap[c].length, 0);
+      const rightCount = rightCities.reduce((sum, c) => sum + cityMap[c].length, 0);
+      const splitCount = cityMap[splitCity].length;
+      // Try all possible splits of splitCity
+      for (let leftSplit = 0; leftSplit <= splitCount; leftSplit++) {
+        const rightSplit = splitCount - leftSplit;
+        const totalLeft = leftCount + leftSplit;
+        const totalRight = rightCount + rightSplit;
+        const diff = Math.abs(totalLeft - totalRight);
+        if (!bestSplit || diff < bestSplit.diff) {
+          bestSplit = {
+            splitCity,
+            left: [...leftCities, ...Array(leftSplit).fill(splitCity)],
+            right: [...rightCities, ...Array(rightSplit).fill(splitCity)],
+            diff,
+          };
+        }
       }
     }
   }
+  if (!bestSplit) throw new Error('Could not find a valid split');
 
-  // Add bye round if we have bye teams
-  if (byeTeams.length >= 2) {
-    const byeRoundMatches = generateByeRound(byeTeams, previousMatches, numRounds + 1);
-    rounds.push(byeRoundMatches);
+  // 3. Build columns
+  const leftTeams: Team[] = [];
+  const rightTeams: Team[] = [];
+  const splitCityTeams = [...cityMap[bestSplit.splitCity]];
+  // Assign split city teams to left (bottom) and right (top)
+  const leftSplitCount = bestSplit.left.filter(c => c === bestSplit.splitCity).length;
+  const rightSplitCount = bestSplit.right.filter(c => c === bestSplit.splitCity).length;
+  leftTeams.push(...bestSplit.left.filter(c => c !== bestSplit.splitCity).flatMap(c => cityMap[c]));
+  rightTeams.push(...bestSplit.right.filter(c => c !== bestSplit.splitCity).flatMap(c => cityMap[c]));
+  leftTeams.push(...splitCityTeams.slice(0, leftSplitCount)); // bottom of left
+  rightTeams.unshift(...splitCityTeams.slice(leftSplitCount)); // top of right
+
+  // 4. Add BYE if needed
+  let totalTeams = leftTeams.length + rightTeams.length;
+  if (totalTeams % 2 !== 0) {
+    const byeTeam: Team = { id: 'BYE', name: 'BYE', city: 'BYE' };
+    if (leftTeams.length < rightTeams.length) leftTeams.push(byeTeam);
+    else rightTeams.push(byeTeam);
+    totalTeams++;
   }
 
+  // 5. Shuffle within columns (except split city teams, which are locked at top/bottom)
+  // (Optional: implement a shuffle that avoids BYE vs. same city in first rounds)
+
+  // 6. Generate rounds
+  const rounds: GameMatch[][] = [];
+  for (let round = 0; round < Math.min(numRounds, leftTeams.length); round++) {
+    const matches: GameMatch[] = [];
+    for (let i = 0; i < leftTeams.length; i++) {
+      matches.push({
+        round: round + 1,
+        teamA: leftTeams[i],
+        teamB: rightTeams[i],
+      });
+    }
+    rounds.push(matches);
+    // Rotate right column down by 1
+    rightTeams.unshift(rightTeams.pop()!);
+  }
   return rounds;
 }
 
-function generateOneRoundParam(
+function generateOneRound(
   teams: Team[],
   previousMatches: PreviousMatch[],
   round: number,
@@ -73,16 +126,22 @@ function generateOneRoundParam(
   const matchedIds = new Set<string>();
   const isOdd = teams.length % 2 === 1;
 
-  const disallowed = new Set(
-    previousMatches.map(
-      (m) => `${[m.teamAId, m.teamBId].sort().join('-')}`
-    )
+  // Count city frequencies
+  const cityCounts: Record<string, number> = {};
+  teams.forEach(t => { cityCounts[t.city] = (cityCounts[t.city] || 0) + 1; });
+  const moreThanHalfSameCity = Object.values(cityCounts).some(count => count > teams.length / 2);
+
+  // Build rematch set
+  const playedSet = new Set(
+    previousMatches.map(m => `${[m.teamAId, m.teamBId].sort().join('-')}`)
   );
+
+  const shuffled = [...teams].sort(() => Math.random() - 0.5);
 
   // Handle bye for odd number of teams
   if (isOdd) {
     // Find a team that hasn't had a bye yet
-    const availableForBye = teams.filter(team => 
+    const availableForBye = shuffled.filter(team => 
       !byeTeams.some(byeTeam => byeTeam.id === team.id)
     );
     if (availableForBye.length > 0) {
@@ -92,82 +151,57 @@ function generateOneRoundParam(
     }
   }
 
-  // Create a list of available teams (excluding bye team)
-  const availableTeams = teams.filter(team => !matchedIds.has(team.id));
-  
-  // Generate matches using a more robust algorithm
-  while (availableTeams.length >= 2) {
-    let matchFound = false;
-    
-    // Try to find a valid match starting from the first available team
-    for (let i = 0; i < availableTeams.length && !matchFound; i++) {
-      const teamA = availableTeams[i];
-      
-      for (let j = i + 1; j < availableTeams.length && !matchFound; j++) {
-        const teamB = availableTeams[j];
-        
-        // Check constraints
-        if (teamA.city === teamB.city) continue;
-        
-        const key = [teamA.id, teamB.id].sort().join('-');
-        if (disallowed.has(key)) continue;
-        
-        // Valid match found
-        matches.push({ teamA, teamB, round });
-        matchedIds.add(teamA.id);
-        matchedIds.add(teamB.id);
-        
-        // Remove matched teams from available list
-        availableTeams.splice(j, 1);
-        availableTeams.splice(i, 1);
-        matchFound = true;
-      }
-    }
-    
-    // If no valid match found, we need to relax constraints
-    if (!matchFound && availableTeams.length >= 2) {
-      // Find any match that doesn't violate same-city rule
-      for (let i = 0; i < availableTeams.length && !matchFound; i++) {
-        const teamA = availableTeams[i];
-        
-        for (let j = i + 1; j < availableTeams.length && !matchFound; j++) {
-          const teamB = availableTeams[j];
-          
-          // Only check same-city constraint, ignore previous matches
-          if (teamA.city === teamB.city) continue;
-          
-          // Valid match found (relaxed constraints)
-          matches.push({ teamA, teamB, round });
-          matchedIds.add(teamA.id);
-          matchedIds.add(teamB.id);
-          
-          // Remove matched teams from available list
-          availableTeams.splice(j, 1);
-          availableTeams.splice(i, 1);
-          matchFound = true;
-        }
-      }
-    }
-    
-    // If still no match found, we have to allow same-city matches
-    if (!matchFound && availableTeams.length >= 2) {
-      const teamA = availableTeams[0];
-      const teamB = availableTeams[1];
-      
+  // Generate regular matches with rule priorities
+  for (let i = 0; i < shuffled.length; i++) {
+    const teamA = shuffled[i];
+    if (matchedIds.has(teamA.id)) continue;
+
+    // 1. Try to find a team not from same city and not a rematch
+    let found = false;
+    for (let j = i + 1; j < shuffled.length; j++) {
+      const teamB = shuffled[j];
+      if (matchedIds.has(teamB.id)) continue;
+      const key = [teamA.id, teamB.id].sort().join('-');
+      if (teamA.city === teamB.city && !moreThanHalfSameCity) continue;
+      if (playedSet.has(key)) continue;
       matches.push({ teamA, teamB, round });
       matchedIds.add(teamA.id);
       matchedIds.add(teamB.id);
-      
-      // Remove matched teams from available list
-      availableTeams.splice(1, 1);
-      availableTeams.splice(0, 1);
+      found = true;
+      break;
+    }
+    if (found) continue;
+
+    // 2. If not possible, allow same-city match (but not a rematch)
+    for (let j = i + 1; j < shuffled.length; j++) {
+      const teamB = shuffled[j];
+      if (matchedIds.has(teamB.id)) continue;
+      const key = [teamA.id, teamB.id].sort().join('-');
+      if (playedSet.has(key)) continue;
+      matches.push({ teamA, teamB, round });
+      matchedIds.add(teamA.id);
+      matchedIds.add(teamB.id);
+      found = true;
+      break;
+    }
+    if (found) continue;
+
+    // 3. If not possible, allow a rematch (city doesn't matter)
+    for (let j = i + 1; j < shuffled.length; j++) {
+      const teamB = shuffled[j];
+      if (matchedIds.has(teamB.id)) continue;
+      const key = [teamA.id, teamB.id].sort().join('-');
+      matches.push({ teamA, teamB, round });
+      matchedIds.add(teamA.id);
+      matchedIds.add(teamB.id);
+      break;
     }
   }
 
   return matches;
 }
 
-function generateByeRound(byeTeams: Team[], previousMatches: PreviousMatch[], round: number): GameMatch[] {
+function generateByeRound(byeTeams: Team[], previousMatches: PreviousMatch[], roundNum: number): GameMatch[] {
   const matches: GameMatch[] = [];
   const matchedIds = new Set<string>();
   const disallowed = new Set(
@@ -185,7 +219,7 @@ function generateByeRound(byeTeams: Team[], previousMatches: PreviousMatch[], ro
       if (teamA.city === teamB.city) continue;
       const key = [teamA.id, teamB.id].sort().join('-');
       if (disallowed.has(key)) continue;
-      matches.push({ teamA, teamB, round });
+      matches.push({ teamA, teamB, round: roundNum });
       matchedIds.add(teamA.id);
       matchedIds.add(teamB.id);
       break;

@@ -6,13 +6,32 @@ import { Trophy, Target, Award, Calendar } from 'lucide-react';
 import { TournamentResults } from './TournamentResults';
 
 const CombinedResultsPage = () => {
-  const { games, teams, getTournamentResults, tournaments } = useAppContext();
-  
-  const tournamentResults = getTournamentResults('1');
-  const tournament = tournaments.find(t => t.id === '1');
-  
-  const completedGames = games.filter(game => game.confirmed)
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const { games, teams, getTournamentResults, tournaments, getActiveTournament } = useAppContext();
+
+  const activeTournament = getActiveTournament();
+  const tournamentResults = React.useMemo(() => (
+    activeTournament ? getTournamentResults(activeTournament.id) : []
+  ), [activeTournament, getTournamentResults]);
+  const tournament = activeTournament;
+
+  // Only show games for the active tournament
+  const completedGames = activeTournament
+    ? games.filter(game => game.confirmed && game.matchId &&
+        // Find the schedule for this match and check tournamentId
+        (() => {
+          const schedule = tournaments && tournaments.length
+            ? null
+            : null;
+          // We'll use the matchId to find the schedule
+          // But better: just check if the match's schedule is for the active tournament
+          // We'll assume matchId is unique per tournament
+          // So, filter by tournamentResults (which is per tournament)
+          // Or, if game has tournamentId, use that
+          // But fallback: just show games that are in the results for this tournament
+          return tournamentResults.some(r => r.teamId === game.teamA.id || r.teamId === game.teamB.id);
+        })()
+      ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    : [];
 
   const formatGameResult = (game: any) => {
     const teamA = teams.find(t => t.id === game.teamA.id) || game.teamA;
@@ -31,10 +50,24 @@ const CombinedResultsPage = () => {
       timestamp: game.timestamp
     };
   };
+  if (!activeTournament) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>No Active Tournament</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600 text-center">Please select an active tournament to view results.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <TournamentResults />
-      
+      <TournamentResults tournamentId={activeTournament.id} />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

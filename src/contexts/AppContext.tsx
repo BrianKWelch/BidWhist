@@ -27,6 +27,7 @@ export interface Tournament {
   cost: number;
   bostonPotCost: number;
   description?: string;
+  status: 'active' | 'finished';
 }
 
 export interface Game {
@@ -133,6 +134,9 @@ export interface Bracket {
 }
 
 interface AppContextType {
+  setTournaments: React.Dispatch<React.SetStateAction<Tournament[]>>;
+  finishTournament: (tournamentId: string) => void;
+  getActiveTournament: () => Tournament | null;
   sidebarOpen: boolean;
   toggleSidebar: () => void;
   teams: Team[];
@@ -167,6 +171,10 @@ interface AppContextType {
   confirmScore: (gameId: string, confirm: boolean) => Promise<void>;
   updateTournamentResult: (tournamentId: string, teamId: string, round: number, field: 'points' | 'wl' | 'boston', value: any) => void;
   getTournamentResults: (tournamentId: string) => TournamentResult[];
+  clearTournamentResults: (tournamentId: string) => void;
+  clearGames: (tournamentId: string) => void;
+  clearScoreSubmissions: (tournamentId: string) => void;
+  resetAllTournamentData: () => void;
   saveBracket: (bracket: Bracket) => void;
   getBracket: (tournamentId: string) => Bracket | null;
   updateBracket: (tournamentId: string, updates: Partial<Bracket>) => void;

@@ -14,7 +14,7 @@ const PlayerPortalEnhanced = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [team, setTeam] = useState<Team | null>(null);
   const [isTestMode, setIsTestMode] = useState(false);
-  const { teams, schedules, games, tournaments, tournamentResults } = useAppContext();
+  const { teams, schedules, games, tournaments, tournamentResults, getActiveTournament } = useAppContext();
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -42,34 +42,35 @@ const PlayerPortalEnhanced = () => {
 
   const getTeamSchedule = () => {
     if (!team) return [];
-    const teamSchedules: any[] = [];
-    
-    schedules.forEach(schedule => {
-      const teamMatches = schedule.matches.filter(match => {
-        const teamAMatch = match.teamA === team.name || match.teamA === team.id || match.teamA === `Team ${team.teamNumber}`;
-        const teamBMatch = match.teamB === team.name || match.teamB === team.id || match.teamB === `Team ${team.teamNumber}`;
-        return teamAMatch || teamBMatch;
-      });
-      
-      teamMatches.forEach(match => {
-        const tournament = tournaments.find(t => t.id === schedule.tournamentId);
-        const opponentName = (match.teamA === team.name || match.teamA === team.id || match.teamA === `Team ${team.teamNumber}`) ? match.teamB : match.teamA;
-        const opponentTeam = teams.find(t => t.name === opponentName || t.id === opponentName || `Team ${t.teamNumber}` === opponentName);
-        
-        teamSchedules.push({ 
-          ...match, 
-          tournamentName: tournament?.name || 'Unknown Tournament',
-          opponentTeam
-        });
-      });
+    const activeTournament = getActiveTournament();
+    if (!activeTournament) return [];
+    const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
+    if (!schedule) return [];
+    const teamMatches = schedule.matches.filter(match => {
+      const teamAMatch = match.teamA === team.name || match.teamA === team.id || match.teamA === `Team ${team.teamNumber}`;
+      const teamBMatch = match.teamB === team.name || match.teamB === team.id || match.teamB === `Team ${team.teamNumber}`;
+      return teamAMatch || teamBMatch;
     });
-    
-    return teamSchedules.sort((a, b) => a.round - b.round);
+    return teamMatches.map(match => {
+      const opponentName = (match.teamA === team.name || match.teamA === team.id || match.teamA === `Team ${team.teamNumber}`) ? match.teamB : match.teamA;
+      const opponentTeam = teams.find(t => t.name === opponentName || t.id === opponentName || `Team ${t.teamNumber}` === opponentName);
+      return {
+        ...match,
+        tournamentName: activeTournament.name,
+        opponentTeam
+      };
+    }).sort((a, b) => a.round - b.round);
   };
 
   if (!team) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative">
+        <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+          <span className="text-xs text-gray-400 py-2 bg-white/80 px-2 rounded shadow" style={{ zIndex: 999 }}>
+            PlayerPortalEnhanced.tsx
+          </span>
+        </div>
+        {/* REMOVE_ME_FILENAME: PlayerPortalEnhanced.tsx */}
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader className="text-center pb-2">
             <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
@@ -134,8 +135,30 @@ const PlayerPortalEnhanced = () => {
     );
   }
 
+  const activeTournament = getActiveTournament();
+  if (!activeTournament) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Card className="max-w-md w-full shadow-lg">
+          <CardHeader>
+            <CardTitle>No Active Tournament</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600 text-center">There is currently no active tournament. Please check back later.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+        <span className="text-xs text-gray-400 py-2 bg-white/80 px-2 rounded shadow" style={{ zIndex: 999 }}>
+          PlayerPortalEnhanced.tsx
+        </span>
+      </div>
+      {/* REMOVE_ME_FILENAME: PlayerPortalEnhanced.tsx */}
       <div className="bg-blue-600 text-white p-4">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between">

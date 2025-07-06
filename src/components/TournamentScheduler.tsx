@@ -8,15 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
-import { TextScoreSystem } from './TextScoreSystem';
-import { ScheduleMessenger } from './ScheduleMessenger';
-import { SchedulePreview } from './SchedulePreview';
 import { ScheduleDisplay } from './ScheduleDisplay';
-import { generateTournamentRounds } from '@/lib/scheduler';
+import { generateNRoundsWithByeAndFinal } from '@/lib/scheduler';
 import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
 
 export const TournamentScheduler: React.FC = () => {
-  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks } = useAppContext();
+  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [numberOfRounds, setNumberOfRounds] = useState<string>('4');
   const [currentSchedule, setCurrentSchedule] = useState<TournamentSchedule | null>(null);
@@ -44,6 +41,17 @@ export const TournamentScheduler: React.FC = () => {
       return;
     }
 
+    // Check if there's an existing schedule and warn about clearing results
+    const existingSchedule = schedules.find(s => s.tournamentId === selectedTournament);
+    if (existingSchedule) {
+      const confirmed = window.confirm(
+        'Generating a new schedule will clear all existing results, scores, and standings for this tournament. Are you sure you want to continue?'
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
     const tournamentTeams = teams.filter(team => 
       team.registeredTournaments?.includes(selectedTournament)
     );
@@ -60,26 +68,17 @@ export const TournamentScheduler: React.FC = () => {
       city: team.city
     }));
 
-    // Generate matches using the updated algorithm with bye support
-    const roundMatches = generateTournamentRounds(schedulerTeams, parseInt(numberOfRounds));
+    // Use new scheduler logic for correct bye and final round handling
+    const numRounds = parseInt(numberOfRounds);
+    const roundMatches = generateNRoundsWithByeAndFinal(schedulerTeams, numRounds);
     const matches: ScheduleMatch[] = [];
     let matchId = 1;
     let tableNum = 1;
     const maxTables = Math.floor(tournamentTeams.length / 2);
-    const isOdd = tournamentTeams.length % 2 === 1;
-    let totalRounds = parseInt(numberOfRounds);
-    
-    // If odd number of teams, add bye round
-    if (isOdd && roundMatches.length > 4) {
-      totalRounds = 5;
-    }
-
-    // Convert to ScheduleMatch format
     roundMatches.forEach((roundData, roundIndex) => {
       tableNum = 1;
       roundData.forEach(match => {
         if ('isBye' in match && match.isBye) {
-          // Handle bye match
           matches.push({
             id: `${selectedTournament}-r${roundIndex + 1}-bye${matchId++}`,
             teamA: match.team.id,
@@ -91,7 +90,6 @@ export const TournamentScheduler: React.FC = () => {
             isSameCity: false
           });
         } else if ('teamA' in match && 'teamB' in match) {
-          // Handle regular match
           matches.push({
             id: `${selectedTournament}-r${roundIndex + 1}-m${matchId++}`,
             teamA: match.teamA.id,
@@ -108,10 +106,23 @@ export const TournamentScheduler: React.FC = () => {
     
     const schedule: TournamentSchedule = {
       tournamentId: selectedTournament,
-      rounds: totalRounds,
+      rounds: roundMatches.length,
       matches
     };
 
+    // Clear all existing results and data for this tournament before saving new schedule
+    clearTournamentResults(selectedTournament);
+    clearGames(selectedTournament);
+    clearScoreSubmissions(selectedTournament);
+    
+    if (existingSchedule) {
+      toast({ 
+        title: 'Previous results cleared', 
+        description: 'All scores and standings have been reset for the new schedule.',
+        variant: 'default'
+      });
+    }
+    
     setCurrentSchedule(schedule);
     saveSchedule(schedule);
     setIsScheduleLocked(true);
@@ -124,7 +135,7 @@ export const TournamentScheduler: React.FC = () => {
     else if (byeMatches === 0) description = 'No same-city conflicts!';
     
     toast({ 
-      title: `Schedule generated! ${totalRounds} rounds`,
+      title: `Schedule generated! ${roundMatches.length} rounds`,
       description: description || undefined
     });
   };
@@ -160,7 +171,9 @@ export const TournamentScheduler: React.FC = () => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Tournament Scheduler (Smart Algorithm)</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>Tournament Scheduler (Smart Algorithm)</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -221,7 +234,7 @@ export const TournamentScheduler: React.FC = () => {
               disabled={!selectedTournament || !numberOfRounds}
               className="flex-1"
             >
-              {existingSchedule ? 'Regenerate Schedule' : 'Generate Schedule'}
+              {existingSchedule ? 'Regenerate Schedule (Clears Results)' : 'Generate Schedule'}
             </Button>
             
             {isScheduleLocked && currentSchedule && (
@@ -239,33 +252,10 @@ export const TournamentScheduler: React.FC = () => {
       </Card>
 
       {currentSchedule && (
-        <Tabs defaultValue="schedule" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="schedule">Schedule</TabsTrigger>
-            <TabsTrigger value="preview">Preview SMS</TabsTrigger>
-            <TabsTrigger value="send-schedules">Send Schedules</TabsTrigger>
-            <TabsTrigger value="text-scores">Text Scores</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="schedule">
-            <ScheduleDisplay 
-              schedule={currentSchedule} 
-              tournamentName={tournament?.name || ''} 
-            />
-          </TabsContent>
-          
-          <TabsContent value="preview">
-            <SchedulePreview tournamentId={selectedTournament} />
-          </TabsContent>
-          
-          <TabsContent value="send-schedules">
-            <ScheduleMessenger tournamentId={selectedTournament} />
-          </TabsContent>
-          
-          <TabsContent value="text-scores">
-            <TextScoreSystem tournamentId={selectedTournament} />
-          </TabsContent>
-        </Tabs>
+        <ScheduleDisplay 
+          schedule={currentSchedule} 
+          tournamentName={tournament?.name || ''} 
+        />
       )}
     </div>
   );

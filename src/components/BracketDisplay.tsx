@@ -117,7 +117,7 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                             <>
                               <Badge variant="outline">#{match.team1.seed}</Badge>
                               <span className="text-sm font-medium">
-                                {match.team1.teamName}
+                                {match.team1.teamName} <span className="text-xs text-gray-500">(Team #{match.team1.teamNumber})</span>
                               </span>
                             </>
                           )}
@@ -148,7 +148,7 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                             <>
                               <Badge variant="outline">#{match.team2.seed}</Badge>
                               <span className="text-sm font-medium">
-                                {match.team2.teamName}
+                                {match.team2.teamName} <span className="text-xs text-gray-500">(Team #{match.team2.teamNumber})</span>
                               </span>
                             </>
                           )}
@@ -190,7 +190,7 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                       {match.winner && (
                         <div className="text-center p-2 bg-green-100 rounded">
                           <Badge className="bg-green-600">
-                            Winner: #{match.winner.seed} {match.winner.teamName}
+                          Winner: #{match.winner.seed} {match.winner.teamName} (Team #{match.winner.teamNumber})
                           </Badge>
                         </div>
                       )}

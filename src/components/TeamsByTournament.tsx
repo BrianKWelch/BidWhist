@@ -138,8 +138,14 @@ const TeamsByTournament: React.FC = () => {
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <div className="font-medium">Team {team.teamNumber}: {team.name}</div>
-                                      <div className="text-sm text-gray-600">
-                                        {team.player1FirstName} {team.player1LastName} & {team.player2FirstName} {team.player2LastName}
+                                      <div className="text-sm">
+                                        <span className={team.player1TournamentPayments?.[tournament.id] ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+                                          {team.player1FirstName} {team.player1LastName}
+                                        </span>
+                                        {' '} & {' '}
+                                        <span className={team.player2TournamentPayments?.[tournament.id] ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+                                          {team.player2FirstName} {team.player2LastName}
+                                        </span>
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -156,36 +162,7 @@ const TeamsByTournament: React.FC = () => {
                                     </div>
                                   </div>
                                   
-                                  {/* Payment Details Section */}
-                                  {(() => {
-                                    const player1Paid = team.player1TournamentPayments?.[tournament.id] || false;
-                                    const player2Paid = team.player2TournamentPayments?.[tournament.id] || false;
-                                    const tournamentData = tournaments.find(t => t.id === tournament.id);
-                                    const baseCost = tournamentData ? tournamentData.cost / 2 : 15;
-                                    const bostonPotCost = tournamentData ? tournamentData.bostonPotCost / 2 : 5;
-                                    const isInBostonPot = team.bostonPotTournaments?.includes(tournament.id);
-                                    const totalCost = baseCost + (isInBostonPot ? bostonPotCost : 0);
-                                    
-                                    if (player1Paid && player2Paid) {
-                                      return null; // Both paid, show nothing
-                                    } else if (!player1Paid && !player2Paid) {
-                                      return (
-                                        <div className="text-center text-sm text-red-600 py-1">
-                                          <div>{team.player1FirstName} {team.player1LastName} owes ${totalCost}</div>
-                                          <div>{team.player2FirstName} {team.player2LastName} owes ${totalCost}</div>
-                                        </div>
-                                      );
-                                    } else {
-                                      const unpaidPlayer = !player1Paid ? 
-                                        `${team.player1FirstName} ${team.player1LastName}` : 
-                                        `${team.player2FirstName} ${team.player2LastName}`;
-                                      return (
-                                        <div className="text-center text-sm text-red-600 py-1">
-                                          {unpaidPlayer} owes ${totalCost}
-                                        </div>
-                                      );
-                                    }
-                                  })()}
+                                  {/* Payment Details Section removed: now color indicates payment status */}
                                   
                                   <div className="flex items-center justify-between text-sm">
                                     <div className="flex items-center gap-4">

@@ -1,12 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { sampleTeams } from './AppContextTeams';
+
+// --- DUMMY DATA GENERATION FOR TESTING ---
+function generateDummyTeams(num: number, cities: string[], tournamentId: string): Team[] {
+  const teams: Team[] = [];
+  for (let i = 0; i < num; i++) {
+    const city = cities[i % cities.length];
+    const teamNumber = 1000 + i;
+    teams.push({
+      id: `dummy-${teamNumber}`,
+      teamNumber,
+      name: `TestTeam${teamNumber}`,
+      player1FirstName: `P1F${teamNumber}`,
+      player1LastName: `P1L${teamNumber}`,
+      player2FirstName: `P2F${teamNumber}`,
+      player2LastName: `P2L${teamNumber}`,
+      phoneNumber: `555${(1000000 + i).toString().slice(0,7)}`,
+      city,
+      registeredTournaments: [tournamentId],
+      bostonPotTournaments: [],
+      paymentStatus: 'pending',
+      player1PaymentStatus: 'pending',
+      player2PaymentStatus: 'pending',
+      player1TournamentPayments: { [tournamentId]: false },
+      player2TournamentPayments: { [tournamentId]: false },
+      tournamentPayments: { [tournamentId]: false },
+      totalOwed: 0
+    });
+  }
+  return teams;
+}
 import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket } from './AppContext';
 import { createTournamentResultMethods } from './AppContextMethods';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [teams, setTeams] = useState<Team[]>(sampleTeams);
+  // On first load, add 50 dummy teams for winter tournament if not present
+  const [teams, setTeams] = useState<Team[]>(() => {
+    const saved = localStorage.getItem('teams');
+    let base = saved ? JSON.parse(saved) : sampleTeams;
+    const winterId = '2';
+    const dummyCount = base.filter(t => t.id && t.id.startsWith('dummy-') && t.registeredTournaments?.includes(winterId)).length;
+    if (dummyCount < 50) {
+      const dummyTeams = generateDummyTeams(50 - dummyCount, ['Columbus', 'Cincinnati', 'Chicago', 'Detroit', 'Atlanta', 'DC/Maryland', 'Other'], winterId);
+      base = [...base, ...dummyTeams];
+    }
+    return base;
+  });
+
+  // Save teams to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem('teams', JSON.stringify(teams));
+  }, [teams]);
+
+  // Listen for localStorage changes in other tabs and update teams state
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'teams' && e.newValue) {
+        setTeams(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
   const [games, setGames] = useState<Game[]>(() => {
     const saved = localStorage.getItem('games');
     return saved ? JSON.parse(saved) : [];
@@ -28,6 +85,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('games', JSON.stringify(games));
   }, [games]);
+
+  // Listen for localStorage changes in other tabs and update games state
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'games' && e.newValue) {
+        setGames(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
   
   useEffect(() => {
     localStorage.setItem('scoreSubmissions', JSON.stringify(scoreSubmissions));
@@ -35,12 +103,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [scoreTexts, setScoreTexts] = useState<ScoreText[]>([]);
   const [tournamentResults, setTournamentResults] = useState<{ [tournamentId: string]: TournamentResult[] }>({});
-  const [brackets, setBrackets] = useState<{ [tournamentId: string]: Bracket }>({});
+  const [brackets, setBrackets] = useState<{ [tournamentId: string]: Bracket }>(() => {
+    const saved = localStorage.getItem('brackets');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('brackets', JSON.stringify(brackets));
+  }, [brackets]);
   const [cities, setCities] = useState<string[]>(['Columbus', 'Cincinnati', 'Chicago', 'Detroit', 'Atlanta', 'DC/Maryland', 'Other']);
-  const [tournaments, setTournaments] = useState<Tournament[]>([
-    { id: '1', name: '2025 New Year Classic', cost: 30, bostonPotCost: 10 },
-    { id: '2', name: '2025 Winter Championship', cost: 40, bostonPotCost: 10 }
-  ]);
+  const [tournaments, setTournaments] = useState<Tournament[]>(() => {
+    const saved = localStorage.getItem('tournaments');
+    if (saved) return JSON.parse(saved);
+    return [];
+  });
+
+  // Persist tournaments to localStorage and sync across tabs
+  useEffect(() => {
+    localStorage.setItem('tournaments', JSON.stringify(tournaments));
+  }, [tournaments]);
+
+  // Listen for localStorage changes in other tabs and update tournaments state
+  React.useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'tournaments' && e.newValue) {
+        setTournaments(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+  // Returns the currently active tournament, or null if none
+  const getActiveTournament = () => tournaments.find(t => t.status === 'active') || null;
+
+  // Mark a tournament as finished and clear its schedule/results
+  const finishTournament = (tournamentId: string) => {
+    setTournaments(prev => prev.map(t => t.id === tournamentId ? { ...t, status: 'finished' } : t));
+    // Optionally clear schedule/results for this tournament
+    setSchedules(prev => prev.filter(s => s.tournamentId !== tournamentId));
+    clearTournamentResults(tournamentId);
+    clearGames(tournamentId);
+    clearScoreSubmissions(tournamentId);
+    toast({ title: 'Tournament finished and cleared.' });
+  };
   const [currentUser, setCurrentUser] = useState('');
 
   const { updateTournamentResult, getTournamentResults, formatTeamName } = createTournamentResultMethods(
@@ -244,9 +349,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Add clearing methods for tournament data
+  const clearTournamentResults = (tournamentId: string) => {
+    setTournamentResults(prev => {
+      const updated = { ...prev };
+      delete updated[tournamentId];
+      return updated;
+    });
+  };
+
+  const clearGames = (tournamentId: string) => {
+    setGames(prev => {
+      // Remove games that belong to matches in this tournament
+      const schedule = schedules.find(s => s.tournamentId === tournamentId);
+      if (!schedule) return prev;
+      
+      const matchIds = schedule.matches.map(m => m.id);
+      return prev.filter(game => !game.matchId || !matchIds.includes(game.matchId));
+    });
+  };
+
+  const clearScoreSubmissions = (tournamentId: string) => {
+    setScoreSubmissions(prev => {
+      // Remove score submissions that belong to matches in this tournament
+      const schedule = schedules.find(s => s.tournamentId === tournamentId);
+      if (!schedule) return prev;
+      
+      const matchIds = schedule.matches.map(m => m.id);
+      return prev.filter(submission => !matchIds.includes(submission.matchId));
+    });
+  };
+
+  // Reset all tournament data: clears games, schedules, results, brackets, score submissions, but keeps preloaded teams/tournaments
+  const resetAllTournamentData = () => {
+    setGames([]);
+    setSchedules([]);
+    setScoreSubmissions([]);
+    setTournamentResults({});
+    setBrackets({});
+    // Optionally reset teams to round 1 if you track round per team (not shown in current Team type)
+    localStorage.removeItem('games');
+    localStorage.removeItem('schedules');
+    localStorage.removeItem('scoreSubmissions');
+    localStorage.removeItem('tournamentResults');
+    localStorage.removeItem('brackets');
+    // Optionally clear resultsOverrides for TournamentResults table display
+    localStorage.removeItem('resultsOverrides');
+    toast({ title: 'All tournament data reset. Preloaded teams and tournaments remain.' });
+  };
+
   return (
     <AppContext.Provider value={{
-      sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, games, tournaments, schedules, scoreTexts, tournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions,
+      sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, games, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions,
       addTeam: (player1First: string, player1Last: string, player2First: string, player2Last: string, phoneNumber: string, city: string, selectedTournaments: string[], bostonPotTournaments: string[]) => {
         const player1Name = formatTeamName(player1First, player1Last);
         const player2Name = formatTeamName(player2First, player2Last);
@@ -270,7 +424,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           player2PaymentStatus: 'pending'
         };
         
-        setTeams(prev => [...prev, newTeam]);
+        setTeams(prev => {
+          const updated = [...prev, newTeam];
+          localStorage.setItem('teams', JSON.stringify(updated));
+          return updated;
+        });
         
         toast({ title: `Team ${teamName} registered successfully!` });
         return newTeam.id;
@@ -291,11 +449,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           name,
           cost,
           bostonPotCost,
-          description
+          description,
+          status: 'active'
         };
-        setTournaments(prev => [...prev, newTournament]);
-        toast({ title: `Tournament "${name}" added successfully!` });
+        // Mark all other tournaments as finished
+        setTournaments(prev => [
+          ...prev.map(t => ({ ...t, status: 'finished' as 'finished' })),
+          { ...newTournament, status: 'active' as 'active' }
+        ]);
+        toast({ title: `Tournament "${name}" added and set as active!` });
       },
+      finishTournament,
+      getActiveTournament,
       updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => {
         setTournaments(prev => prev.map(tournament => 
           tournament.id === id 
@@ -311,10 +476,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sendScoreSheetLinks: async () => {}, 
       submitScore: async () => {}, 
       confirmScore: async () => {}, 
-      saveBracket: () => {}, 
-      getBracket: () => null, 
-      updateBracket: () => {}, 
-      deleteBracket: () => {}, 
+      saveBracket: (bracket: Bracket) => {
+        setBrackets(prev => ({ ...prev, [bracket.tournamentId]: bracket }));
+      },
+      getBracket: (tournamentId: string) => {
+        return brackets[tournamentId] || null;
+      },
+      updateBracket: (tournamentId: string, updates: Partial<Bracket>) => {
+        setBrackets(prev => {
+          const existing = prev[tournamentId];
+          if (!existing) return prev;
+          return { ...prev, [tournamentId]: { ...existing, ...updates } };
+        });
+      },
+      deleteBracket: (tournamentId: string) => {
+        setBrackets(prev => {
+          const updated = { ...prev };
+          delete updated[tournamentId];
+          return updated;
+        });
+      },
       addCity: (city: string) => {
         if (!cities.includes(city)) {
           setCities(prev => [...prev, city]);
@@ -345,7 +526,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateCities: (cities: string[]) => {
         setCities(cities);
         toast({ title: "Cities updated successfully!" });
-      }
+      },
+      clearTournamentResults,
+      clearGames,
+      clearScoreSubmissions,
+      resetAllTournamentData
     }}>
       {children}
     </AppContext.Provider>

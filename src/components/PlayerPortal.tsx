@@ -13,7 +13,7 @@ const PlayerPortal = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [team, setTeam] = useState(null);
   const [error, setError] = useState('');
-  const { teams, schedules, games, tournaments, tournamentResults, updateGameScore } = useAppContext();
+  const { teams, schedules, games, tournaments, tournamentResults, updateGameScore, getActiveTournament } = useAppContext();
 
   const handleLogin = () => {
     const cleanPhone = phoneNumber.replace(/\D/g, '');
@@ -30,24 +30,25 @@ const PlayerPortal = () => {
     }
   };
 
+  // Only show schedule for the active tournament
   const getCurrentRoundSchedule = () => {
     if (!team) return [];
-    const teamSchedules = [];
-    schedules.forEach(schedule => {
-      const teamMatches = schedule.matches.filter(match => 
-        match.teamA === team.name || match.teamB === team.name
-      );
-      
-      // Get current round (lowest incomplete round)
-      const currentRound = Math.min(...teamMatches.map(m => m.round));
-      const currentRoundMatches = teamMatches.filter(m => m.round === currentRound);
-      
-      currentRoundMatches.forEach(match => {
-        const tournament = tournaments.find(t => t.id === schedule.tournamentId);
-        teamSchedules.push({ ...match, tournamentName: tournament?.name });
-      });
-    });
-    return teamSchedules;
+    const activeTournament = getActiveTournament();
+    if (!activeTournament) return [];
+    const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
+    if (!schedule) return [];
+    const teamMatches = schedule.matches.filter(match =>
+      match.teamA === team.name || match.teamB === team.name
+    );
+    if (teamMatches.length === 0) return [];
+    const currentRound = Math.min(...teamMatches.map(m => m.round));
+    const currentRoundMatches = teamMatches.filter(m => m.round === currentRound);
+    // Add opponent property for UI
+    return currentRoundMatches.map(match => ({
+      ...match,
+      tournamentName: activeTournament.name,
+      opponent: match.teamA === team.name ? match.teamB : match.teamA
+    }));
   };
 
   const getCurrentRoundScoreSheet = () => {
@@ -63,27 +64,31 @@ const PlayerPortal = () => {
 
   const getCompletedGames = () => {
     if (!team) return [];
-    return games.filter(game => 
-      (game.teamA.name === team.name || game.teamB.name === team.name) && game.confirmed
+    const activeTournament = getActiveTournament();
+    if (!activeTournament) return [];
+    // Find all games for this team that are confirmed and belong to the active tournament
+    const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
+    if (!schedule) return [];
+    const matchIds = new Set(schedule.matches.map(m => m.id));
+    return games.filter(game =>
+      (game.teamA.name === team.name || game.teamB.name === team.name) &&
+      game.confirmed &&
+      game.matchId && matchIds.has(game.matchId)
     );
   };
 
   const getTeamPerformance = () => {
     if (!team) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: 0 };
     const completedGames = getCompletedGames();
-    
     let wins = 0;
     let totalPoints = 0;
-    
     completedGames.forEach(game => {
       const isTeamA = game.teamA.name === team.name;
       const myScore = isTeamA ? game.scoreA : game.scoreB;
       const opponentScore = isTeamA ? game.scoreB : game.scoreA;
-      
       totalPoints += myScore;
       if (myScore > opponentScore) wins++;
     });
-    
     return {
       wins,
       totalGames: completedGames.length,
@@ -94,7 +99,13 @@ const PlayerPortal = () => {
 
   if (!team) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 relative">
+        <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+          <span className="text-xs text-gray-400 py-2 bg-white/80 px-2 rounded shadow" style={{ zIndex: 999 }}>
+            PlayerPortal.tsx
+          </span>
+        </div>
+        {/* REMOVE_ME_FILENAME: PlayerPortal.tsx */}
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold text-blue-600">Team Portal</CardTitle>
@@ -130,8 +141,19 @@ const PlayerPortal = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
+      <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+        <span className="text-xs text-gray-400 py-2 bg-white/80 px-2 rounded shadow" style={{ zIndex: 999 }}>
+          PlayerPortal.tsx
+        </span>
+      </div>
+      {/* REMOVE_ME_FILENAME: PlayerPortal.tsx */}
       <div className="max-w-4xl mx-auto">
         <Card className="mb-6">
+          <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+            <span className="text-xs text-gray-400 py-2 bg-white/80 px-2 rounded shadow" style={{ zIndex: 999 }}>
+              TeamHeaderCard.tsx
+            </span>
+          </div>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
@@ -147,16 +169,21 @@ const PlayerPortal = () => {
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="schedule">Schedule</TabsTrigger>
             <TabsTrigger value="scores">Scores</TabsTrigger>
-            <TabsTrigger value="results">Results</TabsTrigger>
-            <TabsTrigger value="record">Record</TabsTrigger>
+            <TabsTrigger value="results">Results & Record</TabsTrigger>
           </TabsList>
 
           <TabsContent value="schedule">
             <Card>
+              <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+                <span className="text-xs text-blue-700 font-bold py-2 bg-blue-100 px-2 rounded shadow border border-blue-400" style={{ zIndex: 999 }}>
+                  PlayerPortal.tsx
+                </span>
+              </div>
+              {/* REMOVE_ME_FILENAME: PlayerPortal.tsx */}
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  Current Round Schedule
+                  Complete Tournament Schedule
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -189,6 +216,12 @@ const PlayerPortal = () => {
 
           <TabsContent value="scores">
             <Card>
+              <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+                <span className="text-xs text-green-700 font-bold py-2 bg-green-100 px-2 rounded shadow border border-green-400" style={{ zIndex: 999 }}>
+                  ScoreEntryCard.tsx
+                </span>
+              </div>
+              {/* REMOVE_ME_FILENAME: ScoreEntryCard.tsx */}
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Target className="h-5 w-5" />
@@ -230,13 +263,20 @@ const PlayerPortal = () => {
 
           <TabsContent value="results">
             <Card>
+              <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+                <span className="text-xs text-purple-700 font-bold py-2 bg-purple-100 px-2 rounded shadow border border-purple-400" style={{ zIndex: 999 }}>
+                  PlayerPortal.tsx
+                </span>
+              </div>
+              {/* REMOVE_ME_FILENAME: PlayerPortal.tsx */}
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="h-5 w-5" />
-                  Game Results
+                  Results & Record
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {/* Results Section */}
                 {getCompletedGames().length > 0 ? (
                   <div className="space-y-4">
                     {getCompletedGames().map((game, index) => {
@@ -245,7 +285,6 @@ const PlayerPortal = () => {
                       const opponentScore = isTeamA ? game.scoreB : game.scoreA;
                       const opponent = isTeamA ? game.teamB.name : game.teamA.name;
                       const won = myScore > opponentScore;
-                      
                       return (
                         <div key={index} className="border rounded-lg p-4">
                           <div className="flex justify-between items-center">
@@ -266,36 +305,34 @@ const PlayerPortal = () => {
                 ) : (
                   <p className="text-gray-500">No completed games yet</p>
                 )}
+                {/* Record Section */}
+                <div className="mt-8">
+                  <h3 className="text-lg font-semibold mb-2">My Team Record</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <p className="text-2xl font-bold text-green-600">{performance.wins}</p>
+                      <p className="text-sm text-gray-600">Wins</p>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <p className="text-2xl font-bold text-blue-600">{performance.totalGames}</p>
+                      <p className="text-sm text-gray-600">Games Played</p>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 rounded-lg">
+                      <p className="text-2xl font-bold text-purple-600">{performance.avgPoints}</p>
+                      <p className="text-sm text-gray-600">Avg Points/Game</p>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 rounded-lg">
+                      <p className="text-2xl font-bold text-orange-600">{performance.totalPoints}</p>
+                      <p className="text-sm text-gray-600">Total Points</p>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="record">
-            <Card>
-              <CardHeader>
-                <CardTitle>Team Performance Record</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">{performance.wins}</p>
-                    <p className="text-sm text-gray-600">Wins</p>
-                  </div>
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-600">{performance.totalGames}</p>
-                    <p className="text-sm text-gray-600">Games Played</p>
-                  </div>
-                  <div className="text-center p-4 bg-purple-50 rounded-lg">
-                    <p className="text-2xl font-bold text-purple-600">{performance.avgPoints}</p>
-                    <p className="text-sm text-gray-600">Avg Points/Game</p>
-                  </div>
-                  <div className="text-center p-4 bg-orange-50 rounded-lg">
-                    <p className="text-2xl font-bold text-orange-600">{performance.totalPoints}</p>
-                    <p className="text-sm text-gray-600">Total Points</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Record tab intentionally left empty; Results & Record are combined above */}
           </TabsContent>
         </Tabs>
       </div>

@@ -37,13 +37,16 @@ export const createTournamentResultMethods = (
   };
 
   const getTournamentResults = (tournamentId: string): TournamentResult[] => {
-    if (!tournamentResults[tournamentId]) {
-      // Initialize results for all teams registered for this tournament
-      const registeredTeams = teams.filter(team => 
-        team.registeredTournaments?.includes(tournamentId)
-      );
-      
-      const initialResults: TournamentResult[] = registeredTeams.map(team => ({
+    // Always return all teams registered for this tournament, with zeroed stats if not present in tournamentResults
+    const registeredTeams = teams.filter(team => team.registeredTournaments?.includes(tournamentId));
+    const existingResults = tournamentResults[tournamentId] || [];
+    // Map of teamId to TournamentResult
+    const resultMap: { [teamId: string]: TournamentResult } = {};
+    existingResults.forEach(r => { resultMap[r.teamId] = r; });
+
+    const mergedResults: TournamentResult[] = registeredTeams.map(team => {
+      if (resultMap[team.id]) return resultMap[team.id];
+      return {
         teamId: team.id,
         teamNumber: team.teamNumber,
         teamName: team.name,
@@ -51,13 +54,12 @@ export const createTournamentResultMethods = (
         totalPoints: 0,
         totalWins: 0,
         totalBoston: 0
-      }));
-      
-      setTournamentResults(prev => ({ ...prev, [tournamentId]: initialResults }));
-      return initialResults;
-    }
-    
-    return tournamentResults[tournamentId];
+      };
+    });
+
+    // Do NOT update state here! This function may be called during render.
+    // If you need to ensure all teams have a result entry, do it in a useEffect in the component.
+    return mergedResults;
   };
 
   const formatTeamName = (firstName: string, lastName: string) => {
