@@ -113,6 +113,55 @@ export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: nu
     // Rotate right column down by 1
     rightTeams.unshift(rightTeams.pop()!);
   }
+
+  // --- PATCH START: Add a bye round at the end for teams that had a bye ---
+  // Collect all teams that had a bye in the main rounds
+  const byeTeams: Team[] = [];
+  for (const round of rounds) {
+    for (const match of round) {
+      if ('isBye' in match && match.isBye && match.team.id !== 'BYE') {
+        byeTeams.push(match.team);
+      }
+    }
+  }
+  // Remove duplicates
+  const uniqueByeTeams = Array.from(new Set(byeTeams.map(t => t.id)))
+    .map(id => byeTeams.find(t => t.id === id)!);
+
+  // If 2 or more teams had a bye, schedule a single round where all play (no repeats)
+  if (uniqueByeTeams.length >= 2) {
+    // Gather all previous matches for rematch prevention
+    const previousMatches: PreviousMatch[] = [];
+    for (const round of rounds) {
+      for (const match of round) {
+        if ('teamA' in match && 'teamB' in match) {
+          previousMatches.push({ teamAId: match.teamA.id, teamBId: match.teamB.id });
+        }
+      }
+    }
+    // Pair up bye teams for a single round (no repeats, no same team)
+    const matches: GameMatch[] = [];
+    const used = new Set<string>();
+    for (let i = 0; i < uniqueByeTeams.length; i += 2) {
+      const teamA = uniqueByeTeams[i];
+      const teamB = uniqueByeTeams[i + 1];
+      if (teamA && teamB && !previousMatches.some(m => (m.teamAId === teamA.id && m.teamBId === teamB.id) || (m.teamAId === teamB.id && m.teamBId === teamA.id))) {
+        matches.push({ teamA, teamB, round: rounds.length + 1 });
+        used.add(teamA.id);
+        used.add(teamB.id);
+      }
+    }
+    // If odd number, one team gets a bye in this round
+    if (uniqueByeTeams.length % 2 === 1) {
+      const left = uniqueByeTeams.find(t => !used.has(t.id));
+      if (left) {
+        matches.push({ team: left, round: rounds.length + 1, isBye: true });
+      }
+    }
+    if (matches.length > 0) rounds.push(matches);
+  }
+  // --- PATCH END ---
+
   return rounds;
 }
 

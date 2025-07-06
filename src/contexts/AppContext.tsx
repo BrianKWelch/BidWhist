@@ -12,6 +12,10 @@ export interface Team {
   city: string;
   registeredTournaments?: string[];
   bostonPotTournaments?: string[];
+  /**
+   * If true, team does NOT pay Boston Pot for that tournament. Keyed by tournamentId.
+   */
+  bostonPotOptOut?: { [tournamentId: string]: boolean };
   paymentStatus?: 'pending' | 'paid';
   player1PaymentStatus?: 'pending' | 'paid';
   player2PaymentStatus?: 'pending' | 'paid';

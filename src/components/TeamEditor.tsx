@@ -15,15 +15,39 @@ interface TeamEditorProps {
 }
 
 const TeamEditor: React.FC<TeamEditorProps> = ({ team, isOpen, onClose, onSave }) => {
-  const { cities } = useAppContext();
+  const { cities, tournaments } = useAppContext();
   const [formData, setFormData] = useState({
     player1FirstName: team.player1FirstName,
     player1LastName: team.player1LastName,
     player2FirstName: team.player2FirstName,
     player2LastName: team.player2LastName,
     phoneNumber: team.phoneNumber,
-    city: team.city
+    city: team.city,
+    registeredTournaments: team.registeredTournaments || [],
+    bostonPotOptOut: team.bostonPotOptOut || {}
   });
+
+  const handleToggleTournament = (tournamentId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      registeredTournaments: prev.registeredTournaments.includes(tournamentId)
+        ? prev.registeredTournaments.filter((id: string) => id !== tournamentId)
+        : [...prev.registeredTournaments, tournamentId],
+      bostonPotOptOut: prev.registeredTournaments.includes(tournamentId)
+        ? Object.fromEntries(Object.entries(prev.bostonPotOptOut).filter(([id]) => id !== tournamentId))
+        : prev.bostonPotOptOut
+    }));
+  };
+
+  const handleToggleBostonPot = (tournamentId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      bostonPotOptOut: {
+        ...prev.bostonPotOptOut,
+        [tournamentId]: !prev.bostonPotOptOut[tournamentId]
+      }
+    }));
+  };
 
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, '');
@@ -42,7 +66,9 @@ const TeamEditor: React.FC<TeamEditorProps> = ({ team, isOpen, onClose, onSave }
     const updatedTeam = {
       ...team,
       ...formData,
-      name: `${formData.player1FirstName} ${formData.player1LastName}/${formData.player2FirstName} ${formData.player2LastName}`
+      name: `${formData.player1FirstName} ${formData.player1LastName}/${formData.player2FirstName} ${formData.player2LastName}`,
+      registeredTournaments: formData.registeredTournaments,
+      bostonPotOptOut: formData.bostonPotOptOut
     };
     onSave(updatedTeam);
     onClose();
@@ -50,7 +76,7 @@ const TeamEditor: React.FC<TeamEditorProps> = ({ team, isOpen, onClose, onSave }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Team</DialogTitle>
         </DialogHeader>
@@ -108,6 +134,36 @@ const TeamEditor: React.FC<TeamEditorProps> = ({ team, isOpen, onClose, onSave }
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div>
+            <Label>Tournaments</Label>
+            <div className="flex flex-col gap-2">
+              {tournaments.map((t) => {
+                const isRegistered = formData.registeredTournaments.includes(t.id);
+                return (
+                  <div key={t.id} className="flex flex-col border rounded p-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isRegistered}
+                        onChange={() => handleToggleTournament(t.id)}
+                      />
+                      <span>{t.name}</span>
+                    </label>
+                    {isRegistered && (
+                      <label className="flex items-center gap-2 ml-6 mt-1">
+                        <input
+                          type="checkbox"
+                          checked={!!formData.bostonPotOptOut[t.id]}
+                          onChange={() => handleToggleBostonPot(t.id)}
+                        />
+                        <span>No Boston Pot</span>
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
