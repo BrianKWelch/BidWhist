@@ -18,7 +18,7 @@ const App = () => (
         <AppProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter basename="/BidWhist">
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/portal" element={<PlayerPortalPage />} />
