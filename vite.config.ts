@@ -4,7 +4,7 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: "/BidWhist/", // ← 🔥 This is the key fix for GitHub Pages
+  base: "/", // ← 🔥 This is the key fix for GitHub Pages
   server: {
     host: "::",
     port: 8080,
