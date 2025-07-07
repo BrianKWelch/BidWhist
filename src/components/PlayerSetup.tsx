@@ -45,7 +45,7 @@ const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSetupComplete }) => {
             <span className="absolute bottom-5 right-3 text-black text-2xl rotate-180">♠</span>
           </div>
           <CardTitle className="text-4xl font-extrabold bg-gradient-to-r from-red-600 to-black bg-clip-text text-transparent drop-shadow-lg tracking-wide">
-            My Tournaments
+            Smokin' Aces
           </CardTitle>
           <p className="text-red-200 text-lg font-semibold drop-shadow">Welcome Brian</p>
         </CardHeader>
