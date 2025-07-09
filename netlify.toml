@@ -1,0 +1,6 @@
+[dev]
+targetPort = 8080
+autoLaunch = true
+
+[functions]
+directory = "netlify/functions"

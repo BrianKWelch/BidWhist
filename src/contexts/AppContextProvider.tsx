@@ -34,6 +34,55 @@ function generateDummyTeams(num: number, cities: string[], tournamentId: string)
 import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket } from './AppContext';
 import { createTournamentResultMethods } from './AppContextMethods';
 
+const DebugDownloadButton: React.FC = () => {
+  if (typeof window === 'undefined' || !window.location.hash.includes('debug=1')) return null;
+  const handleDownload = () => {
+    const data: Record<string, any> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        try {
+          data[key] = JSON.parse(localStorage.getItem(key)!);
+        } catch {
+          data[key] = localStorage.getItem(key);
+        }
+      }
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'local-storage-dump.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+  return (
+    <button
+      onClick={handleDownload}
+      style={{
+        position: 'fixed',
+        bottom: 16,
+        right: 16,
+        zIndex: 9999,
+        padding: '8px 16px',
+        background: '#222',
+        color: '#fff',
+        border: '1px solid #888',
+        borderRadius: 4,
+        fontSize: 14,
+        opacity: 0.8,
+        cursor: 'pointer',
+      }}
+    >
+      Download LocalStorage
+    </button>
+  );
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // On first load, add 50 dummy teams for winter tournament if not present
@@ -517,6 +566,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearScoreSubmissions
     }}>
       {children}
+      <DebugDownloadButton />
     </AppContext.Provider>
   );
 };

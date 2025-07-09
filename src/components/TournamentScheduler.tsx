@@ -129,14 +129,19 @@ export const TournamentScheduler: React.FC = () => {
     
     const sameCityMatches = matches.filter(m => m.isSameCity).length;
     const byeMatches = matches.filter(m => m.isBye).length;
-    let description = '';
-    if (byeMatches > 0) description += `${byeMatches} bye matches. `;
+    // Count unique teams that had a bye (exclude 'BYE')
+    const byeTeamsSet = new Set(
+      matches.filter(m => m.isBye && m.teamA !== 'BYE' && m.teamA !== undefined && m.teamA !== null)
+        .map(m => m.teamA)
+    );
+    let description = `There are ${byeTeamsSet.size} bye teams. `;
+    description += `${byeMatches} bye matches. `;
     if (sameCityMatches > 0) description += `Warning: ${sameCityMatches} same-city matches found`;
-    else if (byeMatches === 0) description = 'No same-city conflicts!';
-    
+    else description += 'No same-city conflicts!';
+
     toast({ 
       title: `Schedule generated! ${roundMatches.length} rounds`,
-      description: description || undefined
+      description: description.trim()
     });
   };
 

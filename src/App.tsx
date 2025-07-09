@@ -9,6 +9,10 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import PlayerPortalPage from "./pages/PlayerPortalPage";
 
+console.log('Database URL:', import.meta.env.VITE_NEON_DATABASE_URL);
+// Ensure the environment variable is set
+
+
 const queryClient = new QueryClient();
 
 const App = () => (

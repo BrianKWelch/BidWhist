@@ -103,11 +103,19 @@ export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: nu
   for (let round = 0; round < Math.min(numRounds, leftTeams.length); round++) {
     const matches: GameMatch[] = [];
     for (let i = 0; i < leftTeams.length; i++) {
-      matches.push({
-        round: round + 1,
-        teamA: leftTeams[i],
-        teamB: rightTeams[i],
-      });
+      // If either team is BYE, create a ByeMatch for the non-BYE team
+      if (leftTeams[i].id === 'BYE' && rightTeams[i].id !== 'BYE') {
+        matches.push({ team: rightTeams[i], round: round + 1, isBye: true });
+      } else if (rightTeams[i].id === 'BYE' && leftTeams[i].id !== 'BYE') {
+        matches.push({ team: leftTeams[i], round: round + 1, isBye: true });
+      } else if (leftTeams[i].id !== 'BYE' && rightTeams[i].id !== 'BYE') {
+        matches.push({
+          round: round + 1,
+          teamA: leftTeams[i],
+          teamB: rightTeams[i],
+        });
+      }
+      // If both are BYE, skip
     }
     rounds.push(matches);
     // Rotate right column down by 1
