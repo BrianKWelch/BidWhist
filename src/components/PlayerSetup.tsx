@@ -12,12 +12,18 @@ interface PlayerSetupProps {
 
 const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSetupComplete }) => {
   const { setCurrentUser, teams } = useAppContext();
-  const [playerName, setPlayerName] = useState('');
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const CORRECT_PIN = '4545';
 
   const handleStart = () => {
-    if (!playerName.trim()) return;
-    
-    setCurrentUser(playerName.trim());
+    if (!pin.trim()) return;
+    if (pin !== CORRECT_PIN) {
+      setError('Incorrect PIN. Please try again.');
+      return;
+    }
+    setError('');
+    setCurrentUser('admin');
     onSetupComplete();
   };
 
@@ -51,23 +57,28 @@ const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSetupComplete }) => {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="playerName" className="text-base font-semibold text-red-100 drop-shadow">
+            <Label htmlFor="pin" className="text-base font-semibold text-red-100 drop-shadow">
               Please enter your pin to access the admin portal
             </Label>
             <Input
-              id="playerName"
+              id="pin"
+              type="password"
               placeholder="Enter pin"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
               onKeyPress={handleKeyPress}
               className="text-center text-lg bg-black/80 text-white border-red-500 focus:border-red-700 focus:ring-red-700"
               autoFocus
+              maxLength={8}
             />
+            {error && (
+              <div className="text-red-400 text-sm text-center mt-1">{error}</div>
+            )}
           </div>
 
           <Button
             onClick={handleStart}
-            disabled={!playerName.trim()}
+            disabled={!pin.trim()}
             className="w-full bg-gradient-to-r from-black via-red-700 to-black hover:from-red-800 hover:to-black text-white font-bold py-3 px-4 rounded-xl shadow-xl transform transition hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 border-2 border-red-700"
           >
             <Play size={20} />
