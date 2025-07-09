@@ -1,36 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from '@/components/ui/use-toast';
-import { sampleTeams } from './AppContextTeams';
+import { initialData } from '../data/initialData';
 
-// --- DUMMY DATA GENERATION FOR TESTING ---
-function generateDummyTeams(num: number, cities: string[], tournamentId: string): Team[] {
-  const teams: Team[] = [];
-  for (let i = 0; i < num; i++) {
-    const city = cities[i % cities.length];
-    const teamNumber = 1000 + i;
-    teams.push({
-      id: `dummy-${teamNumber}`,
-      teamNumber,
-      name: `TestTeam${teamNumber}`,
-      player1FirstName: `P1F${teamNumber}`,
-      player1LastName: `P1L${teamNumber}`,
-      player2FirstName: `P2F${teamNumber}`,
-      player2LastName: `P2L${teamNumber}`,
-      phoneNumber: `555${(1000000 + i).toString().slice(0,7)}`,
-      city,
-      registeredTournaments: [tournamentId],
-      bostonPotTournaments: [],
-      paymentStatus: 'pending',
-      player1PaymentStatus: 'pending',
-      player2PaymentStatus: 'pending',
-      player1TournamentPayments: { [tournamentId]: false },
-      player2TournamentPayments: { [tournamentId]: false },
-      tournamentPayments: { [tournamentId]: false },
-      totalOwed: 0
-    });
-  }
-  return teams;
-}
+
 import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket } from './AppContext';
 import { createTournamentResultMethods } from './AppContextMethods';
 
@@ -88,14 +60,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // On first load, add 50 dummy teams for winter tournament if not present
   const [teams, setTeams] = useState<Team[]>(() => {
     const saved = localStorage.getItem('teams');
-    let base = saved ? JSON.parse(saved) : sampleTeams;
-    const winterId = '2';
-    const dummyCount = base.filter(t => t.id && t.id.startsWith('dummy-') && t.registeredTournaments?.includes(winterId)).length;
-    if (dummyCount < 50) {
-      const dummyTeams = generateDummyTeams(50 - dummyCount, ['Columbus', 'Cincinnati', 'Chicago', 'Detroit', 'Atlanta', 'DC/Maryland', 'Other'], winterId);
-      base = [...base, ...dummyTeams];
-    }
-    return base;
+    return saved ? JSON.parse(saved) : initialData.teams;
   });
 
   // Save teams to localStorage on every change
@@ -115,11 +80,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
   const [games, setGames] = useState<Game[]>(() => {
     const saved = localStorage.getItem('games');
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved) : initialData.games;
   });
   const [scoreSubmissions, setScoreSubmissions] = useState<ScoreSubmission[]>(() => {
     const saved = localStorage.getItem('scoreSubmissions');
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved) : initialData.scoreSubmissions;
   });
   
   const [schedules, setSchedules] = useState<TournamentSchedule[]>(() => {
@@ -154,20 +119,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tournamentResults, setTournamentResults] = useState<{ [tournamentId: string]: TournamentResult[] }>({});
   const [brackets, setBrackets] = useState<{ [tournamentId: string]: Bracket }>(() => {
     const saved = localStorage.getItem('brackets');
-    return saved ? JSON.parse(saved) : {};
+    return saved ? JSON.parse(saved) : initialData.brackets;
   });
 
   useEffect(() => {
     localStorage.setItem('brackets', JSON.stringify(brackets));
   }, [brackets]);
-  const [cities, setCities] = useState<string[]>(['Columbus', 'Cincinnati', 'Chicago', 'Detroit', 'Atlanta', 'DC/Maryland', 'Other']);
+  const [cities, setCities] = useState<string[]>([...new Set(initialData.teams.map(t => t.city))]);
   const [tournaments, setTournaments] = useState<Tournament[]>(() => {
     const saved = localStorage.getItem('tournaments');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: '1', name: '2025 New Year Classic', cost: 30, bostonPotCost: 10, status: 'finished' },
-      { id: '2', name: '2025 Winter Championship', cost: 40, bostonPotCost: 10, status: 'active' }
-    ];
+    return saved ? JSON.parse(saved) : initialData.tournaments;
   });
 
   // Persist tournaments to localStorage and sync across tabs
@@ -432,6 +393,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Reset all tournament-related data to initialData
+  const resetAllTournamentData = () => {
+    // Cast paymentStatus and status fields to their literal types
+    setTeams(initialData.teams.map(team => ({
+      ...team,
+      paymentStatus: team.paymentStatus as 'paid' | 'pending',
+      player1PaymentStatus: team.player1PaymentStatus as 'paid' | 'pending',
+      player2PaymentStatus: team.player2PaymentStatus as 'paid' | 'pending',
+    })));
+    setGames(initialData.games);
+    setScoreSubmissions(initialData.scoreSubmissions);
+    setSchedules([]);
+    setBrackets(initialData.brackets);
+    setCities([...new Set(initialData.teams.map(t => t.city))]);
+    setTournaments(initialData.tournaments.map(t => ({
+      ...t,
+      status: t.status as 'finished' | 'active',
+    })));
+    setTournamentResults({});
+    toast({ title: 'All tournament data reset to initial state.' });
+  };
+
   return (
     <AppContext.Provider value={{
       sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, games, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions,
@@ -563,7 +546,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       clearTournamentResults,
       clearGames,
-      clearScoreSubmissions
+      clearScoreSubmissions,
+      resetAllTournamentData
     }}>
       {children}
       <DebugDownloadButton />
