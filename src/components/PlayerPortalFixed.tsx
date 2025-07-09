@@ -142,6 +142,8 @@ const PlayerPortalFixed = () => {
                   className="text-center text-lg bg-black/80 text-white border-red-500 focus:border-red-700 focus:ring-red-700"
                   maxLength={14}
                   autoFocus
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                 />
                 <Button onClick={handleLogin} className="w-full bg-gradient-to-r from-black via-red-700 to-black hover:from-red-800 hover:to-black text-white font-bold py-3 px-4 rounded-xl shadow-xl transform transition hover:scale-105">
                   Enter My Tournaments Portal
