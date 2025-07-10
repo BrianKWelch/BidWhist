@@ -16,12 +16,12 @@ export const BracketGenerator: React.FC = () => {
   const [showRestartDialog, setShowRestartDialog] = useState(false);
   const [showSeedsDialog, setShowSeedsDialog] = useState(false);
   const [topSeeds, setTopSeeds] = useState<BracketTeam[]>([]);
-  // Load resultsOverrides from localStorage (same as TournamentResults)
+  // Load resultsOverrides from backend or context (no more localStorage)
   const [overrides, setOverrides] = useState<{ [key: string]: string }>({});
-  useEffect(() => {
-    const saved = localStorage.getItem('resultsOverrides');
-    if (saved) setOverrides(JSON.parse(saved));
-  }, []);
+  // TODO: Replace with backend fetch if needed
+  // useEffect(() => {
+  //   fetch('/api/resultsOverrides').then(res => res.json()).then(setOverrides);
+  // }, []);
 
   // Load existing bracket when tournament changes
   useEffect(() => {
