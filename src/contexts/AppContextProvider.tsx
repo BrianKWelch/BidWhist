@@ -54,14 +54,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [tournaments]
   );
 
-  // Example: getCurrentTeam (if needed elsewhere)
   const getCurrentTeam = useCallback(
     () => teams.find(t => t.id === currentUser || t.phoneNumber === currentUser),
     [teams, currentUser]
   );
 
-  // All your other CRUD methods go here (addTeam, updateTeam, etc) ...
-  // See previous code block for examples!
+  // --- Team CRUD ---
+  const addTeam = async (team: Omit<Team, 'id'>): Promise<Team | null> => {
+    try {
+      const newTeam = await apiPost<Team>('/.netlify/functions/get-teams', team);
+      setTeams(prev => [...prev, newTeam]);
+      return newTeam;
+    } catch (err) {
+      console.error('Failed to add team:', err);
+      return null;
+    }
+  };
+
+  const updateTeam = async (team: Team): Promise<Team | null> => {
+    try {
+      const updated = await apiPut<Team>(`/.netlify/functions/get-teams/${team.id}`, team);
+      setTeams(prev => prev.map(t => t.id === team.id ? updated : t));
+      return updated;
+    } catch (err) {
+      console.error('Failed to update team:', err);
+      return null;
+    }
+  };
+
+  const removeTeam = async (teamId: string): Promise<boolean> => {
+    try {
+      await apiDelete(`/.netlify/functions/get-teams/${teamId}`);
+      setTeams(prev => prev.filter(t => t.id !== teamId));
+      return true;
+    } catch (err) {
+      console.error('Failed to remove team:', err);
+      return false;
+    }
+  };
+
+  // --- City Management ---
+  const addCity = (city: string) => {
+    if (!city.trim()) return;
+    if (!cities.includes(city)) {
+      setCities(prev => [...prev, city]);
+    }
+  };
+
+  const removeCity = (city: string) => {
+    setCities(prev => prev.filter(c => c !== city));
+  };
+
+  const updateCities = (newCities: string[]) => {
+    setCities(newCities);
+  };
 
   return (
     <AppContext.Provider value={{
@@ -79,10 +125,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentUser,
       setCurrentUser,
       scoreSubmissions,
-      // CRUD helpers...
-      // e.g., addTeam, updateTeam, addGame, etc.
-      getActiveTournament,  // <-- THE IMPORTANT PART
-      getCurrentTeam,       // <-- if you want this helper
+      getActiveTournament,
+      getCurrentTeam,
+      addTeam,
+      updateTeam,
+      removeTeam,
+      addCity,
+      removeCity,
+      updateCities,
     }}>
       {children}
     </AppContext.Provider>

@@ -139,8 +139,8 @@ export interface Bracket {
 
 interface AppContextType {
   setTournaments: React.Dispatch<React.SetStateAction<Tournament[]>>;
-  finishTournament: (tournamentId: string) => void;
-  getActiveTournament: () => Tournament | null;
+  getActiveTournament: () => Tournament | undefined;
+  getCurrentTeam: () => Team | undefined;
   sidebarOpen: boolean;
   toggleSidebar: () => void;
   teams: Team[];
@@ -154,35 +154,10 @@ interface AppContextType {
   cities: string[];
   currentUser: string;
   setCurrentUser: (user: string) => void;
-  addTeam: (player1First: string, player1Last: string, player2First: string, player2Last: string, phoneNumber: string, city: string, selectedTournaments: string[], bostonPotTournaments: string[]) => string;
-  updateTeam: (updatedTeam: Team) => void;
-  addTournament: (name: string, cost: number, bostonPotCost: number, description?: string) => void;
-  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => void;
-  submitGame: (game: any) => void;
-  confirmGame: (gameId: string, confirmedBy: string) => void;
-  updatePaymentStatus: (teamId: string, status: 'pending' | 'paid') => void;
-  updatePlayerPaymentStatus: (teamId: string, player: 'player1' | 'player2', status: 'pending' | 'paid') => void;
-  updatePlayerTournamentPayment: (teamId: string, player: 'player1' | 'player2', tournamentId: string, paid: boolean) => void;
-  updateTeamPayment: (teamId: string, tournamentId: string, paid: boolean) => void;
-  updateGameScore: (gameId: string, teamAScore: number, teamBScore: number) => void;
-  saveSchedule: (schedule: TournamentSchedule) => void;
-  addScoreText: (scoreText: ScoreText) => void;
-  updateScoreText: (id: string, updates: Partial<ScoreText>) => void;
-  getPendingGames: () => Game[];
-  getTeamStats: (teamId: string) => { wins: number; losses: number; totalPoints: number; bostons: number };
-  sendScoreSheetLinks: (tournamentId: string, baseUrl: string) => Promise<void>;
-  submitScore: (submission: any) => Promise<void>;
-  confirmScore: (gameId: string, confirm: boolean) => Promise<void>;
-  updateTournamentResult: (tournamentId: string, teamId: string, round: number, field: 'points' | 'wl' | 'boston', value: any) => void;
-  getTournamentResults: (tournamentId: string) => TournamentResult[];
-  clearTournamentResults: (tournamentId: string) => void;
-  clearGames: (tournamentId: string) => void;
-  clearScoreSubmissions: (tournamentId: string) => void;
-  resetAllTournamentData: () => void;
-  saveBracket: (bracket: Bracket) => void;
-  getBracket: (tournamentId: string) => Bracket | null;
-  updateBracket: (tournamentId: string, updates: Partial<Bracket>) => void;
-  deleteBracket: (tournamentId: string) => void;
+  // CRUD helpers
+  addTeam: (team: Omit<Team, 'id'>) => Promise<Team | null>;
+  updateTeam: (team: Team) => Promise<Team | null>;
+  removeTeam: (teamId: string) => Promise<boolean>;
   addCity: (city: string) => void;
   removeCity: (city: string) => void;
   updateCities: (cities: string[]) => void;
