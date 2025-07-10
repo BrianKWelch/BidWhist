@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api';
 import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket } from './AppContext';
 // ... import your API helpers and any needed UI
 
