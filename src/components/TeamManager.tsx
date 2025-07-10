@@ -70,23 +70,36 @@ const TeamManager: React.FC = () => {
     }));
   };
 
-  const handleAddTeam = () => {
+  const handleAddTeam = async () => {
     if (!addFormData.player1FirstName.trim() || !addFormData.player1LastName.trim() || 
         !addFormData.player2FirstName.trim() || !addFormData.player2LastName.trim() || 
         !addFormData.phoneNumber.trim() || !addFormData.city.trim() || 
         addFormData.selectedTournaments.length === 0) return;
-    
-    addTeam(
-      addFormData.player1FirstName.trim(),
-      addFormData.player1LastName.trim(),
-      addFormData.player2FirstName.trim(),
-      addFormData.player2LastName.trim(),
-      addFormData.phoneNumber.trim(),
-      addFormData.city.trim(),
-      addFormData.selectedTournaments,
-      addFormData.bostonPotTournaments
-    );
-    
+
+
+    const teamToAdd = {
+      teamNumber: teams.length + 1,
+      name: `${addFormData.player1FirstName} ${addFormData.player1LastName} /${addFormData.player2FirstName} ${addFormData.player2LastName}`,
+      player1FirstName: addFormData.player1FirstName.trim(),
+      player1LastName: addFormData.player1LastName.trim(),
+      player2FirstName: addFormData.player2FirstName.trim(),
+      player2LastName: addFormData.player2LastName.trim(),
+      phoneNumber: addFormData.phoneNumber.trim(),
+      city: addFormData.city.trim(),
+      registeredTournaments: addFormData.selectedTournaments,
+      bostonPotTournaments: addFormData.bostonPotTournaments,
+      bostonPotOptOut: {},
+      paymentStatus: 'pending' as const,
+      player1PaymentStatus: 'pending' as const,
+      player2PaymentStatus: 'pending' as const,
+      player1TournamentPayments: {},
+      player2TournamentPayments: {},
+      tournamentPayments: {},
+      totalOwed: 0
+    };
+
+    await addTeam(teamToAdd);
+
     // Reset form
     setAddFormData({
       player1FirstName: '',
