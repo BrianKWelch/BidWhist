@@ -1,0 +1,3327 @@
+{
+    "scoreSubmissions": [],
+    "schedules": [
+        {
+            "tournamentId": "3",
+            "rounds": 5,
+            "matches": [
+                {
+                    "id": "3-r1-m1",
+                    "teamA": "1751809610720",
+                    "teamB": "1751809554049",
+                    "round": 1,
+                    "table": 1,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r1-m2",
+                    "teamA": "1751809797179",
+                    "teamB": "1751809643158",
+                    "round": 1,
+                    "table": 2,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r1-m3",
+                    "teamA": "1751809676716",
+                    "teamB": "1751809705165",
+                    "round": 1,
+                    "table": 3,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r1-m4",
+                    "teamA": "1751809744981",
+                    "teamB": "1751809825320",
+                    "round": 1,
+                    "table": 4,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r1-m5",
+                    "teamA": "1751809926558",
+                    "teamB": "1751809894998",
+                    "round": 1,
+                    "table": 5,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r1-bye6",
+                    "teamA": "1751809856971",
+                    "teamB": "BYE",
+                    "round": 1,
+                    "table": 0,
+                    "tournamentId": "3",
+                    "isBye": true,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r2-bye7",
+                    "teamA": "1751809856971",
+                    "teamB": "BYE",
+                    "round": 2,
+                    "table": 0,
+                    "tournamentId": "3",
+                    "isBye": true,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r2-m8",
+                    "teamA": "1751809610720",
+                    "teamB": "1751809554049",
+                    "round": 2,
+                    "table": 1,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r2-m9",
+                    "teamA": "1751809797179",
+                    "teamB": "1751809643158",
+                    "round": 2,
+                    "table": 2,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r2-m10",
+                    "teamA": "1751809676716",
+                    "teamB": "1751809705165",
+                    "round": 2,
+                    "table": 3,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r2-m11",
+                    "teamA": "1751809744981",
+                    "teamB": "1751809825320",
+                    "round": 2,
+                    "table": 4,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r2-m12",
+                    "teamA": "1751809926558",
+                    "teamB": "1751809894998",
+                    "round": 2,
+                    "table": 5,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r3-m13",
+                    "teamA": "1751809894998",
+                    "teamB": "1751809926558",
+                    "round": 3,
+                    "table": 1,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r3-bye14",
+                    "teamA": "1751809856971",
+                    "teamB": "BYE",
+                    "round": 3,
+                    "table": 0,
+                    "tournamentId": "3",
+                    "isBye": true,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r3-m15",
+                    "teamA": "1751809610720",
+                    "teamB": "1751809554049",
+                    "round": 3,
+                    "table": 2,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r3-m16",
+                    "teamA": "1751809797179",
+                    "teamB": "1751809643158",
+                    "round": 3,
+                    "table": 3,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r3-m17",
+                    "teamA": "1751809676716",
+                    "teamB": "1751809705165",
+                    "round": 3,
+                    "table": 4,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r3-m18",
+                    "teamA": "1751809744981",
+                    "teamB": "1751809825320",
+                    "round": 3,
+                    "table": 5,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r4-m19",
+                    "teamA": "1751809825320",
+                    "teamB": "1751809744981",
+                    "round": 4,
+                    "table": 1,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r4-m20",
+                    "teamA": "1751809894998",
+                    "teamB": "1751809926558",
+                    "round": 4,
+                    "table": 2,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r4-bye21",
+                    "teamA": "1751809856971",
+                    "teamB": "BYE",
+                    "round": 4,
+                    "table": 0,
+                    "tournamentId": "3",
+                    "isBye": true,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r4-m22",
+                    "teamA": "1751809610720",
+                    "teamB": "1751809554049",
+                    "round": 4,
+                    "table": 3,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r4-m23",
+                    "teamA": "1751809797179",
+                    "teamB": "1751809643158",
+                    "round": 4,
+                    "table": 4,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r4-m24",
+                    "teamA": "1751809676716",
+                    "teamB": "1751809705165",
+                    "round": 4,
+                    "table": 5,
+                    "tournamentId": "3",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "3-r5-bye25",
+                    "teamA": "1751809856971",
+                    "teamB": "BYE",
+                    "round": 5,
+                    "table": 0,
+                    "tournamentId": "3",
+                    "isBye": true,
+                    "isSameCity": false
+                }
+            ]
+        },
+        {
+            "tournamentId": "1",
+            "rounds": 3,
+            "matches": [
+                {
+                    "id": "1-r1-m1",
+                    "teamA": "2",
+                    "teamB": "1751730836697",
+                    "round": 1,
+                    "table": 1,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-m2",
+                    "teamA": "9",
+                    "teamB": "5",
+                    "round": 1,
+                    "table": 2,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-m3",
+                    "teamA": "3",
+                    "teamB": "12",
+                    "round": 1,
+                    "table": 3,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-m4",
+                    "teamA": "17",
+                    "teamB": "1751568751309",
+                    "round": 1,
+                    "table": 4,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-m5",
+                    "teamA": "1",
+                    "teamB": "6",
+                    "round": 1,
+                    "table": 5,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-m6",
+                    "teamA": "8",
+                    "teamB": "20",
+                    "round": 1,
+                    "table": 6,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-m7",
+                    "teamA": "15",
+                    "teamB": "11",
+                    "round": 1,
+                    "table": 7,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-m8",
+                    "teamA": "1751568112899",
+                    "teamB": "18",
+                    "round": 1,
+                    "table": 8,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-m9",
+                    "teamA": "1751672416622",
+                    "teamB": "14",
+                    "round": 1,
+                    "table": 9,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r1-bye10",
+                    "teamA": "1751568718805",
+                    "teamB": "BYE",
+                    "round": 1,
+                    "table": 0,
+                    "tournamentId": "1",
+                    "isBye": true,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m11",
+                    "teamA": "2",
+                    "teamB": "1751568718805",
+                    "round": 2,
+                    "table": 1,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m12",
+                    "teamA": "9",
+                    "teamB": "1751730836697",
+                    "round": 2,
+                    "table": 2,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m13",
+                    "teamA": "3",
+                    "teamB": "5",
+                    "round": 2,
+                    "table": 3,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m14",
+                    "teamA": "17",
+                    "teamB": "12",
+                    "round": 2,
+                    "table": 4,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m15",
+                    "teamA": "1",
+                    "teamB": "1751568751309",
+                    "round": 2,
+                    "table": 5,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m16",
+                    "teamA": "8",
+                    "teamB": "6",
+                    "round": 2,
+                    "table": 6,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m17",
+                    "teamA": "15",
+                    "teamB": "20",
+                    "round": 2,
+                    "table": 7,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m18",
+                    "teamA": "1751568112899",
+                    "teamB": "11",
+                    "round": 2,
+                    "table": 8,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-m19",
+                    "teamA": "1751672416622",
+                    "teamB": "18",
+                    "round": 2,
+                    "table": 9,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r2-bye20",
+                    "teamA": "14",
+                    "teamB": "BYE",
+                    "round": 2,
+                    "table": 0,
+                    "tournamentId": "1",
+                    "isBye": true,
+                    "isSameCity": false
+                },
+                {
+                    "id": "1-r3-m21",
+                    "teamA": "1751568718805",
+                    "teamB": "14",
+                    "round": 3,
+                    "table": 1,
+                    "tournamentId": "1",
+                    "isBye": false,
+                    "isSameCity": true
+                }
+            ]
+        }
+    ],
+    "adminLoggedIn": true,
+    "games": [],
+    "brackets": {
+        "1": {
+            "id": "bracket-1751781026549",
+            "tournamentId": "1",
+            "size": 8,
+            "teams": [
+                {
+                    "seed": 1,
+                    "teamId": "1",
+                    "teamName": "Smith/Johnson",
+                    "teamNumber": 1
+                },
+                {
+                    "seed": 2,
+                    "teamId": "2",
+                    "teamName": "Davis/Wilson",
+                    "teamNumber": 2
+                },
+                {
+                    "seed": 3,
+                    "teamId": "3",
+                    "teamName": "Brown/Taylor",
+                    "teamNumber": 3
+                },
+                {
+                    "seed": 4,
+                    "teamId": "5",
+                    "teamName": "Garcia/Rodriguez",
+                    "teamNumber": 5
+                },
+                {
+                    "seed": 5,
+                    "teamId": "6",
+                    "teamName": "Lee/White",
+                    "teamNumber": 6
+                },
+                {
+                    "seed": 6,
+                    "teamId": "8",
+                    "teamName": "Hall/Young",
+                    "teamNumber": 8
+                },
+                {
+                    "seed": 7,
+                    "teamId": "9",
+                    "teamName": "King/Wright",
+                    "teamNumber": 9
+                },
+                {
+                    "seed": 8,
+                    "teamId": "11",
+                    "teamName": "Baker/Nelson",
+                    "teamNumber": 11
+                }
+            ],
+            "matches": [
+                {
+                    "id": "match-1",
+                    "round": 1,
+                    "table": 1,
+                    "team1": {
+                        "seed": 1,
+                        "teamId": "1",
+                        "teamName": "Smith/Johnson",
+                        "teamNumber": 1
+                    },
+                    "team2": {
+                        "seed": 8,
+                        "teamId": "11",
+                        "teamName": "Baker/Nelson",
+                        "teamNumber": 11
+                    }
+                },
+                {
+                    "id": "match-2",
+                    "round": 1,
+                    "table": 4,
+                    "team1": {
+                        "seed": 4,
+                        "teamId": "5",
+                        "teamName": "Garcia/Rodriguez",
+                        "teamNumber": 5
+                    },
+                    "team2": {
+                        "seed": 5,
+                        "teamId": "6",
+                        "teamName": "Lee/White",
+                        "teamNumber": 6
+                    }
+                },
+                {
+                    "id": "match-3",
+                    "round": 1,
+                    "table": 2,
+                    "team1": {
+                        "seed": 2,
+                        "teamId": "2",
+                        "teamName": "Davis/Wilson",
+                        "teamNumber": 2
+                    },
+                    "team2": {
+                        "seed": 7,
+                        "teamId": "9",
+                        "teamName": "King/Wright",
+                        "teamNumber": 9
+                    }
+                },
+                {
+                    "id": "match-4",
+                    "round": 1,
+                    "table": 3,
+                    "team1": {
+                        "seed": 3,
+                        "teamId": "3",
+                        "teamName": "Brown/Taylor",
+                        "teamNumber": 3
+                    },
+                    "team2": {
+                        "seed": 6,
+                        "teamId": "8",
+                        "teamName": "Hall/Young",
+                        "teamNumber": 8
+                    }
+                },
+                {
+                    "id": "match-5",
+                    "round": 2,
+                    "table": 1
+                },
+                {
+                    "id": "match-6",
+                    "round": 2,
+                    "table": 2
+                },
+                {
+                    "id": "match-7",
+                    "round": 3,
+                    "table": 1
+                }
+            ],
+            "createdAt": "2025-07-06T05:50:26.549Z"
+        },
+        "3": {
+            "id": "bracket-1751823222046",
+            "tournamentId": "3",
+            "size": 4,
+            "teams": [
+                {
+                    "seed": 1,
+                    "teamId": "1751809643158",
+                    "teamName": "e r/r t",
+                    "teamNumber": 1057
+                },
+                {
+                    "seed": 2,
+                    "teamId": "1751809554049",
+                    "teamName": "Brian W/er W",
+                    "teamNumber": 1055
+                },
+                {
+                    "seed": 3,
+                    "teamId": "1751809610720",
+                    "teamName": "q W/W E",
+                    "teamNumber": 1056
+                },
+                {
+                    "seed": 4,
+                    "teamId": "1751809676716",
+                    "teamName": "t Y/y U",
+                    "teamNumber": 1058
+                }
+            ],
+            "matches": [
+                {
+                    "id": "match-1",
+                    "round": 1,
+                    "table": 1,
+                    "team1": {
+                        "seed": 1,
+                        "teamId": "1751809643158",
+                        "teamName": "e r/r t",
+                        "teamNumber": 1057
+                    },
+                    "team2": {
+                        "seed": 4,
+                        "teamId": "1751809676716",
+                        "teamName": "t Y/y U",
+                        "teamNumber": 1058
+                    },
+                    "team1Score": 1,
+                    "team2Score": 0,
+                    "winner": {
+                        "seed": 1,
+                        "teamId": "1751809643158",
+                        "teamName": "e r/r t",
+                        "teamNumber": 1057
+                    }
+                },
+                {
+                    "id": "match-2",
+                    "round": 1,
+                    "table": 2,
+                    "team1": {
+                        "seed": 2,
+                        "teamId": "1751809554049",
+                        "teamName": "Brian W/er W",
+                        "teamNumber": 1055
+                    },
+                    "team2": {
+                        "seed": 3,
+                        "teamId": "1751809610720",
+                        "teamName": "q W/W E",
+                        "teamNumber": 1056
+                    },
+                    "team1Score": 1,
+                    "team2Score": 0,
+                    "winner": {
+                        "seed": 2,
+                        "teamId": "1751809554049",
+                        "teamName": "Brian W/er W",
+                        "teamNumber": 1055
+                    }
+                },
+                {
+                    "id": "match-3",
+                    "round": 2,
+                    "table": 1,
+                    "team1": {
+                        "seed": 2,
+                        "teamId": "1751809554049",
+                        "teamName": "Brian W/er W",
+                        "teamNumber": 1055
+                    },
+                    "team2": {
+                        "seed": 1,
+                        "teamId": "1751809643158",
+                        "teamName": "e r/r t",
+                        "teamNumber": 1057
+                    }
+                }
+            ],
+            "createdAt": "2025-07-06T17:33:42.046Z"
+        }
+    },
+    "resultsOverrides": {
+        "1751809610720_1_wl": "",
+        "1751809610720_1_points": "0",
+        "1751809610720_1_boston": "0",
+        "1751809610720_2_wl": "",
+        "1751809610720_2_points": "0",
+        "1751809610720_2_boston": "0",
+        "1751809610720_total_wins": "0",
+        "1751809610720_total_points": "0",
+        "1751809610720_total_bostons": "0",
+        "1751809554049_1_wl": "",
+        "1751809554049_1_points": "0",
+        "1751809554049_1_boston": "0",
+        "1751809554049_2_wl": "",
+        "1751809554049_2_points": "0",
+        "1751809554049_2_boston": "0",
+        "1751809554049_total_wins": "0",
+        "1751809554049_total_points": "0",
+        "1751809554049_total_bostons": "0",
+        "1751809797179_1_wl": "",
+        "1751809797179_1_points": "0",
+        "1751809797179_1_boston": "0",
+        "1751809797179_2_wl": "",
+        "1751809797179_2_points": "0",
+        "1751809797179_2_boston": "0",
+        "1751809797179_total_wins": "0",
+        "1751809797179_total_points": "0",
+        "1751809797179_total_bostons": "0",
+        "1751809643158_1_wl": "",
+        "1751809643158_1_points": "0",
+        "1751809643158_1_boston": "0",
+        "1751809643158_2_wl": "",
+        "1751809643158_2_points": "0",
+        "1751809643158_2_boston": "0",
+        "1751809643158_total_wins": "0",
+        "1751809643158_total_points": "0",
+        "1751809643158_total_bostons": "0",
+        "1751809676716_1_wl": "",
+        "1751809676716_1_points": "0",
+        "1751809676716_1_boston": "0",
+        "1751809676716_2_wl": "",
+        "1751809676716_2_points": "0",
+        "1751809676716_2_boston": "0",
+        "1751809676716_total_wins": "0",
+        "1751809676716_total_points": "0",
+        "1751809676716_total_bostons": "0",
+        "1751809705165_1_wl": "",
+        "1751809705165_1_points": "0",
+        "1751809705165_1_boston": "0",
+        "1751809705165_2_wl": "",
+        "1751809705165_2_points": "0",
+        "1751809705165_2_boston": "0",
+        "1751809705165_total_wins": "0",
+        "1751809705165_total_points": "0",
+        "1751809705165_total_bostons": "0",
+        "1751809744981_1_wl": "",
+        "1751809744981_1_points": "0",
+        "1751809744981_1_boston": "0",
+        "1751809744981_2_wl": "",
+        "1751809744981_2_points": "0",
+        "1751809744981_2_boston": "0",
+        "1751809744981_total_wins": "0",
+        "1751809744981_total_points": "0",
+        "1751809744981_total_bostons": "0",
+        "1751809825320_1_wl": "",
+        "1751809825320_1_points": "0",
+        "1751809825320_1_boston": "0",
+        "1751809825320_2_wl": "",
+        "1751809825320_2_points": "0",
+        "1751809825320_2_boston": "0",
+        "1751809825320_total_wins": "0",
+        "1751809825320_total_points": "0",
+        "1751809825320_total_bostons": "0",
+        "1751809926558_1_wl": "",
+        "1751809926558_1_points": "0",
+        "1751809926558_1_boston": "0",
+        "1751809926558_2_wl": "",
+        "1751809926558_2_points": "0",
+        "1751809926558_2_boston": "0",
+        "1751809926558_total_wins": "0",
+        "1751809926558_total_points": "0",
+        "1751809926558_total_bostons": "0",
+        "1751809894998_1_wl": "",
+        "1751809894998_1_points": "0",
+        "1751809894998_1_boston": "0",
+        "1751809894998_2_wl": "",
+        "1751809894998_2_points": "0",
+        "1751809894998_2_boston": "0",
+        "1751809894998_total_wins": "0",
+        "1751809894998_total_points": "0",
+        "1751809894998_total_bostons": "0",
+        "1751809856971_1_wl": "",
+        "1751809856971_1_points": "0",
+        "1751809856971_1_boston": "0",
+        "1751809856971_2_wl": "",
+        "1751809856971_2_points": "0",
+        "1751809856971_2_boston": "0",
+        "1751809856971_total_wins": "0",
+        "1751809856971_total_points": "0",
+        "1751809856971_total_bostons": "0"
+    },
+    "tournaments": [
+        {
+            "id": "1",
+            "name": "1-Friday 5pm",
+            "cost": 25,
+            "bostonPotCost": 5,
+            "status": "finished"
+        },
+        {
+            "id": "2",
+            "name": "2 - Friday 8pm",
+            "cost": 50,
+            "bostonPotCost": 5,
+            "status": "finished"
+        },
+        {
+            "id": "3",
+            "name": "1 - Saturday Noon",
+            "cost": 50,
+            "bostonPotCost": 5,
+            "status": "active"
+        },
+        {
+            "id": "4",
+            "name": "2 - Saturday 4pm",
+            "cost": 90,
+            "bostonPotCost": 5,
+            "status": "finished"
+        },
+        {
+            "id": "5",
+            "name": "3 - Saturday 8pm",
+            "cost": 110,
+            "bostonPotCost": 5,
+            "status": "finished"
+        }
+    ],
+    "teams": [
+        {
+            "id": "1",
+            "teamNumber": 1,
+            "name": "John Smith/Mike Johnson",
+            "player1FirstName": "John",
+            "player1LastName": "Smith",
+            "player2FirstName": "Mike",
+            "player2LastName": "Johnson",
+            "phoneNumber": "5551234567",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "1",
+                "2",
+                "5"
+            ],
+            "bostonPotTournaments": [
+                "1"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true,
+                "5": false
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "tournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "totalOwed": 0,
+            "bostonPotOptOut": {
+                "5": true
+            }
+        },
+        {
+            "id": "2",
+            "teamNumber": 2,
+            "name": "Davis/Wilson",
+            "player1FirstName": "Sarah",
+            "player1LastName": "Davis",
+            "player2FirstName": "Tom",
+            "player2LastName": "Wilson",
+            "phoneNumber": "5551234568",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "2"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "tournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "3",
+            "teamNumber": 3,
+            "name": "Brown/Taylor",
+            "player1FirstName": "David",
+            "player1LastName": "Brown",
+            "player2FirstName": "Lisa",
+            "player2LastName": "Taylor",
+            "phoneNumber": "5551234569",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "1"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "1": true
+            },
+            "player2TournamentPayments": {
+                "1": true
+            },
+            "tournamentPayments": {
+                "1": false
+            },
+            "totalOwed": 25
+        },
+        {
+            "id": "4",
+            "teamNumber": 4,
+            "name": "Miller/Anderson",
+            "player1FirstName": "Chris",
+            "player1LastName": "Miller",
+            "player2FirstName": "Amy",
+            "player2LastName": "Anderson",
+            "phoneNumber": "5551234570",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "2"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "2": true
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 50
+        },
+        {
+            "id": "5",
+            "teamNumber": 5,
+            "name": "Garcia/Rodriguez",
+            "player1FirstName": "Carlos",
+            "player1LastName": "Garcia",
+            "player2FirstName": "Ana",
+            "player2LastName": "Rodriguez",
+            "phoneNumber": "5551234571",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "1",
+                "2"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "tournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "6",
+            "teamNumber": 6,
+            "name": "Lee/White",
+            "player1FirstName": "Kevin",
+            "player1LastName": "Lee",
+            "player2FirstName": "Emma",
+            "player2LastName": "White",
+            "phoneNumber": "5551234572",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "1"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true
+            },
+            "player2TournamentPayments": {
+                "1": true
+            },
+            "tournamentPayments": {
+                "1": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "7",
+            "teamNumber": 7,
+            "name": "Clark/Lewis",
+            "player1FirstName": "Ryan",
+            "player1LastName": "Clark",
+            "player2FirstName": "Jessica",
+            "player2LastName": "Lewis",
+            "phoneNumber": "5551234573",
+            "city": "Other",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "2": true
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 25
+        },
+        {
+            "id": "8",
+            "teamNumber": 8,
+            "name": "Hall/Young",
+            "player1FirstName": "Mark",
+            "player1LastName": "Hall",
+            "player2FirstName": "Rachel",
+            "player2LastName": "Young",
+            "phoneNumber": "5551234574",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "1"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "tournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "9",
+            "teamNumber": 9,
+            "name": "King/Wright",
+            "player1FirstName": "Steve",
+            "player1LastName": "King",
+            "player2FirstName": "Nicole",
+            "player2LastName": "Wright",
+            "phoneNumber": "5551234575",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "1"
+            ],
+            "bostonPotTournaments": [
+                "1"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true
+            },
+            "player2TournamentPayments": {
+                "1": true
+            },
+            "tournamentPayments": {
+                "1": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "10",
+            "teamNumber": 10,
+            "name": "Green/Adams",
+            "player1FirstName": "Paul",
+            "player1LastName": "Green",
+            "player2FirstName": "Kate",
+            "player2LastName": "Adams",
+            "phoneNumber": "5551234576",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 50
+        },
+        {
+            "id": "11",
+            "teamNumber": 11,
+            "name": "Baker/Nelson",
+            "player1FirstName": "Jim",
+            "player1LastName": "Baker",
+            "player2FirstName": "Linda",
+            "player2LastName": "Nelson",
+            "phoneNumber": "5551234577",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "2"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": false,
+                "2": false
+            },
+            "tournamentPayments": {
+                "1": false,
+                "2": false
+            },
+            "totalOwed": 50
+        },
+        {
+            "id": "12",
+            "teamNumber": 12,
+            "name": "Hill/Carter",
+            "player1FirstName": "Rob",
+            "player1LastName": "Hill",
+            "player2FirstName": "Susan",
+            "player2LastName": "Carter",
+            "phoneNumber": "5551234578",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "1"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true
+            },
+            "player2TournamentPayments": {
+                "1": true
+            },
+            "tournamentPayments": {
+                "1": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "13",
+            "teamNumber": 13,
+            "name": "Mitchell/Perez",
+            "player1FirstName": "Dan",
+            "player1LastName": "Mitchell",
+            "player2FirstName": "Maria",
+            "player2LastName": "Perez",
+            "phoneNumber": "5551234579",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "2"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "2": true
+            },
+            "tournamentPayments": {
+                "2": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "14",
+            "teamNumber": 14,
+            "name": "Roberts/Turner",
+            "player1FirstName": "Alex",
+            "player1LastName": "Roberts",
+            "player2FirstName": "Beth",
+            "player2LastName": "Turner",
+            "phoneNumber": "5551234580",
+            "city": "Other",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "1"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "tournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "15",
+            "teamNumber": 15,
+            "name": "Phillips/Campbell",
+            "player1FirstName": "Greg",
+            "player1LastName": "Phillips",
+            "player2FirstName": "Carol",
+            "player2LastName": "Campbell",
+            "phoneNumber": "5551234581",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "1"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "1": true
+            },
+            "player2TournamentPayments": {
+                "1": false
+            },
+            "tournamentPayments": {
+                "1": false
+            },
+            "totalOwed": 25
+        },
+        {
+            "id": "16",
+            "teamNumber": 16,
+            "name": "Parker/Evans",
+            "player1FirstName": "Matt",
+            "player1LastName": "Parker",
+            "player2FirstName": "Helen",
+            "player2LastName": "Evans",
+            "phoneNumber": "5551234582",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "2"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 50
+        },
+        {
+            "id": "17",
+            "teamNumber": 17,
+            "name": "Edwards/Collins",
+            "player1FirstName": "Ben",
+            "player1LastName": "Edwards",
+            "player2FirstName": "Diane",
+            "player2LastName": "Collins",
+            "phoneNumber": "5551234583",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "1",
+                "2"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "tournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "18",
+            "teamNumber": 18,
+            "name": "Stewart/Morris",
+            "player1FirstName": "Joe",
+            "player1LastName": "Stewart",
+            "player2FirstName": "Janet",
+            "player2LastName": "Morris",
+            "phoneNumber": "5551234584",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "1"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true
+            },
+            "player2TournamentPayments": {
+                "1": true
+            },
+            "tournamentPayments": {
+                "1": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "19",
+            "teamNumber": 19,
+            "name": "Sanchez/Rogers",
+            "player1FirstName": "Luis",
+            "player1LastName": "Sanchez",
+            "player2FirstName": "Karen",
+            "player2LastName": "Rogers",
+            "phoneNumber": "5551234585",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 25
+        },
+        {
+            "id": "20",
+            "teamNumber": 20,
+            "name": "Reed/Cook",
+            "player1FirstName": "Tony",
+            "player1LastName": "Reed",
+            "player2FirstName": "Nancy",
+            "player2LastName": "Cook",
+            "phoneNumber": "5551234586",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "1"
+            ],
+            "paymentStatus": "paid",
+            "player1PaymentStatus": "paid",
+            "player2PaymentStatus": "paid",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "tournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1000",
+            "teamNumber": 1000,
+            "name": "TestTeam1000",
+            "player1FirstName": "P1F1000",
+            "player1LastName": "P1L1000",
+            "player2FirstName": "P2F1000",
+            "player2LastName": "P2L1000",
+            "phoneNumber": "5551000000",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1001",
+            "teamNumber": 1001,
+            "name": "TestTeam1001",
+            "player1FirstName": "P1F1001",
+            "player1LastName": "P1L1001",
+            "player2FirstName": "P2F1001",
+            "player2LastName": "P2L1001",
+            "phoneNumber": "5551000001",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1002",
+            "teamNumber": 1002,
+            "name": "TestTeam1002",
+            "player1FirstName": "P1F1002",
+            "player1LastName": "P1L1002",
+            "player2FirstName": "P2F1002",
+            "player2LastName": "P2L1002",
+            "phoneNumber": "5551000002",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1003",
+            "teamNumber": 1003,
+            "name": "TestTeam1003",
+            "player1FirstName": "P1F1003",
+            "player1LastName": "P1L1003",
+            "player2FirstName": "P2F1003",
+            "player2LastName": "P2L1003",
+            "phoneNumber": "5551000003",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1004",
+            "teamNumber": 1004,
+            "name": "TestTeam1004",
+            "player1FirstName": "P1F1004",
+            "player1LastName": "P1L1004",
+            "player2FirstName": "P2F1004",
+            "player2LastName": "P2L1004",
+            "phoneNumber": "5551000004",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1005",
+            "teamNumber": 1005,
+            "name": "TestTeam1005",
+            "player1FirstName": "P1F1005",
+            "player1LastName": "P1L1005",
+            "player2FirstName": "P2F1005",
+            "player2LastName": "P2L1005",
+            "phoneNumber": "5551000005",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1006",
+            "teamNumber": 1006,
+            "name": "TestTeam1006",
+            "player1FirstName": "P1F1006",
+            "player1LastName": "P1L1006",
+            "player2FirstName": "P2F1006",
+            "player2LastName": "P2L1006",
+            "phoneNumber": "5551000006",
+            "city": "Other",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1007",
+            "teamNumber": 1007,
+            "name": "TestTeam1007",
+            "player1FirstName": "P1F1007",
+            "player1LastName": "P1L1007",
+            "player2FirstName": "P2F1007",
+            "player2LastName": "P2L1007",
+            "phoneNumber": "5551000007",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1008",
+            "teamNumber": 1008,
+            "name": "TestTeam1008",
+            "player1FirstName": "P1F1008",
+            "player1LastName": "P1L1008",
+            "player2FirstName": "P2F1008",
+            "player2LastName": "P2L1008",
+            "phoneNumber": "5551000008",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1009",
+            "teamNumber": 1009,
+            "name": "TestTeam1009",
+            "player1FirstName": "P1F1009",
+            "player1LastName": "P1L1009",
+            "player2FirstName": "P2F1009",
+            "player2LastName": "P2L1009",
+            "phoneNumber": "5551000009",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1010",
+            "teamNumber": 1010,
+            "name": "TestTeam1010",
+            "player1FirstName": "P1F1010",
+            "player1LastName": "P1L1010",
+            "player2FirstName": "P2F1010",
+            "player2LastName": "P2L1010",
+            "phoneNumber": "5551000010",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1011",
+            "teamNumber": 1011,
+            "name": "TestTeam1011",
+            "player1FirstName": "P1F1011",
+            "player1LastName": "P1L1011",
+            "player2FirstName": "P2F1011",
+            "player2LastName": "P2L1011",
+            "phoneNumber": "5551000011",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1012",
+            "teamNumber": 1012,
+            "name": "TestTeam1012",
+            "player1FirstName": "P1F1012",
+            "player1LastName": "P1L1012",
+            "player2FirstName": "P2F1012",
+            "player2LastName": "P2L1012",
+            "phoneNumber": "5551000012",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1013",
+            "teamNumber": 1013,
+            "name": "TestTeam1013",
+            "player1FirstName": "P1F1013",
+            "player1LastName": "P1L1013",
+            "player2FirstName": "P2F1013",
+            "player2LastName": "P2L1013",
+            "phoneNumber": "5551000013",
+            "city": "Other",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1014",
+            "teamNumber": 1014,
+            "name": "TestTeam1014",
+            "player1FirstName": "P1F1014",
+            "player1LastName": "P1L1014",
+            "player2FirstName": "P2F1014",
+            "player2LastName": "P2L1014",
+            "phoneNumber": "5551000014",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1015",
+            "teamNumber": 1015,
+            "name": "TestTeam1015",
+            "player1FirstName": "P1F1015",
+            "player1LastName": "P1L1015",
+            "player2FirstName": "P2F1015",
+            "player2LastName": "P2L1015",
+            "phoneNumber": "5551000015",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1016",
+            "teamNumber": 1016,
+            "name": "TestTeam1016",
+            "player1FirstName": "P1F1016",
+            "player1LastName": "P1L1016",
+            "player2FirstName": "P2F1016",
+            "player2LastName": "P2L1016",
+            "phoneNumber": "5551000016",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1017",
+            "teamNumber": 1017,
+            "name": "TestTeam1017",
+            "player1FirstName": "P1F1017",
+            "player1LastName": "P1L1017",
+            "player2FirstName": "P2F1017",
+            "player2LastName": "P2L1017",
+            "phoneNumber": "5551000017",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1018",
+            "teamNumber": 1018,
+            "name": "TestTeam1018",
+            "player1FirstName": "P1F1018",
+            "player1LastName": "P1L1018",
+            "player2FirstName": "P2F1018",
+            "player2LastName": "P2L1018",
+            "phoneNumber": "5551000018",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1019",
+            "teamNumber": 1019,
+            "name": "TestTeam1019",
+            "player1FirstName": "P1F1019",
+            "player1LastName": "P1L1019",
+            "player2FirstName": "P2F1019",
+            "player2LastName": "P2L1019",
+            "phoneNumber": "5551000019",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1020",
+            "teamNumber": 1020,
+            "name": "TestTeam1020",
+            "player1FirstName": "P1F1020",
+            "player1LastName": "P1L1020",
+            "player2FirstName": "P2F1020",
+            "player2LastName": "P2L1020",
+            "phoneNumber": "5551000020",
+            "city": "Other",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1021",
+            "teamNumber": 1021,
+            "name": "TestTeam1021",
+            "player1FirstName": "P1F1021",
+            "player1LastName": "P1L1021",
+            "player2FirstName": "P2F1021",
+            "player2LastName": "P2L1021",
+            "phoneNumber": "5551000021",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1022",
+            "teamNumber": 1022,
+            "name": "TestTeam1022",
+            "player1FirstName": "P1F1022",
+            "player1LastName": "P1L1022",
+            "player2FirstName": "P2F1022",
+            "player2LastName": "P2L1022",
+            "phoneNumber": "5551000022",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1023",
+            "teamNumber": 1023,
+            "name": "TestTeam1023",
+            "player1FirstName": "P1F1023",
+            "player1LastName": "P1L1023",
+            "player2FirstName": "P2F1023",
+            "player2LastName": "P2L1023",
+            "phoneNumber": "5551000023",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1024",
+            "teamNumber": 1024,
+            "name": "TestTeam1024",
+            "player1FirstName": "P1F1024",
+            "player1LastName": "P1L1024",
+            "player2FirstName": "P2F1024",
+            "player2LastName": "P2L1024",
+            "phoneNumber": "5551000024",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1025",
+            "teamNumber": 1025,
+            "name": "TestTeam1025",
+            "player1FirstName": "P1F1025",
+            "player1LastName": "P1L1025",
+            "player2FirstName": "P2F1025",
+            "player2LastName": "P2L1025",
+            "phoneNumber": "5551000025",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1026",
+            "teamNumber": 1026,
+            "name": "TestTeam1026",
+            "player1FirstName": "P1F1026",
+            "player1LastName": "P1L1026",
+            "player2FirstName": "P2F1026",
+            "player2LastName": "P2L1026",
+            "phoneNumber": "5551000026",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1027",
+            "teamNumber": 1027,
+            "name": "TestTeam1027",
+            "player1FirstName": "P1F1027",
+            "player1LastName": "P1L1027",
+            "player2FirstName": "P2F1027",
+            "player2LastName": "P2L1027",
+            "phoneNumber": "5551000027",
+            "city": "Other",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1028",
+            "teamNumber": 1028,
+            "name": "TestTeam1028",
+            "player1FirstName": "P1F1028",
+            "player1LastName": "P1L1028",
+            "player2FirstName": "P2F1028",
+            "player2LastName": "P2L1028",
+            "phoneNumber": "5551000028",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1029",
+            "teamNumber": 1029,
+            "name": "TestTeam1029",
+            "player1FirstName": "P1F1029",
+            "player1LastName": "P1L1029",
+            "player2FirstName": "P2F1029",
+            "player2LastName": "P2L1029",
+            "phoneNumber": "5551000029",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1030",
+            "teamNumber": 1030,
+            "name": "TestTeam1030",
+            "player1FirstName": "P1F1030",
+            "player1LastName": "P1L1030",
+            "player2FirstName": "P2F1030",
+            "player2LastName": "P2L1030",
+            "phoneNumber": "5551000030",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1031",
+            "teamNumber": 1031,
+            "name": "TestTeam1031",
+            "player1FirstName": "P1F1031",
+            "player1LastName": "P1L1031",
+            "player2FirstName": "P2F1031",
+            "player2LastName": "P2L1031",
+            "phoneNumber": "5551000031",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1032",
+            "teamNumber": 1032,
+            "name": "TestTeam1032",
+            "player1FirstName": "P1F1032",
+            "player1LastName": "P1L1032",
+            "player2FirstName": "P2F1032",
+            "player2LastName": "P2L1032",
+            "phoneNumber": "5551000032",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1033",
+            "teamNumber": 1033,
+            "name": "TestTeam1033",
+            "player1FirstName": "P1F1033",
+            "player1LastName": "P1L1033",
+            "player2FirstName": "P2F1033",
+            "player2LastName": "P2L1033",
+            "phoneNumber": "5551000033",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1034",
+            "teamNumber": 1034,
+            "name": "TestTeam1034",
+            "player1FirstName": "P1F1034",
+            "player1LastName": "P1L1034",
+            "player2FirstName": "P2F1034",
+            "player2LastName": "P2L1034",
+            "phoneNumber": "5551000034",
+            "city": "Other",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1035",
+            "teamNumber": 1035,
+            "name": "TestTeam1035",
+            "player1FirstName": "P1F1035",
+            "player1LastName": "P1L1035",
+            "player2FirstName": "P2F1035",
+            "player2LastName": "P2L1035",
+            "phoneNumber": "5551000035",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1036",
+            "teamNumber": 1036,
+            "name": "TestTeam1036",
+            "player1FirstName": "P1F1036",
+            "player1LastName": "P1L1036",
+            "player2FirstName": "P2F1036",
+            "player2LastName": "P2L1036",
+            "phoneNumber": "5551000036",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1037",
+            "teamNumber": 1037,
+            "name": "TestTeam1037",
+            "player1FirstName": "P1F1037",
+            "player1LastName": "P1L1037",
+            "player2FirstName": "P2F1037",
+            "player2LastName": "P2L1037",
+            "phoneNumber": "5551000037",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1038",
+            "teamNumber": 1038,
+            "name": "TestTeam1038",
+            "player1FirstName": "P1F1038",
+            "player1LastName": "P1L1038",
+            "player2FirstName": "P2F1038",
+            "player2LastName": "P2L1038",
+            "phoneNumber": "5551000038",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1039",
+            "teamNumber": 1039,
+            "name": "TestTeam1039",
+            "player1FirstName": "P1F1039",
+            "player1LastName": "P1L1039",
+            "player2FirstName": "P2F1039",
+            "player2LastName": "P2L1039",
+            "phoneNumber": "5551000039",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1040",
+            "teamNumber": 1040,
+            "name": "TestTeam1040",
+            "player1FirstName": "P1F1040",
+            "player1LastName": "P1L1040",
+            "player2FirstName": "P2F1040",
+            "player2LastName": "P2L1040",
+            "phoneNumber": "5551000040",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1041",
+            "teamNumber": 1041,
+            "name": "TestTeam1041",
+            "player1FirstName": "P1F1041",
+            "player1LastName": "P1L1041",
+            "player2FirstName": "P2F1041",
+            "player2LastName": "P2L1041",
+            "phoneNumber": "5551000041",
+            "city": "Other",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1042",
+            "teamNumber": 1042,
+            "name": "TestTeam1042",
+            "player1FirstName": "P1F1042",
+            "player1LastName": "P1L1042",
+            "player2FirstName": "P2F1042",
+            "player2LastName": "P2L1042",
+            "phoneNumber": "5551000042",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1043",
+            "teamNumber": 1043,
+            "name": "TestTeam1043",
+            "player1FirstName": "P1F1043",
+            "player1LastName": "P1L1043",
+            "player2FirstName": "P2F1043",
+            "player2LastName": "P2L1043",
+            "phoneNumber": "5551000043",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1044",
+            "teamNumber": 1044,
+            "name": "TestTeam1044",
+            "player1FirstName": "P1F1044",
+            "player1LastName": "P1L1044",
+            "player2FirstName": "P2F1044",
+            "player2LastName": "P2L1044",
+            "phoneNumber": "5551000044",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1045",
+            "teamNumber": 1045,
+            "name": "TestTeam1045",
+            "player1FirstName": "P1F1045",
+            "player1LastName": "P1L1045",
+            "player2FirstName": "P2F1045",
+            "player2LastName": "P2L1045",
+            "phoneNumber": "5551000045",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1046",
+            "teamNumber": 1046,
+            "name": "TestTeam1046",
+            "player1FirstName": "P1F1046",
+            "player1LastName": "P1L1046",
+            "player2FirstName": "P2F1046",
+            "player2LastName": "P2L1046",
+            "phoneNumber": "5551000046",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1047",
+            "teamNumber": 1047,
+            "name": "TestTeam1047",
+            "player1FirstName": "P1F1047",
+            "player1LastName": "P1L1047",
+            "player2FirstName": "P2F1047",
+            "player2LastName": "P2L1047",
+            "phoneNumber": "5551000047",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1048",
+            "teamNumber": 1048,
+            "name": "TestTeam1048",
+            "player1FirstName": "P1F1048",
+            "player1LastName": "P1L1048",
+            "player2FirstName": "P2F1048",
+            "player2LastName": "P2L1048",
+            "phoneNumber": "5551000048",
+            "city": "Other",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "dummy-1049",
+            "teamNumber": 1049,
+            "name": "TestTeam1049",
+            "player1FirstName": "P1F1049",
+            "player1LastName": "P1L1049",
+            "player2FirstName": "P2F1049",
+            "player2LastName": "P2L1049",
+            "phoneNumber": "5551000049",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "2": false
+            },
+            "player2TournamentPayments": {
+                "2": false
+            },
+            "tournamentPayments": {
+                "2": false
+            },
+            "totalOwed": 0
+        },
+        {
+            "id": "1751568112899",
+            "teamNumber": 1050,
+            "name": "Brian W/Eric W",
+            "player1FirstName": "Brian",
+            "player1LastName": "Welch",
+            "player2FirstName": "Eric",
+            "player2LastName": "Welch",
+            "phoneNumber": "(317) 250-6454",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "1",
+                "2"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            }
+        },
+        {
+            "id": "1751568718805",
+            "teamNumber": 1051,
+            "name": "r T/g H",
+            "player1FirstName": "r",
+            "player1LastName": "t",
+            "player2FirstName": "g",
+            "player2LastName": "h",
+            "phoneNumber": "(222) 222-2222",
+            "city": "Other",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            }
+        },
+        {
+            "id": "1751568751309",
+            "teamNumber": 1052,
+            "name": "w W/f N",
+            "player1FirstName": "w",
+            "player1LastName": "w",
+            "player2FirstName": "f",
+            "player2LastName": "n",
+            "phoneNumber": "(999) 999-9999",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending"
+        },
+        {
+            "id": "1751672416622",
+            "teamNumber": 1053,
+            "name": "Brian W/Eric W",
+            "player1FirstName": "Brian",
+            "player1LastName": "Welch",
+            "player2FirstName": "Eric",
+            "player2LastName": "Welch",
+            "phoneNumber": "(317) 250-6454",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "1",
+                "2"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            }
+        },
+        {
+            "id": "1751730836697",
+            "teamNumber": 1054,
+            "name": "Brian W/Eric W",
+            "player1FirstName": "Brian",
+            "player1LastName": "Welch",
+            "player2FirstName": "Eric",
+            "player2LastName": "Welch",
+            "phoneNumber": "(317) 250-6454",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "1",
+                "2"
+            ],
+            "bostonPotTournaments": [
+                "1",
+                "2"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "1": true,
+                "2": true
+            },
+            "player2TournamentPayments": {
+                "1": true,
+                "2": true
+            }
+        },
+        {
+            "id": "1751809554049",
+            "teamNumber": 1055,
+            "name": "Brian W/er W",
+            "player1FirstName": "Brian",
+            "player1LastName": "Welch",
+            "player2FirstName": "er",
+            "player2LastName": "Welch",
+            "phoneNumber": "(317) 250-6454",
+            "city": "Columbus",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809610720",
+            "teamNumber": 1056,
+            "name": "q W/W E",
+            "player1FirstName": "q",
+            "player1LastName": "W",
+            "player2FirstName": "W",
+            "player2LastName": "E",
+            "phoneNumber": "(111) 111-1111",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809643158",
+            "teamNumber": 1057,
+            "name": "e r/r t",
+            "player1FirstName": "e",
+            "player1LastName": "r",
+            "player2FirstName": "r",
+            "player2LastName": "t",
+            "phoneNumber": "(222) 222-2222",
+            "city": "Detroit",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809676716",
+            "teamNumber": 1058,
+            "name": "t Y/y U",
+            "player1FirstName": "t",
+            "player1LastName": "y",
+            "player2FirstName": "y",
+            "player2LastName": "u",
+            "phoneNumber": "(333) 333-3333",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809705165",
+            "teamNumber": 1059,
+            "name": "u I/i O",
+            "player1FirstName": "u",
+            "player1LastName": "i",
+            "player2FirstName": "i",
+            "player2LastName": "o",
+            "phoneNumber": "(444) 444-4444",
+            "city": "Other",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809744981",
+            "teamNumber": 1060,
+            "name": "a S/s D",
+            "player1FirstName": "a",
+            "player1LastName": "s",
+            "player2FirstName": "s",
+            "player2LastName": "d",
+            "phoneNumber": "(555) 555-5555",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809797179",
+            "teamNumber": 1061,
+            "name": "g H/h J",
+            "player1FirstName": "g",
+            "player1LastName": "h",
+            "player2FirstName": "h",
+            "player2LastName": "j",
+            "phoneNumber": "(666) 666-6666",
+            "city": "Cincinnati",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809825320",
+            "teamNumber": 1062,
+            "name": "m N/n B",
+            "player1FirstName": "m",
+            "player1LastName": "n",
+            "player2FirstName": "n",
+            "player2LastName": "b",
+            "phoneNumber": "(777) 777-7777",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809856971",
+            "teamNumber": 1063,
+            "name": "b N/n M",
+            "player1FirstName": "b",
+            "player1LastName": "n",
+            "player2FirstName": "n",
+            "player2LastName": "m",
+            "phoneNumber": "(888) 888-8888",
+            "city": "DC/Maryland",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809894998",
+            "teamNumber": 1064,
+            "name": "v F/f B",
+            "player1FirstName": "v",
+            "player1LastName": "f",
+            "player2FirstName": "f",
+            "player2LastName": "b",
+            "phoneNumber": "(999) 999-9999",
+            "city": "Chicago",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751809926558",
+            "teamNumber": 1065,
+            "name": "u B/b D",
+            "player1FirstName": "u",
+            "player1LastName": "b",
+            "player2FirstName": "b",
+            "player2LastName": "d",
+            "phoneNumber": "(111) 111-1112",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "3"
+            ],
+            "bostonPotTournaments": [
+                "3"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "3": true
+            },
+            "player2TournamentPayments": {
+                "3": true
+            }
+        },
+        {
+            "id": "1751822416227",
+            "teamNumber": 1066,
+            "name": "Brian Welch/Chantay Benitez",
+            "player1FirstName": "Brian",
+            "player1LastName": "Welch",
+            "player2FirstName": "Chantay",
+            "player2LastName": "Benitez",
+            "phoneNumber": "(646) 285-8424",
+            "city": "Atlanta",
+            "registeredTournaments": [
+                "4"
+            ],
+            "bostonPotTournaments": [
+                "4"
+            ],
+            "paymentStatus": "pending",
+            "player1PaymentStatus": "pending",
+            "player2PaymentStatus": "pending",
+            "player1TournamentPayments": {
+                "4": true
+            },
+            "player2TournamentPayments": {
+                "4": true
+            },
+            "bostonPotOptOut": {}
+        }
+    ]
+}
