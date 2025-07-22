@@ -11,6 +11,7 @@ import { toast } from '@/components/ui/use-toast';
 import { ScheduleDisplay } from './ScheduleDisplay';
 import { generateNRoundsWithByeAndFinal } from '@/lib/scheduler';
 import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export const TournamentScheduler: React.FC = () => {
   const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions } = useAppContext();
@@ -19,6 +20,8 @@ export const TournamentScheduler: React.FC = () => {
   const [currentSchedule, setCurrentSchedule] = useState<TournamentSchedule | null>(null);
   const [isScheduleLocked, setIsScheduleLocked] = useState(false);
   const [linksSent, setLinksSent] = useState(false);
+  const [showByeDialog, setShowByeDialog] = useState(false);
+  const [byeTeamsList, setByeTeamsList] = useState<string[]>([]);
 
   useEffect(() => {
     if (selectedTournament) {
@@ -71,6 +74,7 @@ export const TournamentScheduler: React.FC = () => {
     // Use new scheduler logic for correct bye and final round handling
     const numRounds = parseInt(numberOfRounds);
     const roundMatches = generateNRoundsWithByeAndFinal(schedulerTeams, numRounds);
+
     const matches: ScheduleMatch[] = [];
     let matchId = 1;
     let tableNum = 1;
@@ -78,18 +82,7 @@ export const TournamentScheduler: React.FC = () => {
     roundMatches.forEach((roundData, roundIndex) => {
       tableNum = 1;
       roundData.forEach(match => {
-        if ('isBye' in match && match.isBye) {
-          matches.push({
-            id: `${selectedTournament}-r${roundIndex + 1}-bye${matchId++}`,
-            teamA: match.team.id,
-            teamB: 'BYE',
-            round: roundIndex + 1,
-            table: 0,
-            tournamentId: selectedTournament,
-            isBye: true,
-            isSameCity: false
-          });
-        } else if ('teamA' in match && 'teamB' in match) {
+        if ('teamA' in match && 'teamB' in match) {
           matches.push({
             id: `${selectedTournament}-r${roundIndex + 1}-m${matchId++}`,
             teamA: match.teamA.id,
@@ -97,7 +90,7 @@ export const TournamentScheduler: React.FC = () => {
             round: roundIndex + 1,
             table: Math.min(tableNum++, maxTables),
             tournamentId: selectedTournament,
-            isBye: false,
+            isBye: match.teamA.id === 'BYE' || match.teamB.id === 'BYE',
             isSameCity: match.teamA.city === match.teamB.city
           });
         }
@@ -133,7 +126,24 @@ export const TournamentScheduler: React.FC = () => {
     if (byeMatches > 0) description += `${byeMatches} bye matches. `;
     if (sameCityMatches > 0) description += `Warning: ${sameCityMatches} same-city matches found`;
     else if (byeMatches === 0) description = 'No same-city conflicts!';
-    
+
+    // Collect all teams that received a bye in any round
+    const allByeTeams = new Set<string>();
+    roundMatches.forEach(round => {
+      round.forEach(m => {
+        if ('isBye' in m && m.isBye) {
+          allByeTeams.add(m.team.name);
+        }
+      });
+    });
+
+    // Add bye team names to the message
+    if (allByeTeams.size > 0) {
+      description += `\nTeams with byes: ${Array.from(allByeTeams).join(', ')}`;
+      setByeTeamsList(Array.from(allByeTeams));
+      setShowByeDialog(true);
+    }
+
     toast({ 
       title: `Schedule generated! ${roundMatches.length} rounds`,
       description: description || undefined
@@ -257,6 +267,30 @@ export const TournamentScheduler: React.FC = () => {
           tournamentName={tournament?.name || ''} 
         />
       )}
+
+      <Dialog open={showByeDialog} onOpenChange={setShowByeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Teams with Byes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {byeTeamsList.length === 0 ? (
+              <div className="text-gray-600">No teams received a bye.</div>
+            ) : (
+              <ul className="list-disc pl-6">
+                {byeTeamsList.map(name => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button onClick={() => setShowByeDialog(false)}>OK</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
+export default TournamentScheduler;

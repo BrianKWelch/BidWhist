@@ -88,6 +88,23 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
               </div>
               <div className="space-y-3">
                 {roundMatches.map(match => {
+                  if (match.isBye) {
+                    const team = teams.find(t => t.id === match.teamA) || { name: match.teamA, teamNumber: '', player1FirstName: '', player1LastName: '', player2FirstName: '', player2LastName: '', city: '' };
+                    return (
+                      <div key={match.id} className={`p-2 md:p-4 border rounded-lg bg-yellow-50 border-yellow-300 text-yellow-800`}>
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2 md:gap-0">
+                          <div className="flex-1 font-medium text-xs md:text-sm">
+                            Team {('teamNumber' in team && team.teamNumber) ? team.teamNumber : (('id' in team && team.id) ? team.id : '?')}: {team.name} has a <span className="font-bold">BYE</span> this round
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap justify-center items-center gap-1 md:gap-2 mt-1">
+                          <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1 bg-yellow-100 border-yellow-300 text-yellow-800">
+                            BYE
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  }
                   const teamA = teams.find(t => t.id === match.teamA);
                   const teamB = teams.find(t => t.id === match.teamB);
                   const status = getMatchStatus(match);
@@ -98,7 +115,7 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
                         <div className="flex-1">
                           <div className="font-medium text-xs md:text-sm">
                             {match.teamA === 'TBD' ? 'Team TBD' : 
-                             teamA ? `Team ${teamA.teamNumber}: ${teamA.name}` : `Team ${match.teamA}`}
+                             teamA ? `Team ${teamA.teamNumber ?? teamA.id}: ${teamA.name}` : `Team ${match.teamA}`}
                           </div>
                           {teamA && (
                             <div className="text-[10px] md:text-xs text-muted-foreground">
@@ -115,7 +132,7 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
                         <div className="flex-1 md:text-right">
                           <div className="font-medium text-xs md:text-sm">
                             {match.teamB === 'TBD' ? 'Team TBD' : 
-                             teamB ? `Team ${teamB.teamNumber}: ${teamB.name}` : `Team ${match.teamB}`}
+                             teamB ? `Team ${teamB.teamNumber ?? teamB.id}: ${teamB.name}` : `Team ${match.teamB}`}
                           </div>
                           {teamB && (
                             <div className="text-[10px] md:text-xs text-muted-foreground">

@@ -57,12 +57,9 @@ const AppLayout: React.FC = () => {
     setActiveTournament(tournamentId);
   };
 
-  console.log('AppLayout render: showSetup:', showSetup, 'currentUser:', currentUser);
   if (showSetup || !currentUser) {
     return <PlayerSetup onSetupComplete={handleSetupComplete} />;
   }
-console.log("tournaments array:", tournaments);
-console.log("getActiveTournament:", getActiveTournament());
 
   return (
     <ErrorBoundary>

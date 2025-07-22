@@ -103,64 +103,54 @@ export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: nu
   for (let round = 0; round < Math.min(numRounds, leftTeams.length); round++) {
     const matches: GameMatch[] = [];
     for (let i = 0; i < leftTeams.length; i++) {
-      matches.push({
-        round: round + 1,
-        teamA: leftTeams[i],
-        teamB: rightTeams[i],
-      });
+      if (leftTeams[i].id === 'BYE' && rightTeams[i].id === 'BYE') {
+        continue;
+      } else if (leftTeams[i].id === 'BYE') {
+        const match = { teamA: rightTeams[i], teamB: { id: 'BYE', name: 'BYE', city: 'BYE' }, round: round + 1 };
+        matches.push(match);
+      } else if (rightTeams[i].id === 'BYE') {
+        const match = { teamA: leftTeams[i], teamB: { id: 'BYE', name: 'BYE', city: 'BYE' }, round: round + 1 };
+        matches.push(match);
+      } else {
+        const match = {
+          round: round + 1,
+          teamA: leftTeams[i],
+          teamB: rightTeams[i],
+        };
+        matches.push(match);
+      }
     }
     rounds.push(matches);
-    // Rotate right column down by 1
     rightTeams.unshift(rightTeams.pop()!);
   }
 
-  // --- PATCH START: Add a bye round at the end for teams that had a bye ---
-  // Collect all teams that had a bye in the main rounds
-  const byeTeams: Team[] = [];
+  // --- NEW LOGIC: Add an extra round to pair up teams who played against BYE ---
+  // 1. Collect all teams who played against BYE in any round
+  const teamsWithBye: Team[] = [];
   for (const round of rounds) {
     for (const match of round) {
-      if ('isBye' in match && match.isBye && match.team.id !== 'BYE') {
-        byeTeams.push(match.team);
-      }
-    }
-  }
-  // Remove duplicates
-  const uniqueByeTeams = Array.from(new Set(byeTeams.map(t => t.id)))
-    .map(id => byeTeams.find(t => t.id === id)!);
-
-  // If 2 or more teams had a bye, schedule a single round where all play (no repeats)
-  if (uniqueByeTeams.length >= 1) {
-    // Gather all previous matches for rematch prevention
-    const previousMatches: PreviousMatch[] = [];
-    for (const round of rounds) {
-      for (const match of round) {
-        if ('teamA' in match && 'teamB' in match) {
-          previousMatches.push({ teamAId: match.teamA.id, teamBId: match.teamB.id });
+      if ('teamA' in match && 'teamB' in match) {
+        if (match.teamA.id !== 'BYE' && match.teamB.id === 'BYE') {
+          teamsWithBye.push(match.teamA);
+        }
+        if (match.teamB.id !== 'BYE' && match.teamA.id === 'BYE') {
+          teamsWithBye.push(match.teamB);
         }
       }
     }
-    // Pair up bye teams for a single round (no repeats, no same team)
-    const matches: GameMatch[] = [];
-    const used = new Set<string>();
-    for (let i = 0; i < uniqueByeTeams.length; i += 2) {
-      const teamA = uniqueByeTeams[i];
-      const teamB = uniqueByeTeams[i + 1];
-      if (teamA && teamB && !previousMatches.some(m => (m.teamAId === teamA.id && m.teamBId === teamB.id) || (m.teamAId === teamB.id && m.teamBId === teamA.id))) {
-        matches.push({ teamA, teamB, round: rounds.length + 1 });
-        used.add(teamA.id);
-        used.add(teamB.id);
-      }
-    }
-    // If odd number, one team gets a bye in this round
-    if (uniqueByeTeams.length % 2 === 1) {
-      const left = uniqueByeTeams.find(t => !used.has(t.id));
-      if (left) {
-        matches.push({ team: left, round: rounds.length + 1, isBye: true });
-      }
-    }
-    if (matches.length > 0) rounds.push(matches);
   }
-  // --- PATCH END ---
+  // 2. Pair them up in a single extra round
+  if (teamsWithBye.length > 0) {
+    const extraRound: GameMatch[] = [];
+    for (let i = 0; i < teamsWithBye.length; i += 2) {
+      const teamA = teamsWithBye[i];
+      const teamB = teamsWithBye[i + 1];
+      if (teamA && teamB) {
+        extraRound.push({ teamA, teamB, round: rounds.length + 1 });
+      }
+    }
+    if (extraRound.length > 0) rounds.push(extraRound);
+  }
 
   return rounds;
 }
