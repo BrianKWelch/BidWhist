@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { BracketDisplay } from './BracketDisplay';
 import { Trophy, Target, RotateCcw } from 'lucide-react';
 import type { BracketTeam, BracketMatch, Bracket } from '@/contexts/AppContext';
+import { getSortedTournamentResults } from '@/lib/utils';
 
 export const BracketGenerator: React.FC = () => {
   const { tournaments, getTournamentResults, saveBracket, getBracket, updateBracket, deleteBracket, teams, schedules, games } = useAppContext();
@@ -31,113 +32,17 @@ export const BracketGenerator: React.FC = () => {
 
 
   const generateBracket = (size: number) => {
+    // Use getSortedTournamentResults to get the correct team list as shown in the dialog
     const schedule = schedules.find(s => s.tournamentId === selectedTournament);
-    let registeredTeams: any[] = [];
-    let numRounds = 5;
-    if (schedule) {
-      const teamIds = Array.from(new Set(
-        schedule.matches.flatMap(m => [m.teamA, m.teamB])
-          .filter(id => typeof id === 'string' && id !== 'BYE' && id !== 'TBD')
-      ));
-      registeredTeams = teamIds
-        .filter((id): id is string => typeof id === 'string')
-        .map(id => teams.find(t => t.id === id))
-        .filter((t): t is typeof teams[number] => Boolean(t));
-      numRounds = schedule.rounds;
-    }
-
-    // Build results matrix and totals (same as TournamentResults)
-    const resultsMatrix: Record<string, Record<number, { wl: string; points: number; boston: number }>> = {};
-    const teamTotals: Record<string, { gamesWon: number; totalWins: number; totalBostons: number }> = {};
-
-    registeredTeams.forEach(team => {
-      if (!team) return;
-      resultsMatrix[team.id] = {};
-      let gamesWon = 0;
-      let totalWins = 0;
-      let totalBostons = 0;
-      for (let round = 1; round <= numRounds; round++) {
-        // Use override if present, else calculate
-        const keyWl = `${team.id}_${round}_wl`;
-        const keyPoints = `${team.id}_${round}_points`;
-        const keyBoston = `${team.id}_${round}_boston`;
-        let wl: string;
-        let points: number;
-        let boston: number;
-        if (overrides[keyWl] !== undefined || overrides[keyPoints] !== undefined || overrides[keyBoston] !== undefined) {
-          wl = overrides[keyWl] ?? '';
-          points = overrides[keyPoints] !== undefined ? Number(overrides[keyPoints]) : 0;
-          boston = overrides[keyBoston] !== undefined ? Number(overrides[keyBoston]) : 0;
-        } else {
-          const match = schedule?.matches.find(m => m.round === round && (m.teamA === team.id || m.teamB === team.id));
-          if (match) {
-            const game = games.find(g => g.matchId === match.id && g.confirmed);
-            if (game) {
-              const isTeamA = (typeof game.teamA === 'object' ? game.teamA.id : game.teamA) === team.id;
-              const myScore = isTeamA ? game.scoreA : game.scoreB;
-              const oppScore = isTeamA ? game.scoreB : game.scoreA;
-              wl = myScore > oppScore ? 'W' : 'L';
-              boston = (game.boston === 'teamA' && isTeamA) || (game.boston === 'teamB' && !isTeamA) ? 1 : 0;
-              points = myScore;
-            } else {
-              wl = '';
-              points = 0;
-              boston = 0;
-            }
-          } else {
-            wl = '';
-            points = 0;
-            boston = 0;
-          }
-        }
-        resultsMatrix[team.id][round] = { wl, points, boston };
-        if (wl) gamesWon++;
-        if (wl === 'W') totalWins++;
-        totalBostons += boston;
-      }
-      teamTotals[team.id] = { gamesWon, totalWins, totalBostons };
-    });
-
-    // Sort using the EXACT same logic as TournamentResults (copy-paste for perfect match)
-    // This ensures bracket seeding matches the results page line number (1-based)
-    const sortedTeams = registeredTeams
-      .slice()
-      .sort((a, b) => {
-        // Sort by totalWins, then total points, then round 1 points, then team number ascending
-        const aTotals = teamTotals[a.id] || { totalWins: 0 };
-        const bTotals = teamTotals[b.id] || { totalWins: 0 };
-        if (bTotals.totalWins !== aTotals.totalWins) {
-          return bTotals.totalWins - aTotals.totalWins;
-        }
-        // Total points (exclude 'totalPoints' entry)
-        const aPoints = Object.entries(resultsMatrix[a.id] || {})
-          .filter(([k]) => k !== 'totalPoints')
-          .reduce((sum, [, r]) => sum + (r.points || 0), 0);
-        const bPoints = Object.entries(resultsMatrix[b.id] || {})
-          .filter(([k]) => k !== 'totalPoints')
-          .reduce((sum, [, r]) => sum + (r.points || 0), 0);
-        if (bPoints !== aPoints) {
-          return bPoints - aPoints;
-        }
-        // Points in round 1
-        const aR1 = resultsMatrix[a.id]?.[1]?.points || 0;
-        const bR1 = resultsMatrix[b.id]?.[1]?.points || 0;
-        if (bR1 !== aR1) {
-          return bR1 - aR1;
-        }
-        // Team number ascending
-        return a.teamNumber - b.teamNumber;
-      })
-      .slice(0, size);
-
-    // Assign seed = results page line number (1-based)
-    const seededTeams = sortedTeams.map((team, index) => ({
+    const numRounds = schedule ? schedule.rounds : 5;
+    const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
+    // Assign seed strictly by row order from sortedTeams
+    const seededTeams = sortedTeams.slice(0, size).map((team, index) => ({
       seed: index + 1,
       teamId: team.id,
       teamName: team.name,
       teamNumber: team.teamNumber
     }));
-
     const matches = createMatches(size, seededTeams);
     const newBracket: Bracket = {
       id: `bracket-${Date.now()}`,
@@ -147,7 +52,6 @@ export const BracketGenerator: React.FC = () => {
       matches,
       createdAt: new Date()
     };
-
     setBracket(newBracket);
     saveBracket(newBracket);
     setTopSeeds(seededTeams.slice(0, 5));
@@ -319,6 +223,38 @@ export const BracketGenerator: React.FC = () => {
                   <DialogHeader>
                     <DialogTitle>Select Bracket Size</DialogTitle>
                   </DialogHeader>
+                  <div className="flex flex-col md:flex-row gap-6 p-2">
+                    <div className="flex-1 border rounded p-2 bg-gray-50">
+                      <h4 className="font-semibold mb-2 text-blue-700">Tournament Results Order</h4>
+                      <ol className="list-decimal pl-4">
+                        {(() => {
+                          const schedule = schedules.find(s => s.tournamentId === selectedTournament);
+                          const numRounds = schedule ? schedule.rounds : 5;
+                          const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
+                          return sortedTeams.map((team, idx) => (
+                            <li key={team.id} className="mb-1">
+                              <Badge variant="outline">#{idx + 1}</Badge> <span className="font-medium">{team.name}</span> <span className="text-xs text-gray-500">(Team # {team.teamNumber ?? team.id})</span>
+                            </li>
+                          ));
+                        })()}
+                      </ol>
+                    </div>
+                    <div className="flex-1 border rounded p-2 bg-gray-50">
+                      <h4 className="font-semibold mb-2 text-green-700">Bracket Seeding Order (Preview)</h4>
+                      <ol className="list-decimal pl-4">
+                        {(() => {
+                          const schedule = schedules.find(s => s.tournamentId === selectedTournament);
+                          const numRounds = schedule ? schedule.rounds : 5;
+                          const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
+                          return sortedTeams.map((team, idx) => (
+                            <li key={team.id} className="mb-1">
+                              <Badge variant="outline">#{idx + 1}</Badge> <span className="font-medium">{team.name}</span> <span className="text-xs text-gray-500">(Team # {team.teamNumber ?? team.id})</span>
+                            </li>
+                          ));
+                        })()}
+                      </ol>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-4 p-4">
                     <Button onClick={() => generateBracket(32)} variant="outline">32 Team Bracket</Button>
                     <Button onClick={() => generateBracket(16)} variant="outline">16 Team Bracket</Button>
@@ -358,6 +294,7 @@ export const BracketGenerator: React.FC = () => {
               <BracketDisplay
                 size={bracket.size}
                 matches={bracket.matches}
+                teams={bracket.teams}
                 onScoreUpdate={handleScoreUpdate}
                 onAdvanceWinner={handleAdvanceWinner}
               />
@@ -368,14 +305,23 @@ export const BracketGenerator: React.FC = () => {
                     <DialogTitle>Top 5 Seeds</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-2">
-                    {topSeeds.length === 0 && <div>No teams seeded.</div>}
-                    {topSeeds.map((team, idx) => (
-                      <div key={team.teamId} className="flex items-center gap-2">
-                        <Badge variant="outline">#{team.seed}</Badge>
-                        <span className="font-medium">{team.teamName}</span>
-                        <span className="text-xs text-gray-500">(Team #{team.teamNumber})</span>
+                    {topSeeds.length === 0 && (
+                      <div className="text-red-600 font-semibold">
+                        No teams could be seeded. Please check that your tournament has a valid schedule and teams.
                       </div>
-                    ))}
+                    )}
+                    {topSeeds.map((team, idx) => {
+                      const teamNum = team.teamNumber ?? team.teamId;
+                      return (
+                        <div key={team.teamId} className="flex items-center gap-2">
+                          <Badge variant="outline">#{team.seed}</Badge>
+                          <span className="font-medium">{team.teamName}</span>
+                          {teamNum && (
+                            <span className="text-xs text-gray-500">(Team # {teamNum})</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   <div className="flex justify-end pt-2">
                     <Button onClick={() => setShowSeedsDialog(false)}>OK</Button>

@@ -233,7 +233,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (result.error) {
           // ...removed debug log...
         } else {
-          setTournaments(result.data || []);
+          // Map boston_pot_cost to bostonPotCost for frontend use
+          const tournaments = (result.data || []).map(t => ({
+            ...t,
+            bostonPotCost: t.boston_pot_cost,
+          }));
+          setTournaments(tournaments);
         }
       });
     });
@@ -715,12 +720,28 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       finishTournament,
       getActiveTournament,
       setActiveTournament,
-      updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => {
-        setTournaments(prev => prev.map(tournament => 
-          tournament.id === id 
-            ? { ...tournament, name, cost, bostonPotCost, description }
-            : tournament
-        ));
+      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string) => {
+        const { supabase } = await import('../supabaseClient');
+        // Update in Supabase
+        const { error } = await supabase
+          .from('tournaments')
+          .update({
+            name,
+            cost,
+            boston_pot_cost: bostonPotCost,
+            status,
+            description
+          })
+          .eq('id', id);
+        if (error) {
+          toast({ title: 'Failed to update tournament in database.', description: error.message, variant: 'destructive' });
+          return;
+        }
+        // Refetch tournaments from Supabase to update local state
+        const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
+        if (!fetchError) {
+          setTournaments(tournamentsData || []);
+        }
         toast({ title: `Tournament "${name}" updated successfully!` });
       },
       updatePaymentStatus: () => {}, 

@@ -68,6 +68,7 @@ const CombinedResultsPage = () => {
   return (
     <div className="space-y-6">
       <TournamentResults tournamentId={activeTournament.id} />
+      
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -102,13 +103,13 @@ const CombinedResultsPage = () => {
                         <div className="flex items-center gap-2">
                           <Trophy className="h-4 w-4 text-yellow-500" />
                           <span className="font-semibold text-green-700">
-                            Team {result.winner.teamNumber || 'Unknown'}
+                            Team # {result.winner.teamNumber ?? result.winner.id}
                           </span>
                           <span className="font-bold text-lg mx-2">
                             {result.winnerScore} - {result.loserScore}
                           </span>
                           <span className="font-medium text-red-600">
-                            Team {result.loser.teamNumber || 'Unknown'}
+                            Team # {result.loser.teamNumber ?? result.loser.id}
                           </span>
                         </div>
                         {game.boston !== 'none' && (

@@ -94,20 +94,24 @@ const PlayerPortalFixed = () => {
       (game.teamA.id === team.id || game.teamB.id === team.id) &&
       game.confirmed &&
       game.matchId && matchIds.has(game.matchId)
-    ).map(game => ({
-      ...game,
-      isWin: (game.teamA.id === team.id && game.winner === 'teamA') ||
-             (game.teamB.id === team.id && game.winner === 'teamB'),
-      teamScore: game.teamA.id === team.id ? game.scoreA : game.scoreB,
-      opponentScore: game.teamA.id === team.id ? game.scoreB : game.scoreA,
-      opponent: game.teamA.id === team.id ? game.teamB : game.teamA
-    }));
+    ).map(game => {
+      const isTeamA = game.teamA.id === team.id;
+      const opponentId = isTeamA ? game.teamB.id : game.teamA.id;
+      const opponent = teams.find(t => t.id === opponentId) || null;
+      return {
+        ...game,
+        isWin: (isTeamA && game.winner === 'teamA') || (!isTeamA && game.winner === 'teamB'),
+        teamScore: isTeamA ? game.scoreA : game.scoreB,
+        opponentScore: isTeamA ? game.scoreB : game.scoreA,
+        opponent
+      };
+    });
     const wins = results.filter(r => r.isWin).length;
     const totalGames = results.length;
     const totalPoints = results.reduce((sum, r) => sum + r.teamScore, 0);
     const avgPoints = totalGames > 0 ? (totalPoints / totalGames).toFixed(1) : '0.0';
     return { wins, totalGames, totalPoints, avgPoints, results };
-  }, [games, team, schedules, getActiveTournament]);
+  }, [games, team, schedules, getActiveTournament, teams]);
 
   // REMOVE_ME: File name display for testing
   if (!team) {
@@ -309,14 +313,43 @@ const PlayerPortalFixed = () => {
                                           ) : (
                                             <div>
                                               <p className="text-sm font-medium">
-                                                My team plays <span className="font-bold text-red-600">Team {match.opponentTeam?.teamNumber || 'TBD'}</span>
-                                                {match.opponentTeam && (
-                                                  <span className="text-xs text-gray-700 font-semibold"> (
-                                                    {match.opponentTeam.player1FirstName} {match.opponentTeam.player1LastName} & {match.opponentTeam.player2FirstName} {match.opponentTeam.player2LastName}
-                                                  )</span>
-                                                )}
-                                                {match.opponentTeam && (
-                                                  <span className="text-[11px] text-gray-500 font-normal align-middle ml-1" style={{ verticalAlign: 'middle' }}>-DC/Maryland</span>
+                                                My team plays{' '}
+                                                {match.opponentTeam ? (
+                                                  (() => {
+                                                    let teamNum = 'TBD';
+                                                    if (match.opponentTeam.teamNumber) {
+                                                      teamNum = `Team # ${match.opponentTeam.teamNumber}`;
+                                                    } else if (match.opponentTeam.id) {
+                                                      teamNum = `Team # ${match.opponentTeam.id}`;
+                                                    }
+                                                    const p1 = (match.opponentTeam.player1_first_name || '').trim();
+                                                    const p2 = (match.opponentTeam.player2_first_name || '').trim();
+                                                    const city = match.opponentTeam.city;
+                                                    let nameStr = '';
+                                                    if (p1 && p2) {
+                                                      nameStr = `${p1} & ${p2}`;
+                                                    } else if (p1) {
+                                                      nameStr = p1;
+                                                    } else if (p2) {
+                                                      nameStr = p2;
+                                                    }
+                                                    if (nameStr) {
+                                                      return (
+                                                        <>
+                                                          <span className="font-bold text-red-600">{teamNum}</span>
+                                                          <span className="text-xs text-gray-700 font-semibold ml-1">
+                                                            {nameStr}{city ? ` - ${city}` : ''}
+                                                          </span>
+                                                        </>
+                                                      );
+                                                    } else {
+                                                      return (
+                                                        <span className="font-bold text-red-600">{teamNum}</span>
+                                                      );
+                                                    }
+                                                  })()
+                                                ) : (
+                                                  <span className="font-bold text-red-600">TBD</span>
                                                 )}
                                               </p>
                                               {/* No extra opponent name row */}
@@ -348,7 +381,6 @@ const PlayerPortalFixed = () => {
             <div className="space-y-6">
               <Card>
                 <CardHeader><CardTitle>My Team Record</CardTitle></CardHeader>
-                {/* Removed file name tag from top of My Team Record card */}
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 bg-blue-50 rounded-lg">
@@ -370,18 +402,14 @@ const PlayerPortalFixed = () => {
                   </div>
                 </CardContent>
               </Card>
-              
               <Card>
                 <CardHeader>
-                  {/* Removed file name tag from top of My Game Results card */}
                   <CardTitle className="flex items-center gap-2">
                     <Trophy className="h-5 w-5" />
                     My Game Results
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* Debug box removed from My Game Results card */}
-                  
                   {teamRecord.results.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -389,33 +417,66 @@ const PlayerPortalFixed = () => {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {teamRecord.results.map((game) => (
-                        <div 
-                          key={game.id} 
-                          className={`p-4 rounded-lg border ${
-                            game.isWin 
-                              ? 'bg-green-50 border-green-200' 
-                              : 'bg-red-50 border-red-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Badge variant="outline">Round {game.round}</Badge>
-                              <span className={`font-semibold ${
-                                game.isWin ? 'text-green-700' : 'text-red-700'
-                              }`}>
-                                {game.isWin ? 'WIN' : 'LOSS'}
-                              </span>
-                              <span className="font-bold">
-                                {game.teamScore} - {game.opponentScore}
-                              </span>
-                              <span className="text-sm text-gray-600">
-                                vs Team {game.opponent.teamNumber}
-                              </span>
+                      {teamRecord.results.map((game) => {
+                        let teamNum = 'TBD';
+                        let nameStr = '';
+                        let city = '';
+                        if (game.opponent && typeof game.opponent === 'object') {
+                          if (game.opponent.teamNumber) {
+                            teamNum = `Team ${game.opponent.teamNumber}`;
+                          } else if (game.opponent.id) {
+                            teamNum = `Team ${game.opponent.id}`;
+                          }
+                          if ((!game.opponent.teamNumber || game.opponent.teamNumber === 'undefined') && game.opponent.id) {
+                            teamNum = `Team ${game.opponent.id}`;
+                          }
+                          const p1 = (game.opponent.player1_first_name || '').trim();
+                          const p2 = (game.opponent.player2_first_name || '').trim();
+                          city = game.opponent.city || '';
+                          if (p1 && p2) {
+                            nameStr = `${p1} & ${p2}`;
+                          } else if (p1) {
+                            nameStr = p1;
+                          } else if (p2) {
+                            nameStr = p2;
+                          }
+                        }
+                        if (!teamNum || teamNum.toLowerCase().includes('unknown') || teamNum === 'undefined') {
+                          teamNum = 'TBD';
+                        }
+                        return (
+                          <div 
+                            key={game.id} 
+                            className={`p-4 rounded-lg border ${
+                              game.isWin 
+                                ? 'bg-green-50 border-green-200' 
+                                : 'bg-red-50 border-red-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Badge variant="outline">Round {game.round}</Badge>
+                                <span className={`font-semibold ${
+                                  game.isWin ? 'text-green-700' : 'text-red-700'
+                                }`}>
+                                  {game.isWin ? 'WIN' : 'LOSS'}
+                                </span>
+                                <span className="font-bold">
+                                  {game.teamScore} - {game.opponentScore}
+                                </span>
+                                <span className="text-sm text-gray-600">
+                                  vs <span className="font-bold text-red-600">{teamNum}</span>
+                                  {nameStr && (
+                                    <span className="text-xs text-gray-700 font-semibold ml-1">
+                                      {nameStr}{city ? ` - ${city}` : ''}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>
