@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +40,9 @@ const PlayerEditor: React.FC<PlayerEditorProps> = ({ player, isOpen, onClose, on
         <DialogHeader>
           <DialogTitle>Edit Player</DialogTitle>
         </DialogHeader>
+        <DialogDescription>
+          Edit the details for this player. All fields are required.
+        </DialogDescription>
         <div style={{color: 'red', fontWeight: 'bold'}}>[DEBUG] PlayerEditor rendered. Player: {player && player.playerId ? player.playerId : 'no id'} | {player && player.firstName ? player.firstName : 'no fname'}</div>
         <div className="space-y-4">
           <div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle, Phone, Settings, Code } from 'lucide-react';
@@ -19,6 +19,9 @@ const InstructionsModal: React.FC<InstructionsModalProps> = ({ open, onClose }) 
             SMS Setup for Real Text Messages (317-250-6454)
           </DialogTitle>
         </DialogHeader>
+        <DialogDescription>
+          Instructions for setting up SMS messaging and understanding the current limitations and options.
+        </DialogDescription>
         
         <div className="space-y-4">
           <Card className="border-red-200 bg-red-50">

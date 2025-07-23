@@ -25,7 +25,6 @@ interface BracketMatch {
 interface BracketDisplayProps {
   size: number;
   matches: BracketMatch[];
-  teams: BracketTeam[]; // seeded teams array, in seed order (row = seed)
   onScoreUpdate: (matchId: string, team1Score: number, team2Score: number) => void;
   onAdvanceWinner: (matchId: string) => void;
 }
@@ -33,7 +32,6 @@ interface BracketDisplayProps {
 export const BracketDisplay: React.FC<BracketDisplayProps> = ({
   size,
   matches,
-  teams,
   onScoreUpdate,
   onAdvanceWinner
 }) => {
@@ -46,11 +44,12 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
     return `Round ${round}`;
   };
 
-  // Table info logic remains, but all seeding is now based on the provided seed (row number from TournamentResults)
   const getTableInfo = (round: number, table: number, size: number) => {
     const tablesInRound = size / Math.pow(2, round);
     const tablesInNextRound = size / Math.pow(2, round + 1);
+    
     let info = `Table ${table}`;
+    
     if (round === 1) {
       info += ` (Seed ${table} home table)`;
     } else if (round > 1 && tablesInRound > tablesInNextRound) {
@@ -61,6 +60,7 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
         info += ` (Winner moves to Table ${moveToTable})`;
       }
     }
+    
     return info;
   };
 
@@ -117,13 +117,7 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                             <>
                               <Badge variant="outline">#{match.team1.seed}</Badge>
                               <span className="text-sm font-medium">
-                                {match.team1.teamName}
-                                {(() => {
-                                  const teamNum = match.team1.teamNumber ?? match.team1.teamId;
-                                  return teamNum ? (
-                                    <span className="text-xs text-gray-500"> (Team # {teamNum})</span>
-                                  ) : null;
-                                })()}
+                                {match.team1.teamName} <span className="text-xs text-gray-500">(Team #{match.team1.teamNumber})</span>
                               </span>
                             </>
                           )}
@@ -154,13 +148,7 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                             <>
                               <Badge variant="outline">#{match.team2.seed}</Badge>
                               <span className="text-sm font-medium">
-                                {match.team2.teamName}
-                                {(() => {
-                                  const teamNum = match.team2.teamNumber ?? match.team2.teamId;
-                                  return teamNum ? (
-                                    <span className="text-xs text-gray-500"> (Team # {teamNum})</span>
-                                  ) : null;
-                                })()}
+                                {match.team2.teamName} <span className="text-xs text-gray-500">(Team #{match.team2.teamNumber})</span>
                               </span>
                             </>
                           )}
@@ -202,11 +190,7 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                       {match.winner && (
                         <div className="text-center p-2 bg-green-100 rounded">
                           <Badge className="bg-green-600">
-                          Winner: #{match.winner.seed} {match.winner.teamName}
-                          {(() => {
-                            const teamNum = match.winner.teamNumber ?? match.winner.teamId;
-                            return teamNum ? ` (Team # ${teamNum})` : '';
-                          })()}
+                          Winner: #{match.winner.seed} {match.winner.teamName} (Team #{match.winner.teamNumber})
                           </Badge>
                         </div>
                       )}

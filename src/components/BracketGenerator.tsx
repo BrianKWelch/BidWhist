@@ -3,7 +3,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { BracketDisplay } from './BracketDisplay';
 import { Trophy, Target, RotateCcw } from 'lucide-react';
 import type { BracketTeam, BracketMatch, Bracket } from '@/contexts/AppContext';
@@ -17,8 +17,11 @@ export const BracketGenerator: React.FC = () => {
   const [showRestartDialog, setShowRestartDialog] = useState(false);
   const [showSeedsDialog, setShowSeedsDialog] = useState(false);
   const [topSeeds, setTopSeeds] = useState<BracketTeam[]>([]);
+  const [showNoTeamsDialog, setShowNoTeamsDialog] = useState(false);
   // L oad resultsOverrides from localStorage (same as TournamentResults)
   const [overrides, setOverrides] = useState<{ [key: string]: string }>({});
+  const [debugSortedTeams, setDebugSortedTeams] = useState<any[]>([]);
+  const [debugSeededTeams, setDebugSeededTeams] = useState<any[]>([]);
   useEffect(() => {
     const saved = localStorage.getItem('resultsOverrides');
     if (saved) setOverrides(JSON.parse(saved));
@@ -32,17 +35,52 @@ export const BracketGenerator: React.FC = () => {
 
 
   const generateBracket = (size: number) => {
-    // Use getSortedTournamentResults to get the correct team list as shown in the dialog
     const schedule = schedules.find(s => s.tournamentId === selectedTournament);
-    const numRounds = schedule ? schedule.rounds : 5;
-    const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
-    // Assign seed strictly by row order from sortedTeams
-    const seededTeams = sortedTeams.slice(0, size).map((team, index) => ({
+    console.log('DEBUG: teams', teams);
+    console.log('DEBUG: selectedTournament', selectedTournament);
+    console.log('DEBUG: schedule', schedule);
+    if (schedule) {
+      console.log('DEBUG: schedule.matches', schedule.matches);
+    }
+    let numRounds = 5;
+    if (!schedule) {
+      setShowNoTeamsDialog(true);
+      return;
+    }
+    numRounds = schedule.rounds;
+
+    // Use shared logic for results and sorting to match TournamentResults
+    const { sortedTeams, resultsMatrix } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
+    // Only use the top N teams for the bracket size
+    const sortedBracketTeams = sortedTeams.slice(0, size);
+
+    // Assign seed = results page line number (1-based)
+    const seededTeams = sortedBracketTeams.map((team, index) => ({
       seed: index + 1,
       teamId: team.id,
       teamName: team.name,
       teamNumber: team.teamNumber
     }));
+
+    setDebugSortedTeams(sortedBracketTeams.map(team => ({
+      teamNumber: team.teamNumber,
+      teamName: team.name,
+      // Use the same calculations as TournamentResults for debug
+      totalWins: Array.from({ length: numRounds }, (_, roundIndex) => {
+        const round = roundIndex + 1;
+        const wl = overrides[`${team.id}_${round}_wl`] ?? resultsMatrix[team.id][round]?.wl;
+        return wl === 'W' ? 1 : 0;
+      }).reduce((a, b) => a + b, 0),
+      totalPoints: Array.from({ length: numRounds }, (_, roundIndex) => {
+        const round = roundIndex + 1;
+        const points = overrides[`${team.id}_${round}_points`];
+        return points !== undefined ? Number(points) : resultsMatrix[team.id][round]?.points || 0;
+      }).reduce((a, b) => a + b, 0),
+      round1Points: overrides[`${team.id}_1_points`] !== undefined ? Number(overrides[`${team.id}_1_points`]) : resultsMatrix[team.id]?.[1]?.points || 0,
+      id: team.id
+    })));
+    setDebugSeededTeams(seededTeams);
+
     const matches = createMatches(size, seededTeams);
     const newBracket: Bracket = {
       id: `bracket-${Date.now()}`,
@@ -52,6 +90,7 @@ export const BracketGenerator: React.FC = () => {
       matches,
       createdAt: new Date()
     };
+
     setBracket(newBracket);
     saveBracket(newBracket);
     setTopSeeds(seededTeams.slice(0, 5));
@@ -188,6 +227,59 @@ export const BracketGenerator: React.FC = () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Debug tables for seeding order and seeds */}
+        {debugSortedTeams.length > 0 && (
+          <div className="mb-4">
+            <h4 className="font-semibold text-blue-700 mb-1">Sorted Team Order (for Seeding)</h4>
+            <table className="min-w-full text-xs border mb-2">
+              <thead>
+                <tr>
+                  <th className="border px-2">#</th>
+                  <th className="border px-2">Team Number</th>
+                  <th className="border px-2">Team Name</th>
+                  <th className="border px-2">Wins</th>
+                  <th className="border px-2">Total Points</th>
+                  <th className="border px-2">Round 1 Points</th>
+                  <th className="border px-2">ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {debugSortedTeams.map((t, i) => (
+                  <tr key={t.id} className="border">
+                    <td className="border px-2">{i + 1}</td>
+                    <td className="border px-2">{t.teamNumber}</td>
+                    <td className="border px-2">{t.teamName}</td>
+                    <td className="border px-2">{t.totalWins}</td>
+                    <td className="border px-2">{t.totalPoints}</td>
+                    <td className="border px-2">{t.round1Points}</td>
+                    <td className="border px-2">{t.id}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <h4 className="font-semibold text-green-700 mb-1">Seeded Teams</h4>
+            <table className="min-w-full text-xs border">
+              <thead>
+                <tr>
+                  <th className="border px-2">Seed</th>
+                  <th className="border px-2">Team Number</th>
+                  <th className="border px-2">Team Name</th>
+                  <th className="border px-2">ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {debugSeededTeams.map((t) => (
+                  <tr key={t.teamId} className="border">
+                    <td className="border px-2">{t.seed}</td>
+                    <td className="border px-2">{t.teamNumber}</td>
+                    <td className="border px-2">{t.teamName}</td>
+                    <td className="border px-2">{t.teamId}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         <div className="space-y-4">
           <div className="bg-blue-50 p-4 rounded-lg">
             <h3 className="font-semibold text-blue-800 mb-2">Universal Bracket Rule:</h3>
@@ -215,54 +307,40 @@ export const BracketGenerator: React.FC = () => {
 
           <div className="flex gap-2">
             {!bracket && (
-              <Dialog open={showDialog} onOpenChange={setShowDialog}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => setShowDialog(true)}>Create Bracket</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Select Bracket Size</DialogTitle>
-                  </DialogHeader>
-                  <div className="flex flex-col md:flex-row gap-6 p-2">
-                    <div className="flex-1 border rounded p-2 bg-gray-50">
-                      <h4 className="font-semibold mb-2 text-blue-700">Tournament Results Order</h4>
-                      <ol className="list-decimal pl-4">
-                        {(() => {
-                          const schedule = schedules.find(s => s.tournamentId === selectedTournament);
-                          const numRounds = schedule ? schedule.rounds : 5;
-                          const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
-                          return sortedTeams.map((team, idx) => (
-                            <li key={team.id} className="mb-1">
-                              <Badge variant="outline">#{idx + 1}</Badge> <span className="font-medium">{team.name}</span> <span className="text-xs text-gray-500">(Team # {team.teamNumber ?? team.id})</span>
-                            </li>
-                          ));
-                        })()}
-                      </ol>
+              <>
+                <Dialog open={showDialog} onOpenChange={setShowDialog}>
+                  <DialogTrigger asChild>
+                    <Button onClick={() => setShowDialog(true)}>Create Bracket</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Select Bracket Size</DialogTitle>
+                    </DialogHeader>
+                    <DialogDescription>
+                      Choose the number of teams for your bracket. You must have enough teams added to match the bracket size.
+                    </DialogDescription>
+                    <div className="grid grid-cols-2 gap-4 p-4">
+                      <Button onClick={() => generateBracket(32)} variant="outline">32 Team Bracket</Button>
+                      <Button onClick={() => generateBracket(16)} variant="outline">16 Team Bracket</Button>
+                      <Button onClick={() => generateBracket(8)} variant="outline">8 Team Bracket</Button>
+                      <Button onClick={() => generateBracket(4)} variant="outline">4 Team Bracket</Button>
                     </div>
-                    <div className="flex-1 border rounded p-2 bg-gray-50">
-                      <h4 className="font-semibold mb-2 text-green-700">Bracket Seeding Order (Preview)</h4>
-                      <ol className="list-decimal pl-4">
-                        {(() => {
-                          const schedule = schedules.find(s => s.tournamentId === selectedTournament);
-                          const numRounds = schedule ? schedule.rounds : 5;
-                          const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
-                          return sortedTeams.map((team, idx) => (
-                            <li key={team.id} className="mb-1">
-                              <Badge variant="outline">#{idx + 1}</Badge> <span className="font-medium">{team.name}</span> <span className="text-xs text-gray-500">(Team # {team.teamNumber ?? team.id})</span>
-                            </li>
-                          ));
-                        })()}
-                      </ol>
+                  </DialogContent>
+                </Dialog>
+                <Dialog open={showNoTeamsDialog} onOpenChange={setShowNoTeamsDialog}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>No Teams Available</DialogTitle>
+                    </DialogHeader>
+                    <DialogDescription>
+                      You must add teams to the tournament before you can create a bracket. Go to the Teams tab and add teams, then try again.
+                    </DialogDescription>
+                    <div className="flex justify-end pt-4">
+                      <Button onClick={() => setShowNoTeamsDialog(false)}>OK</Button>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 p-4">
-                    <Button onClick={() => generateBracket(32)} variant="outline">32 Team Bracket</Button>
-                    <Button onClick={() => generateBracket(16)} variant="outline">16 Team Bracket</Button>
-                    <Button onClick={() => generateBracket(8)} variant="outline">8 Team Bracket</Button>
-                    <Button onClick={() => generateBracket(4)} variant="outline">4 Team Bracket</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
             
             {bracket && (
@@ -294,7 +372,6 @@ export const BracketGenerator: React.FC = () => {
               <BracketDisplay
                 size={bracket.size}
                 matches={bracket.matches}
-                teams={bracket.teams}
                 onScoreUpdate={handleScoreUpdate}
                 onAdvanceWinner={handleAdvanceWinner}
               />
@@ -305,23 +382,14 @@ export const BracketGenerator: React.FC = () => {
                     <DialogTitle>Top 5 Seeds</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-2">
-                    {topSeeds.length === 0 && (
-                      <div className="text-red-600 font-semibold">
-                        No teams could be seeded. Please check that your tournament has a valid schedule and teams.
+                    {topSeeds.length === 0 && <div>No teams seeded.</div>}
+                    {topSeeds.map((team, idx) => (
+                      <div key={team.teamId} className="flex items-center gap-2">
+                        <Badge variant="outline">#{team.seed}</Badge>
+                        <span className="font-medium">{team.teamName}</span>
+                        <span className="text-xs text-gray-500">(Team #{team.teamNumber})</span>
                       </div>
-                    )}
-                    {topSeeds.map((team, idx) => {
-                      const teamNum = team.teamNumber ?? team.teamId;
-                      return (
-                        <div key={team.teamId} className="flex items-center gap-2">
-                          <Badge variant="outline">#{team.seed}</Badge>
-                          <span className="font-medium">{team.teamName}</span>
-                          {teamNum && (
-                            <span className="text-xs text-gray-500">(Team # {teamNum})</span>
-                          )}
-                        </div>
-                      );
-                    })}
+                    ))}
                   </div>
                   <div className="flex justify-end pt-2">
                     <Button onClick={() => setShowSeedsDialog(false)}>OK</Button>
