@@ -32,107 +32,121 @@ export function formatTeamName(teamName: string): string {
 export function getSortedTournamentResults(teams, games, schedule, overrides, numRounds) {
   // Helper to get override key
   const getOverrideKey = (teamId, round, field) => `${teamId}_${round}_${field}`;
-  // Get unique team IDs from the schedule
+  // Always use string IDs for registeredTeams
   const teamIds = schedule ? Array.from(new Set(
-    schedule.matches.flatMap(m => [m.teamA, m.teamB])
+    schedule.matches.flatMap(m => [String(m.teamA), String(m.teamB)])
       .filter(id => id !== 'BYE' && id !== 'TBD')
-      .map(id => (typeof id === 'object' && id && 'id' in id ? String(id.id) : String(id)))
   )) : [];
-  const registeredTeams = teamIds.map(id => teams.find(t => String(t.id) === id)).filter(Boolean);
+  const registeredTeams = teamIds
+    .map(id => teams.find(t => String(t.id) === id))
+    .filter(Boolean);
   // Build resultsMatrix
-  const resultsMatrix: Record<string, Record<number | string, { wl: string; points: number; boston: number }>> = {};
-  registeredTeams.forEach(team => {
-    resultsMatrix[team.id] = {};
+  const resultsMatrix: Record<string, Record<number | string, { wl: string; points: number; boston: number; hands: number; isTie: boolean }>> = {};
+  for (const team of registeredTeams) {
+    const teamId = String(team.id);
+    if (!resultsMatrix[teamId]) resultsMatrix[teamId] = {};
     for (let round = 1; round <= numRounds; round++) {
-      const keyWl = getOverrideKey(team.id, round, 'wl');
-      const keyPoints = getOverrideKey(team.id, round, 'points');
-      const keyBoston = getOverrideKey(team.id, round, 'boston');
-      let wl, points, boston;
-      if (overrides[keyWl] !== undefined || overrides[keyPoints] !== undefined || overrides[keyBoston] !== undefined) {
-        wl = overrides[keyWl] ?? '';
-        points = overrides[keyPoints] !== undefined ? Number(overrides[keyPoints]) : 0;
-        boston = overrides[keyBoston] !== undefined ? Number(overrides[keyBoston]) : 0;
-      } else {
-        // Find the match for this team in this round
-        const match = schedule?.matches.find(m => m.round === round && (m.teamA === team.id || m.teamB === team.id));
-        let game = undefined;
-        if (match) {
-          const matchTeamIds = [match.teamA, match.teamB]
-            .map(id => {
-              if (id === null || id === undefined) return '';
-              if (typeof id === 'object' && id && 'id' in id && id.id != null) {
-                return String(id.id);
-              }
-              return String(id);
-            })
-            .filter(Boolean)
-            .sort();
-          game = games.find(g => {
-            if (!g.confirmed || g.round !== match.round) return false;
-            const gameTeamAId = typeof g.teamA === 'object' ? g.teamA.id : g.teamA;
-            const gameTeamBId = typeof g.teamB === 'object' ? g.teamB.id : g.teamB;
-            const gameTeamIds = [String(gameTeamAId), String(gameTeamBId)].sort();
-            return (
-              matchTeamIds[0] === gameTeamIds[0] &&
-              matchTeamIds[1] === gameTeamIds[1]
-            );
-          });
+      const match = schedule?.matches.find(
+        m => m.round === round && (String(m.teamA) === teamId || String(m.teamB) === teamId)
+      );
+      if (!match) {
+        resultsMatrix[teamId][round] = { wl: '', points: 0, hands: 0, boston: 0, isTie: false };
+        continue;
+      }
+      const game = games.find(g => g.matchId === match.id && g.confirmed);
+      if (game) {
+        const teamAId = String(game.teamA);
+        const teamBId = String(game.teamB);
+        const isTieGame = game.scoreA === game.scoreB;
+        if (isTieGame) {
+          // Ensure both teams are initialized in resultsMatrix
+          if (!resultsMatrix[teamAId]) resultsMatrix[teamAId] = {};
+          if (!resultsMatrix[teamBId]) resultsMatrix[teamBId] = {};
+          const handsA = game.handsA ?? 0;
+          const handsB = game.handsB ?? 0;
+          let wlA = 'T', wlB = 'T';
+          if (handsA > handsB) { wlA = 'TW'; wlB = 'TL'; }
+          else if (handsA < handsB) { wlA = 'TL'; wlB = 'TW'; }
+          resultsMatrix[teamAId][round] = {
+            wl: wlA,
+            points: game.scoreA,
+            hands: handsA,
+            boston: game.boston === 'teamA' ? 1 : 0,
+            isTie: true
+          };
+          resultsMatrix[teamBId][round] = {
+            wl: wlB,
+            points: game.scoreB,
+            hands: handsB,
+            boston: game.boston === 'teamB' ? 1 : 0,
+            isTie: true
+          };
+          continue;
         }
-        if (game) {
-          const gameTeamAId = typeof game.teamA === 'object' ? game.teamA.id : game.teamA;
-          const isTeamA = gameTeamAId === team.id;
-          const myScore = isTeamA ? game.scoreA : game.scoreB;
-          const oppScore = isTeamA ? game.scoreB : game.scoreA;
-          wl = myScore > oppScore ? 'W' : 'L';
-          boston = (game.boston === 'teamA' && isTeamA) || (game.boston === 'teamB' && !isTeamA) ? 1 : 0;
-          points = myScore;
-        } else {
-          wl = '';
-          points = 0;
-          boston = 0;
+        // Not a tie: normal logic
+        const isTeamA = teamId === teamAId;
+        const myScore = isTeamA ? game.scoreA : game.scoreB;
+        const oppScore = isTeamA ? game.scoreB : game.scoreA;
+        const myHands = isTeamA ? game.handsA : game.handsB;
+        const boston = (game.boston === 'teamA' && isTeamA) || (game.boston === 'teamB' && !isTeamA) ? 1 : 0;
+        const wl = myScore > oppScore ? 'W' : 'L';
+        resultsMatrix[teamId][round] = { wl, points: myScore, hands: myHands ?? 0, boston, isTie: false };
+      } else {
+        resultsMatrix[teamId][round] = { wl: '', points: 0, hands: 0, boston: 0, isTie: false };
+      }
+    }
+    // Totals logic: sum wins, but add 0.5 for each tie/tiebreak
+    let wins = 0;
+    for (let round = 1; round <= numRounds; round++) {
+      const roundData = resultsMatrix[teamId][round];
+      if (roundData) {
+        if (roundData.wl === 'TW' || roundData.wl === 'TL' || roundData.wl === 'T') {
+          wins += 0.5;
+        } else if (roundData.wl === 'W') {
+          wins += 1;
         }
       }
-      resultsMatrix[team.id][round] = { wl, points, boston };
     }
-    // Points total for sorting
-    resultsMatrix[team.id]['totalPoints'] = {
+    resultsMatrix[teamId]['totalPoints'] = {
       wl: '',
-      points: Object.entries(resultsMatrix[team.id])
+      points: Object.entries(resultsMatrix[teamId])
         .filter(([k]) => k !== 'totalPoints')
         .reduce((sum, [, r]) => sum + (r.points || 0), 0),
-      boston: 0
+      boston: 0,
+      hands: Object.entries(resultsMatrix[teamId])
+        .filter(([k]) => k !== 'totalPoints')
+        .reduce((sum, [, r]) => sum + (r.hands || 0), 0),
+      wins
     };
-  });
+  }
   // Sort teams
   const sortedTeams = registeredTeams.slice().sort((a, b) => {
-    const aWins = Array.from({ length: numRounds }, (_, roundIndex) => {
-      const round = roundIndex + 1;
-      const wl = overrides[getOverrideKey(a.id, round, 'wl')] ?? resultsMatrix[a.id][round]?.wl;
-      return wl === 'W' ? 1 : 0;
-    }).reduce((sum, v) => sum + v, 0);
-    const bWins = Array.from({ length: numRounds }, (_, roundIndex) => {
-      const round = roundIndex + 1;
-      const wl = overrides[getOverrideKey(b.id, round, 'wl')] ?? resultsMatrix[b.id][round]?.wl;
-      return wl === 'W' ? 1 : 0;
-    }).reduce((sum, v) => sum + v, 0);
+    // 1. Wins
+    const aWins = resultsMatrix[a.id]['totalPoints'].wins;
+    const bWins = resultsMatrix[b.id]['totalPoints'].wins;
     if (bWins !== aWins) return bWins - aWins;
-    const aPoints = Array.from({ length: numRounds }, (_, roundIndex) => {
-      const round = roundIndex + 1;
-      const points = overrides[getOverrideKey(a.id, round, 'points')];
-      return points !== undefined ? Number(points) : resultsMatrix[a.id][round]?.points || 0;
-    }).reduce((sum, v) => sum + v, 0);
-    const bPoints = Array.from({ length: numRounds }, (_, roundIndex) => {
-      const round = roundIndex + 1;
-      const points = overrides[getOverrideKey(b.id, round, 'points')];
-      return points !== undefined ? Number(points) : resultsMatrix[b.id][round]?.points || 0;
-    }).reduce((sum, v) => sum + v, 0);
+
+    // 2. Total Hands Won (descending)
+    const aHands = resultsMatrix[a.id]['totalPoints'].hands || 0;
+    const bHands = resultsMatrix[b.id]['totalPoints'].hands || 0;
+    if (bHands !== aHands) return bHands - aHands;
+
+    // 3. Total Points (descending)
+    const aPoints = resultsMatrix[a.id]['totalPoints'].points;
+    const bPoints = resultsMatrix[b.id]['totalPoints'].points;
     if (bPoints !== aPoints) return bPoints - aPoints;
-    const aR1 = overrides[getOverrideKey(a.id, 1, 'points')] !== undefined ? Number(overrides[getOverrideKey(a.id, 1, 'points')]) : resultsMatrix[a.id]?.[1]?.points || 0;
-    const bR1 = overrides[getOverrideKey(b.id, 1, 'points')] !== undefined ? Number(overrides[getOverrideKey(b.id, 1, 'points')]) : resultsMatrix[b.id]?.[1]?.points || 0;
+
+    // 4. First Round Points (descending)
+    const aR1 = resultsMatrix[a.id][1]?.points || 0;
+    const bR1 = resultsMatrix[b.id][1]?.points || 0;
     if (bR1 !== aR1) return bR1 - aR1;
-    const aR2 = overrides[getOverrideKey(a.id, 2, 'points')] !== undefined ? Number(overrides[getOverrideKey(a.id, 2, 'points')]) : resultsMatrix[a.id]?.[2]?.points || 0;
-    const bR2 = overrides[getOverrideKey(b.id, 2, 'points')] !== undefined ? Number(overrides[getOverrideKey(b.id, 2, 'points')]) : resultsMatrix[b.id]?.[2]?.points || 0;
+
+    // 5. Second Round Points (descending)
+    const aR2 = resultsMatrix[a.id][2]?.points || 0;
+    const bR2 = resultsMatrix[b.id][2]?.points || 0;
     if (bR2 !== aR2) return bR2 - aR2;
+
+    // 6. Team Number (ascending)
     const aNum = typeof a.teamNumber === 'number' ? a.teamNumber : Number(a.teamNumber) || Number(a.id);
     const bNum = typeof b.teamNumber === 'number' ? b.teamNumber : Number(b.teamNumber) || Number(b.id);
     return aNum - bNum;

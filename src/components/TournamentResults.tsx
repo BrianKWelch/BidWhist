@@ -42,13 +42,13 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
 
   const tournament = tournaments.find(t => t.id === effectiveTournamentId);
   const schedule = schedules.find(s => s.tournamentId === effectiveTournamentId);
+  // When building registeredTeams and in all comparisons, ensure IDs are strings
   const registeredTeams = useMemo(() => {
     if (!schedule) return [];
     // Get unique team IDs from the schedule, normalize to string
     const teamIds = Array.from(new Set(
-      schedule.matches.flatMap(m => [m.teamA, m.teamB])
+      schedule.matches.flatMap(m => [String(m.teamA), String(m.teamB)])
         .filter(id => id !== 'BYE' && id !== 'TBD')
-        .map(id => (typeof id === 'object' && id && 'id' in id ? String(id.id) : String(id)))
     ));
     return teamIds
       .map(id => teams.find(t => String(t.id) === id))
@@ -120,13 +120,13 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
     const newOverrides: { [key: string]: string } = {};
     registeredTeams.forEach(team => {
       for (let round = 1; round <= numRounds; round++) {
-        newOverrides[getOverrideKey(team.id, round, 'wl')] = '';
-        newOverrides[getOverrideKey(team.id, round, 'points')] = '0';
-        newOverrides[getOverrideKey(team.id, round, 'boston')] = '0';
+        newOverrides[getOverrideKey(String(team.id), round, 'wl')] = '';
+        newOverrides[getOverrideKey(String(team.id), round, 'points')] = '0';
+        newOverrides[getOverrideKey(String(team.id), round, 'boston')] = '0';
       }
-      newOverrides[getOverrideKey(team.id, 'total', 'wins')] = '0';
-      newOverrides[getOverrideKey(team.id, 'total', 'points')] = '0';
-      newOverrides[getOverrideKey(team.id, 'total', 'bostons')] = '0';
+      newOverrides[getOverrideKey(String(team.id), 'total', 'wins')] = '0';
+      newOverrides[getOverrideKey(String(team.id), 'total', 'points')] = '0';
+      newOverrides[getOverrideKey(String(team.id), 'total', 'bostons')] = '0';
     });
     setOverrides(newOverrides);
     try {
@@ -171,6 +171,12 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
   };
 
   // Always render the card, controls, and table, even if no tournament/schedule/teams
+
+  // Remove all console.log statements
+  if (schedule) {
+  }
+  if (games) {
+  }
 
   return (
     <Card>
@@ -281,7 +287,7 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
               <TableRow>
                 <TableHead rowSpan={2} className="bg-yellow-200 border border-gray-400 text-center align-middle">TEAM<br />#</TableHead>
                 {Array.from({ length: numRounds }, (_, i) => (
-                  <TableHead key={i} colSpan={3} className={`text-center border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Round {i + 1}</TableHead>
+                  <TableHead key={i} colSpan={4} className={`text-center border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Round {i + 1}</TableHead>
                 ))}
                 <TableHead colSpan={3} className="bg-blue-200 border border-gray-400 text-center align-middle">TOTALS</TableHead>
               </TableRow>
@@ -290,23 +296,26 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
                   <React.Fragment key={i}>
                     <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Game<br />Win=W<br />Loss=L</TableHead>
                     <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Points</TableHead>
+                    <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Hands Won</TableHead>
                     <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Boston</TableHead>
                   </React.Fragment>
                 ))}
                 <TableHead className="text-center text-xs border border-gray-400 bg-blue-200">Wins</TableHead>
                 <TableHead className="text-center text-xs border border-gray-400 bg-blue-200">Points</TableHead>
+                <TableHead className="text-center text-xs border border-gray-400 bg-blue-200">Hands</TableHead>
                 <TableHead className="text-center text-xs border border-gray-400 bg-blue-200">Bostons</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {registeredTeams.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={1 + numRounds * 3 + 3} className="text-center text-gray-500 py-8">
+                  <TableCell colSpan={1 + numRounds * 4 + 3} className="text-center text-gray-500 py-8">
                     No results yet. {(!tournament || !schedule) ? 'Set up a tournament and schedule to begin.' : ''}
                   </TableCell>
                 </TableRow>
               ) : (
                 sortedTeams.map(team => {
+                  const teamId = String(team.id);
                   // Defensive display: always use full team object, never show 'Team Unknown' or 'TBD'
                   const teamNumber = team.teamNumber ? `Team # ${team.teamNumber}` : `Team # ${team.id}`;
                   const teamName = team.name || '';
@@ -320,17 +329,17 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
                       </TableCell>
                       {Array.from({ length: numRounds }, (_, roundIndex) => {
                         const round = roundIndex + 1;
-                        const roundData = resultsMatrix[team.id][round] || { wl: '', points: 0, boston: 0 };
+                        const roundData = resultsMatrix[teamId][round] || { wl: '', points: 0, hands: 0, boston: 0 };
                         return (
                           <React.Fragment key={round}>
                             <TableCell className="text-center border border-gray-400 p-0">
                               <input
                                 className="w-10 text-center bg-transparent outline-none"
-                                value={overrides[getOverrideKey(team.id, round, 'wl')] ?? roundData.wl}
+                                value={overrides[getOverrideKey(teamId, round, 'wl')] ?? roundData.wl}
                                 onChange={e => {
                                   const v = e.target.value;
                                   setOverrides(prev => {
-                                    const key = getOverrideKey(team.id, round, 'wl');
+                                    const key = getOverrideKey(teamId, round, 'wl');
                                     if (v === '') {
                                       const { [key]: _, ...rest } = prev;
                                       return rest;
@@ -344,11 +353,29 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
                               <input
                                 type="number"
                                 className="w-14 text-center bg-transparent outline-none"
-                                value={overrides[getOverrideKey(team.id, round, 'points')] ?? roundData.points}
+                                value={overrides[getOverrideKey(teamId, round, 'points')] ?? roundData.points}
                                 onChange={e => {
                                   const v = e.target.value;
                                   setOverrides(prev => {
-                                    const key = getOverrideKey(team.id, round, 'points');
+                                    const key = getOverrideKey(teamId, round, 'points');
+                                    if (v === '') {
+                                      const { [key]: _, ...rest } = prev;
+                                      return rest;
+                                    }
+                                    return { ...prev, [key]: v };
+                                  });
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell className="text-center border border-gray-400 p-0">
+                              <input
+                                type="number"
+                                className="w-12 text-center bg-transparent outline-none"
+                                value={overrides[getOverrideKey(teamId, round, 'hands')] ?? roundData.hands}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  setOverrides(prev => {
+                                    const key = getOverrideKey(teamId, round, 'hands');
                                     if (v === '') {
                                       const { [key]: _, ...rest } = prev;
                                       return rest;
@@ -362,11 +389,11 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
                               <input
                                 type="number"
                                 className="w-10 text-center bg-transparent outline-none"
-                                value={overrides[getOverrideKey(team.id, round, 'boston')] ?? roundData.boston}
+                                value={overrides[getOverrideKey(teamId, round, 'boston')] ?? roundData.boston}
                                 onChange={e => {
                                   const v = e.target.value;
                                   setOverrides(prev => {
-                                    const key = getOverrideKey(team.id, round, 'boston');
+                                    const key = getOverrideKey(teamId, round, 'boston');
                                     if (v === '') {
                                       const { [key]: _, ...rest } = prev;
                                       return rest;
@@ -384,13 +411,7 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
                         <input
                           type="number"
                           className="w-12 text-center bg-transparent outline-none font-bold"
-                          value={
-                            Array.from({ length: numRounds }, (_, roundIndex) => {
-                              const round = roundIndex + 1;
-                              const wl = overrides[getOverrideKey(team.id, round, 'wl')] ?? resultsMatrix[team.id][round]?.wl;
-                              return wl === 'W' ? 1 : 0;
-                            }).reduce((a, b) => a + b, 0)
-                          }
+                          value={resultsMatrix[teamId]['totalPoints'].wins ?? 0}
                           readOnly
                         />
                       </TableCell>
@@ -401,8 +422,8 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
                           value={
                             Array.from({ length: numRounds }, (_, roundIndex) => {
                               const round = roundIndex + 1;
-                              const points = overrides[getOverrideKey(team.id, round, 'points')];
-                              return points !== undefined ? Number(points) : resultsMatrix[team.id][round]?.points || 0;
+                              const points = overrides[getOverrideKey(teamId, round, 'points')];
+                              return points !== undefined ? Number(points) : resultsMatrix[teamId][round]?.points || 0;
                             }).reduce((a, b) => a + b, 0)
                           }
                           readOnly
@@ -415,8 +436,21 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
                           value={
                             Array.from({ length: numRounds }, (_, roundIndex) => {
                               const round = roundIndex + 1;
-                              const boston = overrides[getOverrideKey(team.id, round, 'boston')];
-                              return boston !== undefined ? Number(boston) : resultsMatrix[team.id][round]?.boston || 0;
+                              return resultsMatrix[teamId][round]?.hands || 0;
+                            }).reduce((a, b) => a + b, 0)
+                          }
+                          readOnly
+                        />
+                      </TableCell>
+                      <TableCell className="text-center border border-gray-400 bg-blue-100 font-medium p-0">
+                        <input
+                          type="number"
+                          className="w-12 text-center bg-transparent outline-none font-bold"
+                          value={
+                            Array.from({ length: numRounds }, (_, roundIndex) => {
+                              const round = roundIndex + 1;
+                              const boston = overrides[getOverrideKey(teamId, round, 'boston')];
+                              return boston !== undefined ? Number(boston) : resultsMatrix[teamId][round]?.boston || 0;
                             }).reduce((a, b) => a + b, 0)
                           }
                           readOnly

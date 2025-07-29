@@ -49,7 +49,7 @@ function generateDummyTeams(num: number, cities: string[], tournamentId: string)
   }
   return teams;
 }
-import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket } from './AppContext';
+import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket, ScheduleMatch } from './AppContext';
 import { createTournamentResultMethods } from './AppContextMethods';
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -162,7 +162,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // ...removed debug log...
       if (regError) {
         // ...removed debug log...
-        setTeams(teamsData || []);
+        // When mapping teams from Supabase
+        const teamsWithTournaments = (teamsData || []).map(team => ({
+          ...team,
+          id: String(team.id),
+          teamNumber: team.teamNumber,
+          registeredTournaments: (team.registeredTournaments || []).map(String),
+        }));
+        setTeams(teamsWithTournaments);
         return;
       }
       // Map registeredTournaments onto each team
@@ -178,38 +185,108 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setTeams(teamsWithTournaments);
     });
   }, []);
-  const [games, setGames] = useState<Game[]>(() => {
-    const saved = localStorage.getItem('games');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Remove localStorage initialization for games
+  const [games, setGames] = useState<Game[]>([]);
+
+  // Always fetch games from Supabase on load
+  useEffect(() => {
+    async function fetchGamesFromSupabase() {
+      const { data: gamesData, error } = await supabase.from('games').select('*');
+      if (error) {
+        toast({ title: 'Failed to fetch games from Supabase', description: error.message, variant: 'destructive' });
+        setGames([]);
+        return;
+      }
+      if (!gamesData) {
+        setGames([]);
+        return;
+      }
+      const mappedGames = gamesData.map(g => ({
+        ...g,
+        id: String(g.id),
+        teamA: String(g.teamA),
+        teamB: String(g.teamB),
+        matchId: String(g.matchId),
+        handsA: g.handsA ?? g.hands_a ?? 0,
+        handsB: g.handsB ?? g.hands_b ?? 0,
+      }));
+      setGames(mappedGames);
+    }
+    fetchGamesFromSupabase();
+  }, []);
+
+  // After submitting a score, fetch games again from Supabase
+  const refreshGamesFromSupabase = async () => {
+    try {
+      const { data: gamesData, error } = await supabase.from('games').select('*');
+      if (error) {
+        toast({ title: 'Failed to refresh games from Supabase', description: error.message, variant: 'destructive' });
+        return;
+      }
+      const mappedGames = (gamesData || []).map(g => ({
+        ...g,
+        handsA: g.handsA ?? g.hands_a ?? 0,
+        handsB: g.handsB ?? g.hands_b ?? 0,
+      }));
+      setGames(mappedGames);
+    } catch (err) {
+      toast({ title: 'Unexpected error refreshing games', description: String(err), variant: 'destructive' });
+    }
+  };
   const [scoreSubmissions, setScoreSubmissions] = useState<ScoreSubmission[]>(() => {
     const saved = localStorage.getItem('scoreSubmissions');
     return saved ? JSON.parse(saved) : [];
   });
   
-  const [schedules, setSchedules] = useState<TournamentSchedule[]>(() => {
-    const saved = localStorage.getItem('schedules');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Replace the schedules state initialization and loading logic
+  const [schedules, setSchedules] = useState<TournamentSchedule[]>([]);
 
+  useEffect(() => {
+    async function fetchSchedulesFromSupabase() {
+      try {
+        const { data: matches, error } = await supabase.from('matches').select('*');
+        if (error) {
+          toast({ title: 'Failed to fetch schedules from Supabase', description: error.message, variant: 'destructive' });
+          return;
+        }
+        if (!matches) {
+          setSchedules([]);
+          return;
+        }
+        // Group matches by tournamentId
+        const grouped: { [tournamentId: string]: ScheduleMatch[] } = {};
+        matches.forEach((m: any) => {
+          const match: ScheduleMatch = {
+            id: String(m.id),
+            teamA: String(m.team_a), // map from team_a (snake_case)
+            teamB: String(m.team_b), // map from team_b (snake_case)
+            round: m.round,
+            tournamentId: String(m.tournament_id),
+            isBye: m.is_bye,
+            isSameCity: m.is_same_city,
+            table: m.table_number
+          };
+          if (!grouped[match.tournamentId]) grouped[match.tournamentId] = [];
+          grouped[match.tournamentId].push(match);
+        });
+        // Convert to TournamentSchedule[]
+        const schedulesFromDb: TournamentSchedule[] = Object.entries(grouped).map(([tournamentId, matches]) => ({
+          tournamentId,
+          rounds: Math.max(...matches.map(m => m.round)),
+          matches
+        }));
+        setSchedules(schedulesFromDb);
+      } catch (err) {
+        toast({ title: 'Unexpected error fetching schedules', description: String(err), variant: 'destructive' });
+        setSchedules([]);
+      }
+    }
+    fetchSchedulesFromSupabase();
+  }, []);
+  
   useEffect(() => {
     localStorage.setItem('schedules', JSON.stringify(schedules));
   }, [schedules]);
-  
-  useEffect(() => {
-    localStorage.setItem('games', JSON.stringify(games));
-  }, [games]);
-
-  // Listen for localStorage changes in other tabs and update games state
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'games' && e.newValue) {
-        setGames(JSON.parse(e.newValue));
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
   
   useEffect(() => {
     localStorage.setItem('scoreSubmissions', JSON.stringify(scoreSubmissions));
@@ -380,7 +457,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   }, [games, schedules]);
 
-  const submitGame = (gameData: any) => {
+  const submitGame = async (gameData: any) => {
     const matchId = gameData.matchId;
     const teamId = gameData.submittedBy;
     
@@ -396,6 +473,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       scoreA: gameData.scoreA,
       scoreB: gameData.scoreB,
       boston: gameData.boston,
+      handsA: gameData.handsA,
+      handsB: gameData.handsB,
       submittedBy: teamId,
       timestamp: new Date(),
       round: gameData.round
@@ -409,10 +488,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setScoreSubmissions(prev => [...prev, newSubmission]);
     }
     
-    if (opponentSubmission && 
-        opponentSubmission.scoreA === gameData.scoreA && 
-        opponentSubmission.scoreB === gameData.scoreB &&
-        opponentSubmission.boston === gameData.boston) {
+    if (
+      opponentSubmission &&
+      opponentSubmission.scoreA === gameData.scoreA &&
+      opponentSubmission.scoreB === gameData.scoreB &&
+      opponentSubmission.boston === gameData.boston
+    ) {
       
       const confirmedGame: Game = {
         id: Date.now().toString(),
@@ -428,9 +509,43 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         confirmed: true,
         timestamp: new Date(),
         matchId,
-        round: gameData.round
+        round: gameData.round,
+        handsA: gameData.handsA,
+        handsB: gameData.handsB
       };
       
+      // Upsert the confirmed game to Supabase
+      try {
+        const { error } = await supabase.from('games').upsert([
+          {
+            id: confirmedGame.id,
+            matchId: confirmedGame.matchId,
+            teamA: String(confirmedGame.teamA.id || confirmedGame.teamA),
+            teamB: String(confirmedGame.teamB.id || confirmedGame.teamB),
+            scoreA: confirmedGame.scoreA,
+            scoreB: confirmedGame.scoreB,
+            boston: confirmedGame.boston,
+            winner: confirmedGame.winner,
+            submittedBy: confirmedGame.submittedBy,
+            confirmed: confirmedGame.confirmed,
+            confirmedBy: null,
+            round: confirmedGame.round,
+            timestamp: confirmedGame.timestamp,
+            handsA: confirmedGame.handsA,
+            handsB: confirmedGame.handsB
+          }
+        ], { onConflict: ['id'] });
+        if (error) {
+          toast({ title: 'Failed to save game to Supabase', description: error.message, variant: 'destructive' });
+          return;
+        }
+        toast({ title: 'Game result saved to Supabase!', variant: 'default' });
+        // Refresh games from Supabase
+        await refreshGamesFromSupabase();
+      } catch (err) {
+        toast({ title: 'Unexpected error saving game', description: String(err), variant: 'destructive' });
+      }
+      // Update local state for UI
       setGames(prev => [...prev.filter(g => g.matchId !== matchId), confirmedGame]);
       setScoreSubmissions(prev => prev.filter(s => s.matchId !== matchId));
       
@@ -664,7 +779,33 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       submitGame,
       confirmGame: (gameId: string, confirmedBy: string) => { setGames(prev => prev.map(game => game.id === gameId ? { ...game, confirmed: true, confirmedBy } : game)); },
       updateGameScore: (matchId: string, teamAScore: number, teamBScore: number) => {},
-      saveSchedule: (schedule: TournamentSchedule) => { setSchedules(prev => [...prev.filter(s => s.tournamentId !== schedule.tournamentId), schedule]); },
+      saveSchedule: async (schedule: TournamentSchedule) => {
+        // Upsert all matches in the schedule to Supabase
+        try {
+          const { matches } = schedule;
+          // Prepare matches for Supabase (map TS fields to DB columns)
+          const supabaseMatches = matches.map(m => ({
+            id: m.id,
+            team_a: m.teamA,
+            team_b: m.teamB,
+            round: m.round,
+            tournament_id: m.tournamentId,
+            table_number: m.table ?? null,
+            is_bye: m.isBye ?? false,
+            is_same_city: m.isSameCity ?? false
+          }));
+          const { error } = await supabase.from('matches').upsert(supabaseMatches, { onConflict: ['id'] });
+          if (error) {
+            toast({ title: 'Failed to save schedule to Supabase', description: error.message, variant: 'destructive' });
+            return;
+          }
+          toast({ title: 'Schedule saved to Supabase!', variant: 'default' });
+          // Update local state for UI
+          setSchedules(prev => [...prev.filter(s => s.tournamentId !== schedule.tournamentId), schedule]);
+        } catch (err) {
+          toast({ title: 'Unexpected error saving schedule', description: String(err), variant: 'destructive' });
+        }
+      },
       addScoreText: (scoreText: ScoreText) => { setScoreTexts(prev => [...prev, scoreText]); },
       updateScoreText: (id: string, updates: any) => { setScoreTexts(prev => prev.map(text => text.id === id ? { ...text, ...updates } : text)); },
       getPendingGames: () => games.filter(game => !game.confirmed),
@@ -804,7 +945,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       },
       clearTournamentResults,
       clearGames,
-      clearScoreSubmissions
+      clearScoreSubmissions,
+      refreshGamesFromSupabase
     }}>
       {children}
     </AppContext.Provider>

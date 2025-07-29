@@ -70,11 +70,11 @@ const PlayerPortalFixed = () => {
     const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
     if (!schedule) return [];
     const teamMatches = schedule.matches.filter(match =>
-      match.teamA === team.id || match.teamB === team.id
+      String(match.teamA) === String(team.id) || String(match.teamB) === String(team.id)
     );
     return teamMatches.map(match => {
-      const opponentId = match.teamA === team.id ? match.teamB : match.teamA;
-      const opponentTeam = teams.find(t => t.id === opponentId);
+      const opponentId = String(match.teamA) === String(team.id) ? match.teamB : match.teamA;
+      const opponentTeam = teams.find(t => String(t.id) === String(opponentId));
       return {
         ...match,
         tournamentName: activeTournament.name,
@@ -91,13 +91,13 @@ const PlayerPortalFixed = () => {
     if (!schedule) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: '0.0', results: [] };
     const matchIds = new Set(schedule.matches.map(m => m.id));
     const results = games.filter(game =>
-      (game.teamA.id === team.id || game.teamB.id === team.id) &&
+      (game.teamA === String(team.id) || game.teamB === String(team.id)) &&
       game.confirmed &&
       game.matchId && matchIds.has(game.matchId)
     ).map(game => {
-      const isTeamA = game.teamA.id === team.id;
-      const opponentId = isTeamA ? game.teamB.id : game.teamA.id;
-      const opponent = teams.find(t => t.id === opponentId) || null;
+      const isTeamA = game.teamA === String(team.id);
+      const opponentId = isTeamA ? game.teamB : game.teamA;
+      const opponent = teams.find(t => String(t.id) === opponentId) || null;
       return {
         ...game,
         isWin: (isTeamA && game.winner === 'teamA') || (!isTeamA && game.winner === 'teamB'),
@@ -199,6 +199,7 @@ const PlayerPortalFixed = () => {
 
   const teamSchedule = getTeamSchedule();
   const teamRecord = getTeamRecord;
+  const activeTournament = getActiveTournament();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-red-900 to-black">

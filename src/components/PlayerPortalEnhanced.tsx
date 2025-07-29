@@ -67,13 +67,11 @@ const PlayerPortalEnhanced = () => {
     const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
     if (!schedule) return [];
     const teamMatches = schedule.matches.filter(match => {
-      const teamAMatch = match.teamA === team.name || match.teamA === team.id || match.teamA === `Team ${team.teamNumber}`;
-      const teamBMatch = match.teamB === team.name || match.teamB === team.id || match.teamB === `Team ${team.teamNumber}`;
-      return teamAMatch || teamBMatch;
+      return match.teamA === team.id || match.teamB === team.id;
     });
     return teamMatches.map(match => {
-      const opponentName = (match.teamA === team.name || match.teamA === team.id || match.teamA === `Team ${team.teamNumber}`) ? match.teamB : match.teamA;
-      const opponentTeam = teams.find(t => t.name === opponentName || t.id === opponentName || `Team ${t.teamNumber}` === opponentName);
+      const opponentId = match.teamA === team.id ? match.teamB : match.teamA;
+      const opponentTeam = teams.find(t => t.id === opponentId);
       return {
         ...match,
         tournamentName: activeTournament.name,
@@ -156,6 +154,7 @@ const PlayerPortalEnhanced = () => {
   }
 
   const activeTournament = getActiveTournament();
+  const schedule = activeTournament ? schedules.find(s => s.tournamentId === activeTournament.id) : undefined;
   // Tournament selector UI if multiple tournaments
   const handleTournamentChange = (tid: string) => {
     setActiveTournament(tid);
@@ -192,143 +191,167 @@ const PlayerPortalEnhanced = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
-        <span className="text-xs text-gray-400 py-2 bg-white/80 px-2 rounded shadow" style={{ zIndex: 999 }}>
-          PlayerPortalEnhanced.tsx
-        </span>
+    <div>
+      <div style={{ background: '#fef9c3', border: '2px solid #fde68a', borderRadius: 8, padding: 12, margin: 12 }}>
+        <b>Top-Level Debug Info:</b>
+        <div>team: {JSON.stringify(team)}</div>
+        <div>activeTournament: {JSON.stringify(activeTournament)}</div>
+        <div>schedules: {JSON.stringify(schedules)}</div>
       </div>
-      {/* REMOVE_ME_FILENAME: PlayerPortalEnhanced.tsx */}
-      <div className="bg-blue-600 text-white p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold">
-                Team {team.teamNumber}: {team.name}
-                {isTestMode && <Badge variant="secondary" className="ml-2 bg-yellow-500"><TestTube className="h-3 w-3 mr-1" />Test</Badge>}
-              </h1>
-              <p className="text-blue-100 text-sm">
-                {(team.player1_first_name || team.player1FirstName)} {(team.player1_last_name || team.player1LastName)} & {(team.player2_first_name || team.player2FirstName)} {(team.player2_last_name || team.player2LastName)}
-              </p>
-              <p className="text-blue-200 text-xs">Phone: {(team.phone_Number || team.phoneNumber)}</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="w-full flex justify-center REMOVE_ME_FILENAME" style={{ position: 'sticky', top: 0, zIndex: 999 }}>
+          <span className="text-xs text-gray-400 py-2 bg-white/80 px-2 rounded shadow" style={{ zIndex: 999 }}>
+            PlayerPortalEnhanced.tsx
+          </span>
+        </div>
+        {/* REMOVE_ME_FILENAME: PlayerPortalEnhanced.tsx */}
+        <div className="bg-blue-600 text-white p-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold">
+                  Team {team.teamNumber}: {team.name}
+                  {isTestMode && <Badge variant="secondary" className="ml-2 bg-yellow-500"><TestTube className="h-3 w-3 mr-1" />Test</Badge>}
+                </h1>
+                <p className="text-blue-100 text-sm">
+                  {(team.player1_first_name || team.player1FirstName)} {(team.player1_last_name || team.player1LastName)} & {(team.player2_first_name || team.player2FirstName)} {(team.player2_last_name || team.player2LastName)}
+                </p>
+                <p className="text-blue-200 text-xs">Phone: {(team.phone_Number || team.phoneNumber)}</p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setTeam(null)}
+                className="text-blue-600 border-white hover:bg-white"
+              >
+                Logout
+              </Button>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setTeam(null)}
-              className="text-blue-600 border-white hover:bg-white"
-            >
-              Logout
-            </Button>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto p-4">
-        <Tabs defaultValue="schedule" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="schedule" className="text-xs sm:text-sm">
-              <Calendar className="h-4 w-4 mr-1" />
-              Schedule
-            </TabsTrigger>
-            <TabsTrigger value="score" className="text-xs sm:text-sm">
-              <Target className="h-4 w-4 mr-1" />
-              Score
-            </TabsTrigger>
-            <TabsTrigger value="results" className="text-xs sm:text-sm">
-              <Trophy className="h-4 w-4 mr-1" />
-              Results
-            </TabsTrigger>
-            <TabsTrigger value="standings" className="text-xs sm:text-sm">
-              <Users className="h-4 w-4 mr-1" />
-              Standings
-            </TabsTrigger>
-          </TabsList>
+        <div className="max-w-4xl mx-auto p-4">
+          <Tabs defaultValue="schedule" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="schedule" className="text-xs sm:text-sm">
+                <Calendar className="h-4 w-4 mr-1" />
+                Schedule
+              </TabsTrigger>
+              <TabsTrigger value="score" className="text-xs sm:text-sm">
+                <Target className="h-4 w-4 mr-1" />
+                Score
+              </TabsTrigger>
+              <TabsTrigger value="results" className="text-xs sm:text-sm">
+                <Trophy className="h-4 w-4 mr-1" />
+                Results
+              </TabsTrigger>
+              <TabsTrigger value="standings" className="text-xs sm:text-sm">
+                <Users className="h-4 w-4 mr-1" />
+                Standings
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="schedule">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Your Schedule
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {getTeamSchedule().length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500 mb-2">No scheduled matches found</p>
-                      <p className="text-sm text-gray-400">Matches will appear here once tournaments are scheduled</p>
-                      {isTestMode && (
-                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <p className="text-xs text-blue-800">Debug: {schedules.length} schedules found, {teams.length} teams total</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    getTeamSchedule().map((match: any, index: number) => (
-                      <div key={index} className={`border rounded-lg p-4 ${
-                        match.isBye ? 'bg-yellow-50 border-yellow-200' : 'bg-white'
-                      }`}>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{match.tournamentName}</p>
-                            <p className="text-xs text-gray-600 mb-2">Round {match.round}</p>
-                            {match.isBye ? (
-                              <Badge variant="secondary" className="text-xs">BYE ROUND</Badge>
-                            ) : (
-                              <div>
-                                <p className="text-sm font-medium">
-                                  vs Team {match.opponentTeam?.teamNumber || 'TBD'}
-                                </p>
-                                {match.opponentTeam && (
-                                  <p className="text-xs text-gray-600">
-                                {(match.opponentTeam.player1_first_name || match.opponentTeam.player1FirstName)} {(match.opponentTeam.player1_last_name || match.opponentTeam.player1LastName)} & {(match.opponentTeam.player2_first_name || match.opponentTeam.player2FirstName)} {(match.opponentTeam.player2_last_name || match.opponentTeam.player2LastName)}
+            <TabsContent value="schedule">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Your Schedule
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* DEBUG INFO START */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 6, padding: 8, marginBottom: 12 }}>
+                    <div><b>Debug Info:</b></div>
+                    <div>team.id: {team?.id}</div>
+                    <div>activeTournament.id: {activeTournament?.id}</div>
+                    <div>Schedule matches for this tournament:</div>
+                    <ul style={{ fontSize: 12, maxHeight: 120, overflow: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 4, padding: 4 }}>
+                      {schedule?.matches.map((m, i) => (
+                        <li key={i}>
+                          id: {m.id}, teamA: {m.teamA}, teamB: {m.teamB}, round: {m.round}
+                        </li>
+                      ))}
+                      {(!schedule || schedule.matches.length === 0) && <li>(No matches found for this tournament)</li>}
+                    </ul>
+                  </div>
+                  {/* DEBUG INFO END */}
+                  <div className="space-y-3">
+                    {getTeamSchedule().length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500 mb-2">No scheduled matches found</p>
+                        <p className="text-sm text-gray-400">Matches will appear here once tournaments are scheduled</p>
+                        {isTestMode && (
+                          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-xs text-blue-800">Debug: {schedules.length} schedules found, {teams.length} teams total</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      getTeamSchedule().map((match: any, index: number) => (
+                        <div key={index} className={`border rounded-lg p-4 ${
+                          match.isBye ? 'bg-yellow-50 border-yellow-200' : 'bg-white'
+                        }`}>
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{match.tournamentName}</p>
+                              <p className="text-xs text-gray-600 mb-2">Round {match.round}</p>
+                              {match.isBye ? (
+                                <Badge variant="secondary" className="text-xs">BYE ROUND</Badge>
+                              ) : (
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    vs Team {match.opponentTeam?.teamNumber || 'TBD'}
                                   </p>
-                                )}
-                              </div>
+                                  {match.opponentTeam && (
+                                    <p className="text-xs text-gray-600">
+                                  {(match.opponentTeam.player1_first_name || match.opponentTeam.player1FirstName)} {(match.opponentTeam.player1_last_name || match.opponentTeam.player1LastName)} & {(match.opponentTeam.player2_first_name || match.opponentTeam.player2FirstName)} {(match.opponentTeam.player2_last_name || match.opponentTeam.player2LastName)}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {match.table && (
+                              <Badge variant="outline" className="text-xs">
+                                Table {match.table}
+                              </Badge>
                             )}
                           </div>
-                          {match.table && (
-                            <Badge variant="outline" className="text-xs">
-                              Table {match.table}
-                            </Badge>
-                          )}
                         </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          <TabsContent value="score">
-            <ScoreEntryCard team={team} />
-          </TabsContent>
+            <TabsContent value="score">
+              <ScoreEntryCard team={team} />
+            </TabsContent>
 
-          <TabsContent value="results">
-            <Card>
-              <CardHeader>
-                <CardTitle>Game Results</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-gray-500 py-8">No games played yet</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
+            <TabsContent value="results">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Game Results</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-center text-gray-500 py-8">No games played yet</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          <TabsContent value="standings">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tournament Standings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-gray-500 py-8">No tournament results yet</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="standings">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tournament Standings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-center text-gray-500 py-8">No tournament results yet</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

@@ -16,6 +16,8 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
+  const [handsA, setHandsA] = useState('');
+  const [handsB, setHandsB] = useState('');
   const [boston, setBoston] = useState('none');
   const [refreshKey, setRefreshKey] = useState(0);
   const { schedules, games, tournaments, teams, submitGame, scoreSubmissions, getActiveTournament } = useAppContext();
@@ -27,21 +29,21 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
     if (!schedule) return [];
     const activeMatches: any[] = [];
     const teamMatches = schedule.matches.filter(match => {
-      return (match.teamA === team.id || match.teamB === team.id) && !match.isBye;
+      return (String(match.teamA) === String(team.id) || String(match.teamB) === String(team.id)) && !match.isBye;
     });
     teamMatches.sort((a, b) => a.round - b.round);
     for (const match of teamMatches) {
-      const existingGame = games.find(g => g.matchId === match.id && g.confirmed);
+      const existingGame = games.find(g => String(g.matchId) === String(match.id) && g.confirmed);
       if (existingGame) continue;
       if (match.teamA !== 'TBD' && match.teamB !== 'TBD') {
         const tournament = activeTournament;
-        const opponentId = match.teamA === team.id ? match.teamB : match.teamA;
-        const opponentTeam = teams.find(t => t.id === opponentId);
+        const opponentId = String(match.teamA) === String(team.id) ? match.teamB : match.teamA;
+        const opponentTeam = teams.find(t => String(t.id) === String(opponentId));
         const mySubmission = scoreSubmissions.find(s => 
-          s.matchId === match.id && s.submittedBy === team.id
+          String(s.matchId) === String(match.id) && String(s.submittedBy) === String(team.id)
         );
         const opponentSubmission = scoreSubmissions.find(s => 
-          s.matchId === match.id && s.submittedBy !== team.id
+          String(s.matchId) === String(match.id) && String(s.submittedBy) !== String(team.id)
         );
         let status = 'Ready to Score';
         let statusMessage = '';
@@ -49,13 +51,15 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
           if (
             mySubmission.scoreA !== opponentSubmission.scoreA ||
             mySubmission.scoreB !== opponentSubmission.scoreB ||
-            mySubmission.boston !== opponentSubmission.boston
+            mySubmission.boston !== opponentSubmission.boston ||
+            mySubmission.handsA !== opponentSubmission.handsA ||
+            mySubmission.handsB !== opponentSubmission.handsB
           ) {
             status = 'Score Conflict';
-            statusMessage = 'Scores or Boston value don\'t match - resolve with opponent';
+            statusMessage = 'Scores, Boston, or Hands Won don\'t match - resolve with opponent';
           } else {
             status = 'Confirming scores';
-            statusMessage = 'Scores and Boston match - confirming game';
+            statusMessage = 'Scores, Boston, and Hands Won match - confirming game';
           }
         } else if (mySubmission) {
           status = 'Waiting for opponent';
@@ -92,37 +96,38 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
   }, [schedules, games, scoreSubmissions, tournaments, teams, team.id, refreshKey, getActiveTournament]);
 
   const handleSubmitScore = () => {
-    if (!selectedMatch || !scoreA || !scoreB) return;
+    if (!selectedMatch || !scoreA || !scoreB || !handsA || !handsB) return;
     
-    const teamAScore = selectedMatch.teamA === team.id ? parseInt(scoreA) : parseInt(scoreB);
-    const teamBScore = selectedMatch.teamA === team.id ? parseInt(scoreB) : parseInt(scoreA);
-    
-    const teamA = teams.find(t => t.id === selectedMatch.teamA);
-    const teamB = teams.find(t => t.id === selectedMatch.teamB);
-    
+    const teamAScore = String(selectedMatch.teamA) === String(team.id) ? parseInt(scoreA) : parseInt(scoreB);
+    const teamBScore = String(selectedMatch.teamA) === String(team.id) ? parseInt(scoreB) : parseInt(scoreA);
+    const teamAHands = String(selectedMatch.teamA) === String(team.id) ? parseInt(handsA) : parseInt(handsB);
+    const teamBHands = String(selectedMatch.teamA) === String(team.id) ? parseInt(handsB) : parseInt(handsA);
+
+    const teamA = teams.find(t => String(t.id) === String(selectedMatch.teamA));
+    const teamB = teams.find(t => String(t.id) === String(selectedMatch.teamB));
     if (!teamA || !teamB) return;
-    
+
     const gameData = {
       teamA,
       teamB,
       scoreA: teamAScore,
       scoreB: teamBScore,
+      handsA: teamAHands,
+      handsB: teamBHands,
       boston: boston as 'none' | 'teamA' | 'teamB',
       winner: (teamAScore > teamBScore ? 'teamA' : 'teamB') as 'teamA' | 'teamB',
       matchId: selectedMatch.id,
       round: selectedMatch.round,
       submittedBy: team.id
     };
-    
+
     submitGame(gameData);
-    
-    // Clear the form and selection
     setSelectedMatch(null);
     setScoreA('');
     setScoreB('');
+    setHandsA('');
+    setHandsB('');
     setBoston('none');
-    
-    // Force a re-render
     setRefreshKey(prev => prev + 1);
   };
 
@@ -131,8 +136,12 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
     if (selectedMatch && selectedMatch.status === 'Score Conflict' && selectedMatch.mySubmission) {
       const myScore = selectedMatch.teamA === team.id ? selectedMatch.mySubmission.scoreA : selectedMatch.mySubmission.scoreB;
       const opponentScore = selectedMatch.teamA === team.id ? selectedMatch.mySubmission.scoreB : selectedMatch.mySubmission.scoreA;
+      const myHands = selectedMatch.teamA === team.id ? selectedMatch.mySubmission.handsA : selectedMatch.mySubmission.handsB;
+      const opponentHands = selectedMatch.teamA === team.id ? selectedMatch.mySubmission.handsB : selectedMatch.mySubmission.handsA;
       setScoreA(myScore.toString());
       setScoreB(opponentScore.toString());
+      setHandsA(myHands ? myHands.toString() : '');
+      setHandsB(opponentHands ? opponentHands.toString() : '');
       setBoston(selectedMatch.mySubmission.boston || 'none');
     }
   }, [selectedMatch, team.id]);
@@ -142,6 +151,8 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
     if (!selectedMatch) {
       setScoreA('');
       setScoreB('');
+      setHandsA('');
+      setHandsB('');
       setBoston('none');
     }
   }, [selectedMatch, scoreSubmissions]);
@@ -277,6 +288,18 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
                     />
                   </div>
                   <div>
+                    <label className="text-sm text-gray-600">Your Hands Won</label>
+                    <Input
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={handsA}
+                      onChange={(e) => setHandsA(e.target.value)}
+                      placeholder="0"
+                      className="text-center"
+                    />
+                  </div>
+                  <div>
                     <label className="text-sm text-gray-600">Opponent Score</label>
                     <Input
                       type="tel"
@@ -284,6 +307,18 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
                       pattern="[0-9]*"
                       value={scoreB}
                       onChange={(e) => setScoreB(e.target.value)}
+                      placeholder="0"
+                      className="text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Opponent Hands Won</label>
+                    <Input
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={handsB}
+                      onChange={(e) => setHandsB(e.target.value)}
                       placeholder="0"
                       className="text-center"
                     />

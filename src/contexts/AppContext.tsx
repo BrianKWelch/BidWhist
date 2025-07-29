@@ -56,6 +56,8 @@ export interface Game {
   round?: number;
   teamAScore?: number;
   teamBScore?: number;
+  handsA: number;
+  handsB: number;
 }
 
 export interface ScheduleMatch {
@@ -101,6 +103,8 @@ export interface ScoreSubmission {
   scoreA: number;
   scoreB: number;
   boston: 'none' | 'teamA' | 'teamB';
+  handsA: number;
+  handsB: number;
   submittedBy: string;
   timestamp: Date;
   round: number;

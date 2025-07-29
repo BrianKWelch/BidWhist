@@ -70,8 +70,11 @@ const PlayerPortal = () => {
     const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
     if (!schedule) return [];
     const matchIds = new Set(schedule.matches.map(m => m.id));
+    // Debug log
+    console.log('team.id:', team.id, typeof team.id);
+    console.log('games:', games.map(g => ({ teamA: g.teamA, typeA: typeof g.teamA, teamB: g.teamB, typeB: typeof g.teamB, matchId: g.matchId, confirmed: g.confirmed })));
     return games.filter(game =>
-      (game.teamA.name === team.name || game.teamB.name === team.name) &&
+      (game.teamA === team.id || game.teamB === team.id) &&
       game.confirmed &&
       game.matchId && matchIds.has(game.matchId)
     );
