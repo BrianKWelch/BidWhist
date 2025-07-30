@@ -16,9 +16,9 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
   const getMatchStatus = (match: any) => {
     const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
     if (completedGame) {
-      const winner = completedGame.scoreA > completedGame.scoreB ? 
-        teams.find(t => t.id === match.teamA) : teams.find(t => t.id === match.teamB);
-      return `Completed - Team ${winner?.teamNumber || 'Unknown'} won ${Math.max(completedGame.scoreA, completedGame.scoreB)}-${Math.min(completedGame.scoreA, completedGame.scoreB)}`;
+      const winnerId = completedGame.scoreA > completedGame.scoreB ? match.teamA : match.teamB;
+      const winner = teams.find(t => String(t.id) === String(winnerId));
+      return `Completed - Team ${winner?.teamNumber || winner?.id || 'Unknown'} won ${Math.max(completedGame.scoreA, completedGame.scoreB)}-${Math.min(completedGame.scoreA, completedGame.scoreB)}`;
     }
 
     const submissions = scoreSubmissions.filter(s => s.matchId === match.id);
@@ -62,6 +62,27 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
     return 'bg-gray-100 border-gray-300 text-gray-600';
   };
 
+  const getPlaceholderLabel = (id: string) => {
+    const loserMatch = /^R(\d+)L(\d+)$/.exec(id);
+    if (loserMatch) {
+      return `Loser of Table ${loserMatch[2]}, Round ${loserMatch[1]}`;
+    }
+    const winnerMatch = /^R(\d+)W(\d+)$/.exec(id);
+    if (winnerMatch) {
+      return `Winner of Table ${winnerMatch[2]}, Round ${winnerMatch[1]}`;
+    }
+    const byeMatch = /^R(\d+)Bye(\d+)$/.exec(id);
+    if (byeMatch) {
+      return `Bye from Round ${byeMatch[1]}, Slot ${byeMatch[2]}`;
+    }
+    // Try to find a real team by ID
+    const team = teams.find(t => String(t.id) === String(id));
+    if (team) {
+      return `Team ${team.teamNumber || team.id}: ${team.name}`;
+    }
+    return id;
+  };
+
   // REMOVE_ME: File name display for testing
   return (
     <Card>
@@ -76,6 +97,18 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
       <CardContent>
         {Array.from({ length: schedule.rounds }, (_, i) => i + 1).map(round => {
           const roundMatches = schedule.matches.filter(m => m.round === round);
+          // Sort matches by match.table (if present)
+          const sortedMatches = roundMatches.slice().sort((a, b) => {
+            if (a.table && b.table) return a.table - b.table;
+            if (a.table) return -1;
+            if (b.table) return 1;
+            return 0;
+          });
+          // When rendering matches for a round:
+          const totalTeams = teams.length;
+          const numTables = Math.floor(totalTeams / 2);
+          const byes = roundMatches.filter(m => m.isBye || !('table' in m) || (m.table && m.table > numTables));
+          const realMatches = roundMatches.filter(m => m.table && m.table >= 1 && m.table <= numTables).sort((a, b) => a.table - b.table);
           return (
             <div key={round} className="mb-6">
               <div className="flex items-center gap-2 mb-3">
@@ -87,63 +120,56 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
                 </span>
               </div>
               <div className="space-y-3">
-                {roundMatches.map(match => {
-                  if (match.isBye) {
-                    const team = teams.find(t => t.id === match.teamA) || { name: match.teamA, teamNumber: '', player1FirstName: '', player1LastName: '', player2FirstName: '', player2LastName: '', city: '' };
-                    return (
-                      <div key={match.id} className={`p-2 md:p-4 border rounded-lg bg-yellow-50 border-yellow-300 text-yellow-800`}>
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2 md:gap-0">
-                          <div className="flex-1 font-medium text-xs md:text-sm">
-                            Team {('teamNumber' in team && team.teamNumber) ? team.teamNumber : (('id' in team && team.id) ? team.id : '?')}: {team.name} has a <span className="font-bold">BYE</span> this round
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap justify-center items-center gap-1 md:gap-2 mt-1">
-                          <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1 bg-yellow-100 border-yellow-300 text-yellow-800">
-                            BYE
-                          </Badge>
+                {/* Render byes first (no table number) */}
+                {byes.map(match => {
+                  // Render bye card (no table number)
+                  const team = teams.find(t => t.id === match.teamA) || { name: match.teamA, teamNumber: '', player1FirstName: '', player1LastName: '', player2FirstName: '', player2LastName: '', city: '' };
+                  return (
+                    <div key={match.id} className={`p-2 md:p-4 border rounded-lg bg-yellow-50 border-yellow-300 text-yellow-800`}>
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2 md:gap-0">
+                        <div className="flex-1 font-medium text-xs md:text-sm">
+                          Team {('teamNumber' in team && team.teamNumber) ? team.teamNumber : (('id' in team && team.id) ? team.id : '?')}: {team.name} has a <span className="font-bold">BYE</span> this round
                         </div>
                       </div>
-                    );
-                  }
-                  const teamA = teams.find(t => t.id === match.teamA);
-                  const teamB = teams.find(t => t.id === match.teamB);
+                      <div className="flex flex-wrap justify-center items-center gap-1 md:gap-2 mt-1">
+                        <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1 bg-yellow-100 border-yellow-300 text-yellow-800">
+                          BYE
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Render real matches with table numbers */}
+                {realMatches.map(match => {
+                  // Render match card with Table {match.table}
+                  const teamA = teams.find(t => String(t.id) === String(match.teamA));
+                  const teamB = teams.find(t => String(t.id) === String(match.teamB));
                   const status = getMatchStatus(match);
                   const statusColor = getStatusColor(status);
                   return (
                     <div key={match.id} className={`p-2 md:p-4 border rounded-lg ${statusColor}`}>
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2 md:gap-0">
-                        <div className="flex-1">
-                          <div className="font-medium text-xs md:text-sm">
-                            {match.teamA === 'TBD' ? 'Team TBD' : 
-                             teamA ? `Team ${teamA.teamNumber ?? teamA.id}: ${teamA.name}` : `Team ${match.teamA}`}
+                      <div className="flex flex-col items-center mb-2">
+                        {match.table && (
+                          <span className="rounded-full bg-green-100 text-green-800 px-4 py-1 text-xs font-semibold mb-2">
+                            Table {match.table}
+                          </span>
+                        )}
+                        <div className="flex w-full justify-between items-center">
+                          <div className="text-left flex-1">
+                            <div className="font-bold text-base">
+                              {teamA ? `Team ${teamA.teamNumber || teamA.id}` : getPlaceholderLabel(match.teamA)}
+                            </div>
+                            <div className="text-sm">{teamA ? teamA.name : ''}</div>
+                            <div className="text-xs text-gray-500">{teamA ? teamA.city : ''}</div>
                           </div>
-                          {teamA && (
-                            <div className="text-[10px] md:text-xs text-muted-foreground">
-                              {teamA.player1FirstName} {teamA.player1LastName} & {teamA.player2FirstName} {teamA.player2LastName}
+                          <div className="text-center px-4 font-bold text-lg">vs</div>
+                          <div className="text-right flex-1">
+                            <div className="font-bold text-base">
+                              {teamB ? `Team ${teamB.teamNumber || teamB.id}` : getPlaceholderLabel(match.teamB)}
                             </div>
-                          )}
-                          {teamA && (
-                            <div className="text-[10px] md:text-xs text-blue-600 font-medium">
-                              {teamA.city}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-muted-foreground mx-0 md:mx-3 font-medium text-xs md:text-sm text-center">vs</span>
-                        <div className="flex-1 md:text-right">
-                          <div className="font-medium text-xs md:text-sm">
-                            {match.teamB === 'TBD' ? 'Team TBD' : 
-                             teamB ? `Team ${teamB.teamNumber ?? teamB.id}: ${teamB.name}` : `Team ${match.teamB}`}
+                            <div className="text-sm">{teamB ? teamB.name : ''}</div>
+                            <div className="text-xs text-gray-500">{teamB ? teamB.city : ''}</div>
                           </div>
-                          {teamB && (
-                            <div className="text-[10px] md:text-xs text-muted-foreground">
-                              {teamB.player1FirstName} {teamB.player1LastName} & {teamB.player2FirstName} {teamB.player2LastName}
-                            </div>
-                          )}
-                          {teamB && (
-                            <div className="text-[10px] md:text-xs text-blue-600 font-medium">
-                              {teamB.city}
-                            </div>
-                          )}
                         </div>
                       </div>
                       <div className="flex flex-wrap justify-center items-center gap-1 md:gap-2 mt-1">

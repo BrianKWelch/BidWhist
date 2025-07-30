@@ -17,7 +17,7 @@ const PlayerPortalFixed = () => {
   const [testMode, setTestMode] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const { teams, schedules, games, tournaments, getActiveTournament } = useAppContext();
+  const { teams, schedules, games, tournaments, getActiveTournament, scoreSubmissions } = useAppContext();
 
   const cleanPhoneNumber = (phone: string) => {
     return phone.replace(/\D/g, '');
@@ -50,7 +50,7 @@ const PlayerPortalFixed = () => {
   };
 
   const handleAdminTeamSelect = (teamId: string) => {
-    const selectedTeam = teams.find(t => t.id === teamId);
+    const selectedTeam = teams.find(t => String(t.id) === String(teamId));
     if (selectedTeam) {
       setTeam(selectedTeam);
       setAdminMode(true);
@@ -62,30 +62,105 @@ const PlayerPortalFixed = () => {
     // This effect will run whenever games change, ensuring the component updates
   }, [games]);
 
+  const activeTournament = getActiveTournament();
+
   // Only show schedule for the active tournament
   const getTeamSchedule = () => {
     if (!team) return [];
-    const activeTournament = getActiveTournament();
     if (!activeTournament) return [];
     const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
     if (!schedule) return [];
+
+    const isOptionB = schedule.matches.some(m => m.opponentPlaceholder) || schedule.rounds < 2;
+
     const teamMatches = schedule.matches.filter(match =>
       String(match.teamA) === String(team.id) || String(match.teamB) === String(team.id)
-    );
-    return teamMatches.map(match => {
-      const opponentId = String(match.teamA) === String(team.id) ? match.teamB : match.teamA;
-      const opponentTeam = teams.find(t => String(t.id) === String(opponentId));
-      return {
-        ...match,
-        tournamentName: activeTournament.name,
-        opponentTeam
-      };
-    }).sort((a, b) => a.round - b.round);
+    ).sort((a, b) => a.round - b.round);
+
+    if (!isOptionB) {
+      // Option A: Show all
+      return teamMatches.map(processMatch);
+    }
+
+    // Option B: Show completed + next pending
+    const processed = [];
+    let nextPending = null;
+    for (const match of teamMatches) {
+      const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
+      if (completedGame) {
+        processed.push(processMatch(match, true));
+      } else if (!nextPending) {
+        nextPending = processMatch(match, false);
+      }
+    }
+    if (nextPending) processed.push(nextPending);
+    return processed;
   };
+
+  function processMatch(match, isCompleted) {
+    const opponentId = String(match.teamA) === String(team.id) ? match.teamB : match.teamA;
+    let opponentTeam = teams.find(t => String(t.id) === String(opponentId));
+    let opponentDisplay = opponentTeam ? `Team ${opponentTeam.teamNumber || opponentTeam.id}` : 'TBD';
+
+    // If this match is a bye for the team, show 'BYE' instead of 'TBD'
+    if (match.isBye) {
+      opponentDisplay = 'BYE';
+    }
+
+    if (match.opponentPlaceholder && !opponentTeam) {
+      opponentDisplay = `Winner of Table ${match.opponentPlaceholder.table}`;
+    }
+
+    // Check game status
+    const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
+    const submissions = scoreSubmissions.filter(s => s.matchId === match.id);
+    const mySubmission = submissions.find(s => String(s.submittedBy) === String(team.id));
+    const opponentSubmission = submissions.find(s => String(s.submittedBy) !== String(team.id));
+    
+    let gameStatus = 'pending';
+    let statusMessage = '';
+    let statusColor = 'bg-green-50 border-green-300';
+    
+    if (completedGame) {
+      gameStatus = 'completed';
+      const winnerId = completedGame.scoreA > completedGame.scoreB ? match.teamA : match.teamB;
+      const winner = teams.find(t => String(t.id) === String(winnerId));
+      const winnerScore = Math.max(completedGame.scoreA, completedGame.scoreB);
+      const loserScore = Math.min(completedGame.scoreA, completedGame.scoreB);
+      statusMessage = `Completed - Team ${winner?.teamNumber || winner?.id || 'Unknown'} won ${winnerScore}-${loserScore}`;
+      statusColor = 'bg-green-100 border-green-300 text-green-800';
+    } else if (submissions.length === 2) {
+      const scoresMatch = submissions[0].scoreA === submissions[1].scoreA && 
+                         submissions[0].scoreB === submissions[1].scoreB;
+      if (scoresMatch) {
+        gameStatus = 'confirming';
+        statusMessage = 'Confirming scores';
+        statusColor = 'bg-orange-100 border-orange-300 text-orange-800';
+      } else {
+        gameStatus = 'conflict';
+        statusMessage = 'Score conflict - needs resolution';
+        statusColor = 'bg-red-100 border-red-300 text-red-800';
+      }
+    } else if (mySubmission) {
+      gameStatus = 'waiting';
+      statusMessage = 'Waiting for opponent score';
+      statusColor = 'bg-yellow-100 border-yellow-300 text-yellow-800';
+    }
+    
+    return {
+      ...match,
+      tournamentName: activeTournament.name,
+      opponentTeam,
+      opponentDisplay,
+      gameStatus,
+      statusMessage,
+      statusColor,
+      completedGame
+    };
+  }
 
   // Only show results for the active tournament
   const getTeamRecord = useMemo(() => {
-    const activeTournament = getActiveTournament();
     if (!team || !activeTournament) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: '0.0', results: [] };
     const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
     if (!schedule) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: '0.0', results: [] };
@@ -199,7 +274,6 @@ const PlayerPortalFixed = () => {
 
   const teamSchedule = getTeamSchedule();
   const teamRecord = getTeamRecord;
-  const activeTournament = getActiveTournament();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-red-900 to-black">
@@ -261,117 +335,101 @@ const PlayerPortalFixed = () => {
 
           <TabsContent value="schedule">
             <Card>
-                {/* Removed file name tag from top of My Tournament Schedule card */}
-              <CardHeader><CardTitle>My Tournament Schedule</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  My Tournament Schedule
+                </CardTitle>
+                {activeTournament?.name && (
+                  <div className="text-blue-600 text-xl font-bold mt-1">
+                    {activeTournament.name}
+                  </div>
+                )}
+              </CardHeader>
               <CardContent>
                 {teamSchedule.length === 0 ? (
                   <div className="text-center text-gray-500 py-8">
                     <p>No scheduled matches found</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {/* Group matches by tournament */}
-                    {Array.from(new Set(teamSchedule.map(match => match.tournamentName))).map(tournamentName => {
-                      const tournamentMatches = teamSchedule.filter(match => match.tournamentName === tournamentName);
-                      const maxRound = Math.max(...tournamentMatches.map(m => m.round));
-                      
-                      return (
-                        <div key={tournamentName} className="space-y-4">
-                          <div className="border-b pb-2">
-                            <h3 className="font-semibold text-lg">{tournamentName}</h3>
-                            <p className="text-sm text-gray-600">{tournamentMatches.length} matches • {maxRound} rounds</p>
+                  <div className="space-y-4">
+                    {teamSchedule.map((match: any, index: number) => (
+                      <div key={index} className={`p-4 border rounded-lg ${match.statusColor} relative${(match.gameStatus === 'completed' || match.isBye) ? ' bg-gray-300' : ''}`}>
+                        <div className="flex flex-col items-center mb-2">
+                          <span className="font-bold text-base text-black">
+                            Table {match.table || '?'}
+                          </span>
+                          <div className="flex w-full justify-between items-center">
+                            <div className="text-left flex-1">
+                              <div className="font-bold text-base">Team {team.teamNumber || team.id}</div>
+                              <div className="text-sm">{team.name}</div>
+                              <div className="text-xs text-gray-500">{team.city}</div>
+                            </div>
+                            <div className="text-center px-4 font-bold text-lg">vs</div>
+                            <div className="text-right flex-1">
+                              {match.opponentTeam ? (
+                                <>
+                                  <div className="font-bold text-base">Team {match.opponentTeam.teamNumber || match.opponentTeam.id}</div>
+                                  <div className="text-sm">{match.opponentTeam.name}</div>
+                                  <div className="text-xs text-gray-500">{match.opponentTeam.city}</div>
+                                </>
+                              ) : (
+                                match.opponentDisplay
+                              )}
+                            </div>
                           </div>
-                          
-                          {/* Show all rounds for this tournament */}
-                          {Array.from({ length: maxRound }, (_, i) => i + 1).map(round => {
-                            const roundMatches = tournamentMatches.filter(match => match.round === round);
-                            return (
-                              <div key={round} className="space-y-3">
-                                {/* Removed the outer round header, move round badge inside each match card */}
-                                <div className="space-y-3">
-                                  {roundMatches.map((match: any, index: number) => (
-                                    <div key={index} className={`border rounded-lg p-4 ${
-                                      match.isBye ? 'bg-yellow-50 border-yellow-200' : 'bg-white'
-                                    }`}>
-                                      <div className="flex justify-between items-start">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            {/* Round badge now inside the card */}
-                                            <Badge variant="outline" className="font-medium">
-                                              Round {round}
-                                            </Badge>
-                                            {match.table && match.table > 0 && (
-                                              <Badge variant="secondary" className="text-xs">
-                                                Table {match.table}
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          {match.isBye ? (
-                                            <div className="text-center">
-                                              <Badge variant="secondary" className="text-sm">BYE ROUND</Badge>
-                                              <p className="text-xs text-gray-600 mt-1">No game this round</p>
-                                            </div>
-                                          ) : (
-                                            <div>
-                                              <p className="text-sm font-medium">
-                                                My team plays{' '}
-                                                {match.opponentTeam ? (
-                                                  (() => {
-                                                    let teamNum = 'TBD';
-                                                    if (match.opponentTeam.teamNumber) {
-                                                      teamNum = `Team # ${match.opponentTeam.teamNumber}`;
-                                                    } else if (match.opponentTeam.id) {
-                                                      teamNum = `Team # ${match.opponentTeam.id}`;
-                                                    }
-                                                    const p1 = (match.opponentTeam.player1_first_name || '').trim();
-                                                    const p2 = (match.opponentTeam.player2_first_name || '').trim();
-                                                    const city = match.opponentTeam.city;
-                                                    let nameStr = '';
-                                                    if (p1 && p2) {
-                                                      nameStr = `${p1} & ${p2}`;
-                                                    } else if (p1) {
-                                                      nameStr = p1;
-                                                    } else if (p2) {
-                                                      nameStr = p2;
-                                                    }
-                                                    if (nameStr) {
-                                                      return (
-                                                        <>
-                                                          <span className="font-bold text-red-600">{teamNum}</span>
-                                                          <span className="text-xs text-gray-700 font-semibold ml-1">
-                                                            {nameStr}{city ? ` - ${city}` : ''}
-                                                          </span>
-                                                        </>
-                                                      );
-                                                    } else {
-                                                      return (
-                                                        <span className="font-bold text-red-600">{teamNum}</span>
-                                                      );
-                                                    }
-                                                  })()
-                                                ) : (
-                                                  <span className="font-bold text-red-600">TBD</span>
-                                                )}
-                                              </p>
-                                              {/* No extra opponent name row */}
-                                            </div>
-                                          )}
-                                        </div>
-                                        {match.isSameCity && (
-                                          <Badge variant="destructive" className="text-xs">
-                                            Same City
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
                         </div>
-                      );
-                    })}
+                        <div className="flex flex-wrap justify-center items-center gap-2 mt-2">
+                          {/* Round badge: if number of teams is odd, last round is BYE ROUND */}
+                          {(() => {
+                            const tournamentTeams = teams.filter(t => t.registeredTournaments?.includes(activeTournament?.id));
+                            const isOdd = tournamentTeams.length % 2 === 1;
+                            const schedule = schedules.find(s => s.tournamentId === activeTournament?.id);
+                            const lastRound = schedule ? Math.max(...schedule.matches.map(m => m.round)) : null;
+                            if (isOdd && match.round === lastRound) {
+                              return (
+                                <Badge variant="outline" className="text-xs px-2 py-1 bg-yellow-100 border-yellow-300 text-yellow-800">
+                                  {`Round ${match.round} - BYE ROUND`}
+                                </Badge>
+                              );
+                            } else {
+                              return (
+                                <Badge variant="outline" className="text-xs px-2 py-1">
+                                  {`Round ${match.round}`}
+                                </Badge>
+                              );
+                            }
+                          })()}
+                          {/* BYE message: bottom right, italic, red, no pill */}
+                          {match.isBye && (
+                            <div className="text-red-600 italic text-sm absolute right-4 bottom-2">
+                              Completed - BYE
+                            </div>
+                          )}
+                          {match.gameStatus === 'confirming' && (
+                            <Badge variant="outline" className="text-xs px-2 py-1 bg-orange-100 border-orange-300 text-orange-800">
+                              {match.statusMessage}
+                            </Badge>
+                          )}
+                          {match.gameStatus === 'waiting' && (
+                            <Badge variant="outline" className="text-xs px-2 py-1 bg-yellow-100 border-yellow-300 text-yellow-800">
+                              {match.statusMessage}
+                            </Badge>
+                          )}
+                          {match.gameStatus === 'conflict' && (
+                            <Badge variant="outline" className="text-xs px-2 py-1 bg-red-100 border-red-300 text-red-800">
+                              {match.statusMessage}
+                            </Badge>
+                          )}
+                        </div>
+                        {/* Completed status message: bottom left, italic, red, no pill */}
+                        {match.gameStatus === 'completed' && (
+                          <div className="text-red-600 italic text-sm absolute right-4 bottom-2">
+                            {match.statusMessage}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -422,25 +480,8 @@ const PlayerPortalFixed = () => {
                         let teamNum = 'TBD';
                         let nameStr = '';
                         let city = '';
-                        if (game.opponent && typeof game.opponent === 'object') {
-                          if (game.opponent.teamNumber) {
-                            teamNum = `Team ${game.opponent.teamNumber}`;
-                          } else if (game.opponent.id) {
-                            teamNum = `Team ${game.opponent.id}`;
-                          }
-                          if ((!game.opponent.teamNumber || game.opponent.teamNumber === 'undefined') && game.opponent.id) {
-                            teamNum = `Team ${game.opponent.id}`;
-                          }
-                          const p1 = (game.opponent.player1_first_name || '').trim();
-                          const p2 = (game.opponent.player2_first_name || '').trim();
-                          city = game.opponent.city || '';
-                          if (p1 && p2) {
-                            nameStr = `${p1} & ${p2}`;
-                          } else if (p1) {
-                            nameStr = p1;
-                          } else if (p2) {
-                            nameStr = p2;
-                          }
+                        if (game.opponent && typeof game.opponent === 'object' && 'id' in game.opponent) {
+                          teamNum = `Team ${String(game.opponent.teamNumber) || String(game.opponent.id)}`;
                         }
                         if (!teamNum || teamNum.toLowerCase().includes('unknown') || teamNum === 'undefined') {
                           teamNum = 'TBD';

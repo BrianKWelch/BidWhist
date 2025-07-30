@@ -60,6 +60,7 @@ export const WebScoreSheet: React.FC<WebScoreSheetProps> = ({ matchId, gameId })
     
     setIsSubmitting(true);
     try {
+      console.log('Confirming score for game:', gameId, 'Confirmation status:', confirm);
       await confirmScore(gameId, confirm);
       toast({ 
         title: confirm ? 'Score confirmed!' : 'Score rejected. Original team notified.',

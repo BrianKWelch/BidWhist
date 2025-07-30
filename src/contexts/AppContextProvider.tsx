@@ -51,6 +51,7 @@ function generateDummyTeams(num: number, cities: string[], tournamentId: string)
 }
 import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket, ScheduleMatch } from './AppContext';
 import { createTournamentResultMethods } from './AppContextMethods';
+import { generateNextWinLossRound } from '../lib/scheduler';
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Debug: Confirm provider mount and test Supabase connection
@@ -167,6 +168,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ...team,
           id: String(team.id),
           teamNumber: team.teamNumber,
+          phoneNumber: String(team.phone_number ?? team.phoneNumber ?? ''),
           registeredTournaments: (team.registeredTournaments || []).map(String),
         }));
         setTeams(teamsWithTournaments);
@@ -179,6 +181,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // ...removed debug log...
         return {
           ...team,
+          phoneNumber: String(team.phone_number ?? team.phoneNumber ?? ''),
           registeredTournaments: regTournaments
         };
       });
@@ -282,6 +285,49 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
     fetchSchedulesFromSupabase();
+  }, []);
+
+  // --- Real-time listener: refresh schedules on any matches change ---
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:matches')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'matches' },
+        async () => {
+          try {
+            const { data: matches, error } = await supabase.from('matches').select('*');
+            if (error || !matches) return;
+            const grouped: { [tournamentId: string]: ScheduleMatch[] } = {};
+            matches.forEach((m: any) => {
+              const match: ScheduleMatch = {
+                id: String(m.id),
+                teamA: String(m.team_a),
+                teamB: String(m.team_b),
+                round: m.round,
+                tournamentId: String(m.tournament_id),
+                isBye: m.is_bye,
+                isSameCity: m.is_same_city,
+                table: m.table_number,
+              };
+              if (!grouped[match.tournamentId]) grouped[match.tournamentId] = [];
+              grouped[match.tournamentId].push(match);
+            });
+            const schedulesFromDb: TournamentSchedule[] = Object.entries(grouped).map(([tournamentId, matches]) => ({
+              tournamentId,
+              rounds: Math.max(...matches.map(m => m.round)),
+              matches,
+            }));
+            setSchedules(schedulesFromDb);
+          } catch (err) {
+            console.error('Realtime schedule refresh failed', err);
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
   
   useEffect(() => {
@@ -541,6 +587,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         toast({ title: 'Game result saved to Supabase!', variant: 'default' });
         // Refresh games from Supabase
+        // Add to local state immediately so confirmScore can run
+        setGames(prev => [...prev, confirmedGame]);
+        // Update schedule progression for Option B
+        await confirmScore(confirmedGame.id, true, confirmedGame);
+        // Finally sync with Supabase
         await refreshGamesFromSupabase();
       } catch (err) {
         toast({ title: 'Unexpected error saving game', description: String(err), variant: 'destructive' });
@@ -549,6 +600,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setGames(prev => [...prev.filter(g => g.matchId !== matchId), confirmedGame]);
       setScoreSubmissions(prev => prev.filter(s => s.matchId !== matchId));
       
+
       const tournamentId = '1';
       const winnerTeam = gameData.scoreA > gameData.scoreB ? gameData.teamA : gameData.teamB;
       const loserTeam = gameData.scoreA > gameData.scoreB ? gameData.teamB : gameData.teamA;
@@ -654,9 +706,271 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  const saveSchedule = async (schedule: TournamentSchedule) => {
+    // Upsert all matches in the schedule to Supabase
+    try {
+      const { matches } = schedule;
+      // Prepare matches for Supabase (map TS fields to DB columns)
+      const supabaseMatches = matches.map(m => ({
+        id: m.id,
+        team_a: m.teamA,
+        team_b: m.teamB,
+        round: m.round,
+        tournament_id: m.tournamentId,
+        table_number: m.table != null ? m.table : 1,
+        is_bye: m.isBye ?? false,
+        is_same_city: m.isSameCity ?? false
+      }));
+      const { error } = await supabase.from('matches').upsert(supabaseMatches, { onConflict: ['id'] });
+      if (error) {
+        toast({ title: 'Failed to save schedule to Supabase', description: error.message, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Schedule saved to Supabase!', variant: 'default' });
+      // Update local state for UI
+      setSchedules(prev => [...prev.filter(s => s.tournamentId !== schedule.tournamentId), schedule]);
+    } catch (err) {
+      toast({ title: 'Unexpected error saving schedule', description: String(err), variant: 'destructive' });
+    }
+  };
+
+  const confirmScore = async (gameId: string, confirm: boolean, gameObj?: Game) => {
+    setGames(prevGames => prevGames.map(game =>
+      game.id === gameId ? { ...game, confirmed: confirm } : game
+    ));
+    const game = games.find(g => g.id === gameId);
+    const effectiveGame = game || gameObj;
+    if (!effectiveGame) return;
+    let tournamentId = '';
+    let match: ScheduleMatch | undefined;
+    let schedule: TournamentSchedule | undefined;
+    for (const sched of schedules) {
+      const m = sched.matches.find(m => m.id === effectiveGame.matchId);
+      if (m) {
+        tournamentId = sched.tournamentId;
+        match = m;
+        schedule = sched;
+        break;
+      }
+    }
+    if (!tournamentId || !match || !schedule) return;
+
+    // Check if Option B (initially rounds === 1, or presence of opponentPlaceholder)
+    const hasStringPlaceholders = schedule.matches.some(m => {
+      const regex = /^R\d+[LW]\d+$/;
+      return (typeof m.teamA === 'string' && regex.test(m.teamA as string)) || (typeof m.teamB === 'string' && regex.test(m.teamB as string));
+    });
+    const isOptionB = schedule.rounds <= 1 || schedule.matches.some(m => m.opponentPlaceholder) || hasStringPlaceholders;
+    if (isOptionB) {
+      const currentRound = match.round;
+      const nextRoundNum = currentRound + 1;
+
+      // Determine winner and loser
+      const winnerId = effectiveGame.scoreA > effectiveGame.scoreB ? match.teamA : match.teamB;
+      const loserId = effectiveGame.scoreA > effectiveGame.scoreB ? match.teamB : match.teamA;
+      let placeholderSchedules = schedules;
+
+      // After determining winnerId and loserId, replace placeholders in the next round
+      if (isOptionB) {
+        const currentRound = match.round;
+        const nextRoundNum = currentRound + 1;
+        const loserPlaceholder = `R${currentRound}L${match.table}`;
+        const winnerPlaceholder = `R${currentRound}W${match.table}`;
+        // Debug output
+        console.log('--- confirmScore debug ---');
+        console.log('currentRound:', currentRound);
+        console.log('match.table:', match.table);
+        console.log('loserPlaceholder:', loserPlaceholder);
+        console.log('winnerPlaceholder:', winnerPlaceholder);
+        const nextRoundMatches = schedules
+          .find(s => s.tournamentId === tournamentId)?.matches
+          .filter(m => m.round === nextRoundNum) || [];
+        nextRoundMatches.forEach(m => {
+          console.log('Next round match:', m.id, 'teamA:', m.teamA, 'teamB:', m.teamB);
+        });
+        // Replacement logic
+        const norm = (v: any) => (typeof v === 'string' ? v.trim().toUpperCase() : v);
+        placeholderSchedules = schedules.map(s => {
+          if (s.tournamentId !== tournamentId) return s;
+          const updatedMatches = s.matches.map(m => {
+            if (m.round === nextRoundNum) {
+              let updated = { ...m };
+              if (norm(updated.teamA) === norm(loserPlaceholder)) updated.teamA = loserId;
+              if (norm(updated.teamB) === norm(loserPlaceholder)) updated.teamB = loserId;
+              if (norm(updated.teamA) === norm(winnerPlaceholder)) updated.teamA = winnerId;
+              if (norm(updated.teamB) === norm(winnerPlaceholder)) updated.teamB = winnerId;
+              return updated;
+            }
+            return m;
+          });
+          return { ...s, matches: updatedMatches };
+        });
+        // removed duplicate schedule update
+        // Persist the updated schedule to the database
+        // const updatedSchedule = placeholderSchedules.find(s => s.tournamentId === tournamentId);
+        // if (updatedSchedule) saveSchedule(updatedSchedule);
+      }
+
+      // Calculate next tables
+      const table = match.table ?? 1;
+      // Update totalTables:
+      const totalTables = Math.ceil(schedule.matches.filter(m => m.round === 1 && !m.isBye).length / 2);
+      const loserNextTable = Math.ceil(table / 2);
+      const winnerNextTable = totalTables - Math.floor((totalTables - table) / 2);
+
+      // Handle bye rotation
+      let byeTeamId: string | null = null;
+      if (table === 2) {
+        byeTeamId = loserId;
+      }
+      // Previous bye enters at table 1 (TODO: track byeHistory)
+
+      // Update or create next round matches
+      const newSchedules = placeholderSchedules.map(s => {
+        if (s.tournamentId !== tournamentId) return s;
+
+        let nextMatches = s.matches.filter(m => m.round === nextRoundNum);
+
+        // Assign loser
+        let loserMatch = nextMatches.find(m => m.table === loserNextTable);
+        if (!loserMatch) {
+          loserMatch = {
+            id: `${tournamentId}-r${nextRoundNum}-t${loserNextTable}`,
+            tournamentId,
+            round: nextRoundNum,
+            table: loserNextTable,
+            teamA: null,
+            teamB: null,
+            isBye: false,
+            isSameCity: false
+          };
+          nextMatches.push(loserMatch);
+        }
+        if (!loserMatch.teamA) loserMatch.teamA = loserId;
+        else if (!loserMatch.teamB) loserMatch.teamB = loserId;
+
+        // Assign winner
+        let winnerMatch = nextMatches.find(m => m.table === winnerNextTable);
+        if (!winnerMatch) {
+          winnerMatch = {
+            id: `${tournamentId}-r${nextRoundNum}-t${winnerNextTable}`,
+            tournamentId,
+            round: nextRoundNum,
+            table: winnerNextTable,
+            teamA: null,
+            teamB: null,
+            isBye: false,
+            isSameCity: false
+          };
+          nextMatches.push(winnerMatch);
+        }
+        if (!winnerMatch.teamA) winnerMatch.teamA = winnerId;
+        else if (!winnerMatch.teamB) winnerMatch.teamB = winnerId;
+
+        // Add placeholders if only one team
+        [loserMatch, winnerMatch].forEach(mtch => {
+          if (mtch.teamA && !mtch.teamB) {
+            mtch.opponentPlaceholder = { type: 'winner', table: mtch.table };
+          } else if (!mtch.teamA && mtch.teamB) {
+            mtch.opponentPlaceholder = { type: 'winner', table: mtch.table };
+          }
+        });
+
+        // Update rounds count if needed
+        const newRounds = Math.max(s.rounds, nextRoundNum);
+
+        return {
+          ...s,
+          matches: [...s.matches.filter(m => m.round !== nextRoundNum), ...nextMatches],
+          rounds: newRounds
+        };
+      });
+      setSchedules(newSchedules);
+      const updatedSchedule = newSchedules.find(s => s.tournamentId === tournamentId);
+      if (updatedSchedule) await saveSchedule(updatedSchedule);
+    }
+    const updatedS = schedules.find(s => s.tournamentId === tournamentId);
+    if (updatedS) await saveSchedule(updatedS);
+  };
+
+  const updatePlaceholders = async () => {
+    for (const g of games.filter(gm => gm.confirmed)) {
+      await confirmScore(g.id, true, g);
+    }
+    toast({ title: 'Variables updated across schedule.' });
+  };
+
+  // Force resolve every placeholder based only on confirmed games
+  // Manual refresh from DB
+  const refreshSchedules = async () => {
+    try {
+      const { data: matches, error } = await supabase.from('matches').select('*');
+      if (error || !matches) return;
+      const grouped: { [tid: string]: ScheduleMatch[] } = {};
+      matches.forEach((m: any) => {
+        const match: ScheduleMatch = {
+          id: String(m.id),
+          teamA: String(m.team_a),
+          teamB: String(m.team_b),
+          round: m.round,
+          tournamentId: String(m.tournament_id),
+          isBye: m.is_bye,
+          isSameCity: m.is_same_city,
+          table: m.table_number,
+        };
+        if (!grouped[match.tournamentId]) grouped[match.tournamentId] = [];
+        grouped[match.tournamentId].push(match);
+      });
+      const fresh: TournamentSchedule[] = Object.entries(grouped).map(([tid, ms]) => ({
+        tournamentId: tid,
+        rounds: Math.max(...ms.map(m => m.round)),
+        matches: ms,
+      }));
+      setSchedules(fresh);
+      toast({ title: 'Schedule refreshed from database.' });
+    } catch (err) {
+      console.error('refreshSchedules error', err);
+    }
+  };
+
+  const forceReplaceAllPlaceholders = () => {
+    const norm = (v: any) => (typeof v === 'string' ? v.trim().toUpperCase() : v);
+    setSchedules(prev => prev.map(s => {
+      const newMatches = s.matches.map(m => ({ ...m }));
+      const findSource = (round:number, table:number) => newMatches.find(mm=>mm.round===round && mm.table===table);
+      const teamFromCode = (code:string) => {
+        const matchCode = /^R(\d+)([LW])(\d+)$/.exec(code.trim().toUpperCase());
+        if(!matchCode) return null;
+        const [,rStr,wl,tStr] = matchCode;
+        const src = findSource(parseInt(rStr), parseInt(tStr));
+        if(!src) return null;
+        const game = games.find(g=>g.matchId===src.id && g.confirmed);
+        if(!game) return null;
+        const loser = game.scoreA>game.scoreB ? src.teamB : src.teamA;
+        const winner = game.scoreA>game.scoreB ? src.teamA : src.teamB;
+        return wl==='L'? loser : winner;
+      };
+      newMatches.forEach(mm=>{
+        if(typeof mm.teamA==='string'){
+          const rep=teamFromCode(mm.teamA);
+          if(rep) mm.teamA=rep;
+        }
+        if(typeof mm.teamB==='string'){
+          const rep=teamFromCode(mm.teamB);
+          if(rep) mm.teamB=rep;
+        }
+      });
+      return { ...s, matches:newMatches };
+    }));
+    toast({title:'Placeholders forcibly refreshed.'});
+  };
+
   return (
     <AppContext.Provider value={{
       sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, games, setGames, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, setTournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions, setScoreSubmissions, resetAllTournamentData,
+      updatePlaceholders,
+      forceReplaceAllPlaceholders,
+      refreshSchedules,
       deleteTeam: (teamId: string) => {
         setTeams(prev => {
           const updated = prev.filter(team => team.id !== teamId);
@@ -790,7 +1104,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             team_b: m.teamB,
             round: m.round,
             tournament_id: m.tournamentId,
-            table_number: m.table ?? null,
+            table_number: m.table != null ? m.table : 1,
             is_bye: m.isBye ?? false,
             is_same_city: m.isSameCity ?? false
           }));
@@ -831,7 +1145,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           cost: Number(cost),
           bostonPotCost: Number(bostonPotCost),
           description: typeof description === 'string' ? description : '',
-          status: 'active'
+          status: 'active' as Tournament['status']
         };
         setTournaments(prev => {
           // Only keep tournaments with correct structure
@@ -891,7 +1205,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       updateTeamPayment: () => {}, 
       sendScoreSheetLinks: async () => {}, 
       submitScore: async () => {}, 
-      confirmScore: async () => {}, 
+      confirmScore, 
       saveBracket: (bracket: Bracket) => {
         setBrackets(prev => ({ ...prev, [bracket.tournamentId]: bracket }));
       },

@@ -8,12 +8,16 @@ interface Match {
   teamA: Team;
   teamB: Team;
   round: number;
+  table?: number;
+  opponentPlaceholder?: { type: 'winner', table: number };
 }
 
 interface ByeMatch {
   team: Team;
   round: number;
   isBye: true;
+  table?: number;
+  opponentPlaceholder?: { type: 'winner', table: number };
 }
 
 type GameMatch = Match | ByeMatch;
@@ -265,4 +269,124 @@ function generateByeRound(byeTeams: Team[], previousMatches: PreviousMatch[], ro
     }
   }
   return matches;
+}
+
+// --- WIN/LOSS DICTATED ROTATION SCHEDULER (Option B) ---
+/**
+ * Generates a schedule where each round's matchups are determined by previous round's win/loss outcomes.
+ * @param inputTeams List of teams (must have id, name, city)
+ * @param numRounds Number of rounds (not including the final bye round)
+ * @returns Array of rounds, each round is an array of GameMatch
+ */
+export function generateWinLossRotationSchedule(inputTeams: Team[]): GameMatch[][] {
+  // Defensive copy and sort for determinism
+  const teams = [...inputTeams].sort((a, b) => a.id.localeCompare(b.id));
+  const round1: GameMatch[] = [];
+  let round1Teams = [...teams];
+  const numTables = Math.floor(teams.length / 2);
+  let tableNum = 1;
+  while (round1Teams.length > 1) {
+    const a = round1Teams.shift()!;
+    let bIdx = round1Teams.findIndex(t => t.city !== a.city);
+    if (bIdx === -1) bIdx = 0;
+    const b = round1Teams.splice(bIdx, 1)[0];
+    round1.push({ teamA: a, teamB: b, round: 1, table: tableNum });
+    tableNum++;
+  }
+  // If there is a bye (one team left), assign it table numTables + 1
+  if (round1Teams.length === 1) {
+    const byeTeam = round1Teams.pop()!;
+    round1.push({ teamA: byeTeam, teamB: null, round: 1, table: numTables + 1, isBye: true });
+  }
+  return [round1];
+}
+
+// Scaffold: Generate next round for Option B based on previous round results
+export function generateNextWinLossRound({
+  teams,
+  previousMatches,
+  previousResults,
+  roundNumber,
+  byeHistory
+}: {
+  teams: Team[];
+  previousMatches: GameMatch[];
+  previousResults: { [table: number]: { winnerId: string; loserId: string } };
+  roundNumber: number;
+  byeHistory: string[];
+}): GameMatch[] {
+  // Map table number to previous match
+  const tableToMatch: { [table: number]: GameMatch } = {};
+  previousMatches.forEach((m, i) => {
+    tableToMatch[i + 1] = m;
+  });
+  const totalTables = Object.keys(tableToMatch).length;
+  // Track which teams have a bye
+  const prevByeTeamId = byeHistory.length > 0 ? byeHistory[byeHistory.length - 1] : null;
+  // 1. Assign byes for this round
+  let newByeTeamId: string | null = null;
+  if (previousResults[2]) {
+    newByeTeamId = previousResults[2].loserId;
+  }
+  // 2. Build next round matches
+  const nextRound: GameMatch[] = [];
+  // Insert previous bye team at table 1
+  let tableAssignments: { [table: number]: { teamA: string | null; teamB: string | null } } = {};
+  if (prevByeTeamId) {
+    tableAssignments[1] = { teamA: prevByeTeamId, teamB: null };
+  }
+  // Assign losers and winners to tables
+  for (let t = 1; t <= totalTables; t++) {
+    const prev = previousResults[t];
+    if (!prev) continue;
+    // Loser movement
+    const loserTable = Math.ceil(t / 2);
+    if (!tableAssignments[loserTable]) tableAssignments[loserTable] = { teamA: null, teamB: null };
+    if (!newByeTeamId || prev.loserId !== newByeTeamId) {
+      if (!tableAssignments[loserTable].teamA) tableAssignments[loserTable].teamA = prev.loserId;
+      else tableAssignments[loserTable].teamB = prev.loserId;
+    }
+    // Winner movement
+    const winnerTable = totalTables - Math.floor((totalTables - t) / 2);
+    if (!tableAssignments[winnerTable]) tableAssignments[winnerTable] = { teamA: null, teamB: null };
+    if (!tableAssignments[winnerTable].teamA) tableAssignments[winnerTable].teamA = prev.winnerId;
+    else tableAssignments[winnerTable].teamB = prev.winnerId;
+  }
+  // Build GameMatch[]
+  Object.entries(tableAssignments).forEach(([tableStr, { teamA, teamB }]) => {
+    const table = parseInt(tableStr);
+    if (teamA && teamB) {
+      nextRound.push({
+        teamA: teams.find(t => t.id === teamA)!,
+        teamB: teams.find(t => t.id === teamB)!,
+        round: roundNumber,
+        table,
+      });
+    } else if (teamA && !teamB) {
+      nextRound.push({
+        teamA: teams.find(t => t.id === teamA)!,
+        teamB: null,
+        round: roundNumber,
+        table,
+        opponentPlaceholder: { type: 'winner', table }
+      });
+    } else if (!teamA && teamB) {
+      nextRound.push({
+        teamA: null,
+        teamB: teams.find(t => t.id === teamB)!,
+        round: roundNumber,
+        table,
+        opponentPlaceholder: { type: 'winner', table }
+      });
+    }
+  });
+  // Add bye match if needed
+  if (newByeTeamId) {
+    nextRound.push({
+      team: teams.find(t => t.id === newByeTeamId)!,
+      round: roundNumber,
+      isBye: true
+    });
+  }
+  return nextRound;
 }

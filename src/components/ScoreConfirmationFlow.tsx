@@ -22,6 +22,7 @@ export const ScoreConfirmationFlow: React.FC<ScoreConfirmationFlowProps> = ({ to
 
   const handleConfirmScore = async (gameId: string, confirm: boolean) => {
     setProcessing(gameId);
+    console.log('Confirming score for game:', gameId, 'Confirmation status:', confirm);
     try {
       await confirmScore(gameId, confirm);
     } finally {

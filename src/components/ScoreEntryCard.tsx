@@ -108,8 +108,8 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
     if (!teamA || !teamB) return;
 
     const gameData = {
-      teamA,
-      teamB,
+      teamA: teamA.id, // Use the team ID
+      teamB: teamB.id, // Use the team ID
       scoreA: teamAScore,
       scoreB: teamBScore,
       handsA: teamAHands,
@@ -121,6 +121,7 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
       submittedBy: team.id
     };
 
+    console.log('Calling submitGame with data:', gameData);
     submitGame(gameData);
     setSelectedMatch(null);
     setScoreA('');

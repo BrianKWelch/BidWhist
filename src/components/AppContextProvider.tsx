@@ -107,6 +107,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     if (opponentSubmission) {
       if (opponentSubmission.scoreA === gameData.scoreA && opponentSubmission.scoreB === gameData.scoreB) {
+        console.log('Scores matched, confirming game:', gameData);
         const confirmedGame: Game = {
           id: Date.now().toString(),
           teamA: gameData.teamA,
@@ -150,6 +151,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Update schedule with next round matches
         if (gameData.round < 4) {
+          console.log('Updating schedule for next round:', gameData.round + 1);
           setSchedules(prev => prev.map(schedule => {
             if (schedule.tournamentId === tournamentId) {
               const updatedMatches = schedule.matches.map(match => {
@@ -162,6 +164,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 }
                 return match;
               });
+              console.log('Updated matches:', updatedMatches);
               return { ...schedule, matches: updatedMatches };
             }
             return schedule;

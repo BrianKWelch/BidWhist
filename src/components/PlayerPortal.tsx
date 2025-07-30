@@ -37,18 +37,61 @@ const PlayerPortal = () => {
     if (!activeTournament) return [];
     const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
     if (!schedule) return [];
+    // Option B: Only show the current or next matchup
+    if (schedule.rounds === 1 || schedule.matches.some(m => m.opponentPlaceholder)) {
+      // Find the lowest round number for this team that is not confirmed as completed
+      const teamMatches = schedule.matches.filter(match =>
+        match.teamA === team.name || match.teamB === team.name || match.teamA === team.id || match.teamB === team.id
+      );
+      if (teamMatches.length === 0) return [];
+      // Find the lowest round not confirmed as completed
+      let currentMatch = null;
+      for (let r = 1; r <= schedule.rounds; r++) {
+        const match = teamMatches.find(m => m.round === r);
+        if (match) {
+          // Check if this match is confirmed in games
+          const g = games.find(gm => gm.matchId === match.id && gm.confirmed);
+          if (!g) {
+            currentMatch = match;
+            break;
+          }
+        }
+      }
+      // If all matches are confirmed, show the last one
+      if (!currentMatch) currentMatch = teamMatches[teamMatches.length - 1];
+      if (!currentMatch) return [];
+      let opponent = null;
+      if (currentMatch.teamA === team.name || currentMatch.teamA === team.id) opponent = currentMatch.teamB;
+      else if (currentMatch.teamB === team.name || currentMatch.teamB === team.id) opponent = currentMatch.teamA;
+      if ((!opponent || opponent === null) && currentMatch.opponentPlaceholder && currentMatch.opponentPlaceholder.type === 'winner') {
+        opponent = `Winner of Table ${currentMatch.opponentPlaceholder.table}`;
+      } else if (!opponent || opponent === null) {
+        opponent = 'TBD';
+      }
+      return [{ ...currentMatch, tournamentName: activeTournament.name, opponent }];
+    }
+    // Option A or fallback: show all matches as before
     const teamMatches = schedule.matches.filter(match =>
-      match.teamA === team.name || match.teamB === team.name
+      match.teamA === team.name || match.teamB === team.name || match.teamA === team.id || match.teamB === team.id
     );
     if (teamMatches.length === 0) return [];
     const currentRound = Math.min(...teamMatches.map(m => m.round));
     const currentRoundMatches = teamMatches.filter(m => m.round === currentRound);
-    // Add opponent property for UI
-    return currentRoundMatches.map(match => ({
-      ...match,
-      tournamentName: activeTournament.name,
-      opponent: match.teamA === team.name ? match.teamB : match.teamA
-    }));
+    return currentRoundMatches.map(match => {
+      let opponent = null;
+      if (match.teamA === team.name || match.teamA === team.id) opponent = match.teamB;
+      else if (match.teamB === team.name || match.teamB === team.id) opponent = match.teamA;
+      if ((!opponent || opponent === null) && match.opponentPlaceholder && match.opponentPlaceholder.type === 'winner') {
+        opponent = `Winner of Table ${match.opponentPlaceholder.table}`;
+      } else if (!opponent || opponent === null) {
+        opponent = 'TBD';
+      }
+      return {
+        ...match,
+        tournamentName: activeTournament.name,
+        opponent
+      };
+    });
   };
 
   const getCurrentRoundScoreSheet = () => {
@@ -58,7 +101,7 @@ const PlayerPortal = () => {
       ...match,
       isMyTeam: true,
       myTeam: team.name,
-      opponent: match.teamA === team.name ? match.teamB : match.teamA
+      opponent: match.opponent
     }));
   };
 
