@@ -119,7 +119,7 @@ const PlayerPortalFixed = () => {
     
     let gameStatus = 'pending';
     let statusMessage = '';
-    let statusColor = 'bg-green-50 border-green-300';
+    let statusColor = 'bg-blue-100 border-blue-300 text-blue-800';
     
     if (completedGame) {
       gameStatus = 'completed';
@@ -178,14 +178,17 @@ const PlayerPortalFixed = () => {
         isWin: (isTeamA && game.winner === 'teamA') || (!isTeamA && game.winner === 'teamB'),
         teamScore: isTeamA ? game.scoreA : game.scoreB,
         opponentScore: isTeamA ? game.scoreB : game.scoreA,
+        teamHands: isTeamA ? (game.handsA ?? 0) : (game.handsB ?? 0),
         opponent
       };
     });
     const wins = results.filter(r => r.isWin).length;
     const totalGames = results.length;
     const totalPoints = results.reduce((sum, r) => sum + r.teamScore, 0);
+    const totalHands = results.reduce((sum, r) => sum + (r.teamHands ?? 0), 0);
     const avgPoints = totalGames > 0 ? (totalPoints / totalGames).toFixed(1) : '0.0';
-    return { wins, totalGames, totalPoints, avgPoints, results };
+    const avgHands = totalGames > 0 ? (totalHands / totalGames).toFixed(1) : '0.0';
+    return { wins, totalGames, totalPoints, avgPoints, totalHands, avgHands, results };
   }, [games, team, schedules, getActiveTournament, teams]);
 
   // REMOVE_ME: File name display for testing
@@ -273,6 +276,11 @@ const PlayerPortalFixed = () => {
   }
 
   const teamSchedule = getTeamSchedule();
+  // Determine if final round is BYE ROUND
+  const scheduleObj = schedules.find(s => String(s.tournamentId) === String(activeTournament?.id));
+  const lastRound = scheduleObj ? Math.max(...scheduleObj.matches.map(m => m.round)) : 0;
+  const tournamentTeams = teams.filter(t => t.registeredTournaments?.includes(activeTournament?.id));
+  const isOddTeams = tournamentTeams.length % 2 === 1;
   const teamRecord = getTeamRecord;
 
   return (
@@ -354,7 +362,7 @@ const PlayerPortalFixed = () => {
                 ) : (
                   <div className="space-y-4">
                     {teamSchedule.map((match: any, index: number) => (
-                      <div key={index} className={`p-4 border rounded-lg ${match.statusColor} relative${(match.gameStatus === 'completed' || match.isBye) ? ' bg-gray-300' : ''}`}>
+                      <div key={index} className={`p-4 border rounded-lg ${match.statusColor} relative`}>
                         <div className="flex flex-col items-center mb-2">
                           <span className="font-bold text-base text-black">
                             Table {match.table || '?'}
@@ -380,26 +388,16 @@ const PlayerPortalFixed = () => {
                           </div>
                         </div>
                         <div className="flex flex-wrap justify-center items-center gap-2 mt-2">
-                          {/* Round badge: if number of teams is odd, last round is BYE ROUND */}
-                          {(() => {
-                            const tournamentTeams = teams.filter(t => t.registeredTournaments?.includes(activeTournament?.id));
-                            const isOdd = tournamentTeams.length % 2 === 1;
-                            const schedule = schedules.find(s => s.tournamentId === activeTournament?.id);
-                            const lastRound = schedule ? Math.max(...schedule.matches.map(m => m.round)) : null;
-                            if (isOdd && match.round === lastRound) {
-                              return (
-                                <Badge variant="outline" className="text-xs px-2 py-1 bg-yellow-100 border-yellow-300 text-yellow-800">
-                                  {`Round ${match.round} - BYE ROUND`}
-                                </Badge>
-                              );
-                            } else {
-                              return (
-                                <Badge variant="outline" className="text-xs px-2 py-1">
-                                  {`Round ${match.round}`}
-                                </Badge>
-                              );
-                            }
-                          })()}
+                          {/* Round badge: show yellow pill with 'Round X - BYE ROUND' if round > activeTournament.rounds */}
+                          {(isOddTeams && match.round === lastRound) ? (
+                            <Badge variant="outline" className="text-xs px-2 py-1 bg-yellow-100 border-yellow-300 text-yellow-800">
+                              {`Round ${match.round} - BYE ROUND`}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs px-2 py-1">
+                              {`Round ${match.round}`}
+                            </Badge>
+                          )}
                           {/* BYE message: bottom right, italic, red, no pill */}
                           {match.isBye && (
                             <div className="text-red-600 italic text-sm absolute right-4 bottom-2">
@@ -441,22 +439,30 @@ const PlayerPortalFixed = () => {
               <Card>
                 <CardHeader><CardTitle>My Team Record</CardTitle></CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="order-1 text-center p-4 bg-blue-50 rounded-lg">
                       <p className="text-2xl font-bold text-blue-600">{teamRecord.wins}</p>
                       <p className="text-sm text-gray-600">Wins</p>
                     </div>
-                    <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="order-4 text-center p-4 bg-gray-50 rounded-lg">
                       <p className="text-2xl font-bold">{teamRecord.totalGames}</p>
                       <p className="text-sm text-gray-600">Games Played</p>
                     </div>
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="order-6 text-center p-4 bg-green-50 rounded-lg">
                       <p className="text-2xl font-bold text-green-600">{teamRecord.avgPoints}</p>
                       <p className="text-sm text-gray-600">Avg Points/Game</p>
                     </div>
-                    <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="order-3 text-center p-4 bg-purple-50 rounded-lg">
                       <p className="text-2xl font-bold text-purple-600">{teamRecord.totalPoints}</p>
                       <p className="text-sm text-gray-600">Total Points</p>
+                    </div>
+                    <div className="order-2 text-center p-4 bg-teal-50 rounded-lg">
+                      <p className="text-2xl font-bold text-teal-600">{teamRecord.totalHands}</p>
+                      <p className="text-sm text-gray-600">Total Hands Won</p>
+                    </div>
+                    <div className="order-5 text-center p-4 bg-amber-50 rounded-lg">
+                      <p className="text-2xl font-bold text-amber-600">{teamRecord.avgHands}</p>
+                      <p className="text-sm text-gray-600">Avg Hands/Game</p>
                     </div>
                   </div>
                 </CardContent>
@@ -481,7 +487,9 @@ const PlayerPortalFixed = () => {
                         let nameStr = '';
                         let city = '';
                         if (game.opponent && typeof game.opponent === 'object' && 'id' in game.opponent) {
-                          teamNum = `Team ${String(game.opponent.teamNumber) || String(game.opponent.id)}`;
+                          teamNum = `Team ${game.opponent.teamNumber ?? game.opponent.id}`;
+                          nameStr = game.opponent.name ?? '';
+                          city = game.opponent.city ?? '';
                         }
                         if (!teamNum || teamNum.toLowerCase().includes('unknown') || teamNum === 'undefined') {
                           teamNum = 'TBD';

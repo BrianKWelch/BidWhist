@@ -14,8 +14,9 @@ import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export const TournamentScheduler: React.FC = () => {
-  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, updatePlaceholders, forceReplaceAllPlaceholders, refreshSchedules } = useAppContext();
-  const [selectedTournament, setSelectedTournament] = useState<string>('');
+  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, updatePlaceholders, forceReplaceAllPlaceholders, refreshSchedules, refreshGamesFromSupabase, getActiveTournament } = useAppContext();
+  const initialActive = getActiveTournament ? (getActiveTournament()?.id || '') : '';
+  const [selectedTournament, setSelectedTournament] = useState<string>(initialActive);
   const [numberOfRounds, setNumberOfRounds] = useState<string>('4');
   const [currentSchedule, setCurrentSchedule] = useState<TournamentSchedule | null>(null);
   const [isScheduleLocked, setIsScheduleLocked] = useState(false);
@@ -26,6 +27,16 @@ export const TournamentScheduler: React.FC = () => {
   const [showScheduleOptionModal, setShowScheduleOptionModal] = useState(false);
   const [pendingScheduleAction, setPendingScheduleAction] = useState<null | (() => void)>(null);
   const [selectedScheduleOption, setSelectedScheduleOption] = useState<'A' | 'B' | null>(null);
+
+  // set default to active tournament on mount or when tournaments update
+  useEffect(() => {
+    if (!selectedTournament) {
+      const active = getActiveTournament ? getActiveTournament() : null;
+      if (active) {
+        setSelectedTournament(String(active.id));
+      }
+    }
+  }, [selectedTournament, getActiveTournament, tournaments]);
 
   // initial load when selecting tournament
   useEffect(() => {
@@ -422,7 +433,7 @@ export const TournamentScheduler: React.FC = () => {
               </Button>
             )}
             {currentSchedule && (
-              <Button onClick={refreshSchedules} variant="outline" className="flex-1">Refresh from DB</Button>
+              <Button onClick={async () => { await refreshSchedules(); await refreshGamesFromSupabase(); }} variant="outline" className="flex-1">Refresh from DB</Button>
             )}
             {currentSchedule && (
               <Button onClick={async () => {

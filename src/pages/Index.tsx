@@ -11,7 +11,7 @@ const Index: React.FC = () => {
         <div className="flex justify-between items-center mb-6">
           <div></div> {/* Empty div for spacing */}
           <Button 
-            onClick={() => window.open('/#/portal?admin=1', '_blank')}
+            onClick={() => window.open('#/portal?admin=1', '_blank')}
             className="bg-green-600 hover:bg-green-700 text-white"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
