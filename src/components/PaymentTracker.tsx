@@ -64,11 +64,13 @@ const PaymentTracker: React.FC = () => {
     });
   };
 
+  const searchLower = searchTerm.toLowerCase();
+  const norm = (val: any) => (val ? String(val).toLowerCase() : '');
   const filteredPlayers = players.filter(player => 
-    player.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    player.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    player.teamName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    player.city.toLowerCase().includes(searchTerm.toLowerCase())
+    norm(player.firstName).includes(searchLower) ||
+    norm(player.lastName).includes(searchLower) ||
+    norm(player.teamName).includes(searchLower) ||
+    norm(player.city).includes(searchLower)
   );
 
   const playersByTournament = tournaments.reduce((acc, tournament) => {
@@ -192,9 +194,11 @@ const PaymentTracker: React.FC = () => {
               <p className="text-gray-500 text-center py-4">No players match your search.</p>
             ) : (
               <div className="space-y-4">
-                {Object.entries(playersByTournament).map(([tournamentId, { tournament, players: tournamentPlayers }]) => (
-                  <Collapsible key={tournamentId} open={openTournaments.has(tournamentId)}>
-                    <CollapsibleTrigger
+                {Object.entries(playersByTournament).map(([tournamentId, { tournament, players: tournamentPlayers }]) => {
+                  const isOpen = searchTerm.trim() ? tournamentPlayers.length > 0 : openTournaments.has(tournamentId);
+                  return (
+                    <Collapsible key={tournamentId} open={isOpen}>
+                      <CollapsibleTrigger
                       onClick={() => toggleTournament(tournamentId)}
                       className="flex items-center justify-between w-full p-3 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200"
                     >
@@ -214,7 +218,8 @@ const PaymentTracker: React.FC = () => {
                       ))}
                     </CollapsibleContent>
                   </Collapsible>
-                ))}
+                );
+              })}
               </div>
             )}
           </div>

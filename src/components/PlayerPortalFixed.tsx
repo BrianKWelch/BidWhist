@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppContext } from '@/contexts/AppContext';
@@ -11,13 +12,19 @@ import ScoreEntryCard from './ScoreEntryCard';
 import type { Team } from '@/contexts/AppContext';
 
 const PlayerPortalFixed = () => {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [adminTeamNumber, setAdminTeamNumber] = useState<string>('');
+  const [phoneNumber, setPhoneNumber] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('portalPhone') || '';
+    }
+    return '';
+  });
   const [team, setTeam] = useState<Team | null>(null);
   const [loginError, setLoginError] = useState('');
   const [testMode, setTestMode] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const { teams, schedules, games, tournaments, getActiveTournament, scoreSubmissions } = useAppContext();
+  const { teams, schedules, games, tournaments, getActiveTournament, scoreSubmissions, refreshGamesFromSupabase, refreshSchedules } = useAppContext();
 
   const cleanPhoneNumber = (phone: string) => {
     return phone.replace(/\D/g, '');
@@ -39,6 +46,9 @@ const PlayerPortalFixed = () => {
     
     if (foundTeam) {
       setTeam(foundTeam);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('portalPhone', cleanPhone);
+      }
     } else {
       setLoginError('Team not found. Please check your phone number.');
     }
@@ -49,13 +59,49 @@ const PlayerPortalFixed = () => {
     setTestMode(true);
   };
 
+  const handleAdminNumberLogin = () => {
+    setLoginError('');
+    const num = parseInt(adminTeamNumber.trim(), 10);
+    if (isNaN(num)) {
+      setLoginError('Enter a valid team number');
+      return;
+    }
+    const selectedTeam = teams.find(t => Number(t.teamNumber) === num || Number(t.id) === num);
+    if (selectedTeam) {
+      setTeam(selectedTeam);
+      setAdminMode(true);
+    } else {
+      setLoginError('Team not found');
+    }
+  };
+
   const handleAdminTeamSelect = (teamId: string) => {
+    setAdminTeamNumber('');
     const selectedTeam = teams.find(t => String(t.id) === String(teamId));
     if (selectedTeam) {
       setTeam(selectedTeam);
       setAdminMode(true);
     }
   };
+
+  const [refreshing, setRefreshing] = useState(false);
+  const handlePortalRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await refreshGamesFromSupabase();
+      await refreshSchedules();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Auto-login if phone stored and matches a team
+  React.useEffect(() => {
+    if (!team && phoneNumber.length === 10) {
+      handleLogin();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Force re-render when games change
   useEffect(() => {
@@ -238,14 +284,33 @@ const PlayerPortalFixed = () => {
                   <span className="text-sm font-medium text-gray-700">Admin Access</span>
                 </div>
                 <div className="space-y-2">
+                  <div className="space-y-2 mb-4">
+                    <Label>Enter Team Number</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        value={adminTeamNumber}
+                        onChange={(e) => setAdminTeamNumber(e.target.value)}
+                        placeholder="e.g. 7"
+                        className="flex-1"
+                      />
+                      <Button onClick={handleAdminNumberLogin} disabled={!adminTeamNumber.trim()}>
+                        Go
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Label>Select from list</Label>
                   <Select onValueChange={handleAdminTeamSelect}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select any team to view their portal" />
                     </SelectTrigger>
                     <SelectContent>
-                      {teams.map((team) => (
+                      {[...teams]
+                        .sort((a, b) => (Number(a.teamNumber ?? a.id) - Number(b.teamNumber ?? b.id)))
+                        .map((team) => (
                         <SelectItem key={team.id} value={team.id}>
-                          Team {team.id}: {team.name} ({team.city})
+                          Team {team.teamNumber ?? team.id}: {team.name} ({team.city})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -307,7 +372,16 @@ const PlayerPortalFixed = () => {
             {adminMode && <Badge variant="default" className="mt-1 text-xs bg-purple-700">Admin Mode</Badge>}
           </div>
         </div>
-        <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePortalRefresh}
+            disabled={refreshing}
+            className="text-green-600 border-white hover:bg-white hover:text-black font-bold"
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
           <Button 
             variant="outline" 
             size="sm" 
@@ -316,6 +390,10 @@ const PlayerPortalFixed = () => {
               setTestMode(false);
               setAdminMode(false);
               setSelectedTeamId('');
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('portalPhone');
+              }
+              setPhoneNumber('');
             }}
             className="text-red-600 border-white hover:bg-white hover:text-black font-bold"
           >

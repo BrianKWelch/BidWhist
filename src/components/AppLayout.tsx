@@ -43,8 +43,18 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 }
 
 const AppLayout: React.FC = () => {
-  const { currentUser, teams, getActiveTournament, setActiveTournament, tournaments } = useAppContext();
+  const { currentUser, teams, getActiveTournament, setActiveTournament, tournaments, refreshGamesFromSupabase, refreshSchedules } = useAppContext();
   const [showSetup, setShowSetup] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const handleAdminRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await refreshGamesFromSupabase();
+      await refreshSchedules();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleSetupComplete = () => {
     console.log('AppLayout handleSetupComplete called');
@@ -76,6 +86,15 @@ const AppLayout: React.FC = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAdminRefresh}
+                      disabled={refreshing}
+                      className="text-green-700 border-green-600 hover:bg-green-600 hover:text-white"
+                    >
+                      {refreshing ? 'Refreshing...' : 'Refresh'}
+                    </Button>
                     <label htmlFor="active-tournament-select" className="font-medium text-sm">Active Tournament:</label>
                     <select
                       id="active-tournament-select"

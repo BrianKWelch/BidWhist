@@ -170,7 +170,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const teamsWithTournaments = (teamsData || []).map(team => ({
           ...team,
           id: String(team.id),
-          teamNumber: team.teamNumber,
+          teamNumber: team.team_number ?? team.teamNumber ?? null,
           phoneNumber: String(team.phone_number ?? team.phoneNumber ?? ''),
           registeredTournaments: (team.registeredTournaments || []).map(String),
         }));
@@ -184,6 +184,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // ...removed debug log...
         return {
           ...team,
+          teamNumber: team.team_number ?? team.teamNumber ?? null,
           phoneNumber: String(team.phone_number ?? team.phoneNumber ?? ''),
           registeredTournaments: regTournaments
         };
@@ -243,6 +244,75 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const saved = localStorage.getItem('scoreSubmissions');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // --- Fetch existing scores and subscribe in real-time so cross-device conflicts show in the UI ---
+  useEffect(() => {
+    // Initial fetch
+    const loadScores = async () => {
+      const { data, error } = await supabase.from('scores').select('*');
+      if (error) {
+        console.error('Failed to load scores', error);
+        return;
+      }
+      if (data) {
+        setScoreSubmissions(data.map((row: any) => ({
+          id: row.id,
+          matchId: row.match_id,
+          teamA: teams.find(t => String(t.id) === String(row.team_a)) || { id: String(row.team_a) } as Team,
+          teamB: teams.find(t => String(t.id) === String(row.team_b)) || { id: String(row.team_b) } as Team,
+          scoreA: Number(row.score_a),
+          scoreB: Number(row.score_b),
+          boston: row.boston as 'none' | 'teamA' | 'teamB',
+          handsA: Number(row.hands_a) || 0,
+          handsB: Number(row.hands_b) || 0,
+          submittedBy: String(row.submitted_by),
+          timestamp: new Date(row.timestamp),
+          round: row.round
+        })));
+      }
+    };
+    loadScores();
+
+    // Real-time subscription
+    const channel = supabase
+      .channel('public:scores')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, payload => {
+        const row: any = payload.new || payload.old;
+        if (!row) return;
+        const mapped: ScoreSubmission = {
+          id: row.id,
+          matchId: row.match_id,
+          teamA: teams.find(t => String(t.id) === String(row.team_a)) || { id: String(row.team_a) } as Team,
+          teamB: teams.find(t => String(t.id) === String(row.team_b)) || { id: String(row.team_b) } as Team,
+          scoreA: Number(row.score_a),
+          scoreB: Number(row.score_b),
+          boston: row.boston as 'none' | 'teamA' | 'teamB',
+          handsA: Number(row.hands_a) || 0,
+          handsB: Number(row.hands_b) || 0,
+          submittedBy: String(row.submitted_by),
+          timestamp: new Date(row.timestamp),
+          round: row.round
+        };
+
+        setScoreSubmissions(prev => {
+          switch (payload.eventType) {
+            case 'DELETE':
+              return prev.filter(s => s.id !== row.id);
+            case 'UPDATE':
+              return prev.map(s => (s.id === row.id ? mapped : s));
+            case 'INSERT':
+            default:
+              const exists = prev.some(s => s.id === row.id);
+              return exists ? prev : [...prev, mapped];
+          }
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [teams]);
   
   // Replace the schedules state initialization and loading logic
   const [schedules, setSchedules] = useState<TournamentSchedule[]>([]);
@@ -445,6 +515,40 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   );
 };
 
+  // Realtime subscription: auto-confirm when opponent submission arrives
+  useEffect(() => {
+    let channel: any = null;
+    (async () => {
+      const { supabase } = await import('../supabaseClient');
+      channel = supabase.channel('scores-realtime')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scores' }, async payload => {
+          const sub = payload.new as any;
+          const matchId = String(sub.match_id);
+          // Find my submission (already in local state)
+          const mine = scoreSubmissions.find(s => s.matchId === matchId && String(s.submittedBy) === String(currentUser));
+          if (!mine) return;
+          // Check if scores match
+          if (mine.scoreA === sub.score_a && mine.scoreB === sub.score_b && mine.boston === sub.boston) {
+            await submitGame({
+              ...mine,
+              teamA: mine.teamA,
+              teamB: mine.teamB,
+              scoreA: mine.scoreA,
+              scoreB: mine.scoreB,
+              boston: mine.boston,
+              handsA: mine.handsA,
+              handsB: mine.handsB,
+              matchId,
+              round: mine.round,
+              submittedBy: mine.submittedBy
+            });
+          }
+        })
+        .subscribe();
+    })();
+    return () => { channel && channel.unsubscribe && channel.unsubscribe(); };
+  }, [scoreSubmissions, currentUser]);
+
   // Automatically update tournamentResults when a new confirmed game is added
   useEffect(() => {
     games.forEach(game => {
@@ -522,13 +626,54 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       scoreA: gameData.scoreA,
       scoreB: gameData.scoreB,
       boston: gameData.boston,
-      handsA: gameData.handsA,
-      handsB: gameData.handsB,
+      handsA: Number(gameData.handsA) || 0,
+          handsB: Number(gameData.handsB) || 0,
       submittedBy: teamId,
       timestamp: new Date(),
       round: gameData.round
     };
     
+    // DEBUG: log the payload we're sending
+    console.log('DEBUG submitGame payload', {
+      match_id: newSubmission.matchId,
+      submitted_by: newSubmission.submittedBy,
+      score_a: newSubmission.scoreA,
+      score_b: newSubmission.scoreB,
+      hands_a: newSubmission.handsA,
+      hands_b: newSubmission.handsB,
+      boston: newSubmission.boston
+    });
+    toast({ title: 'Debug', description: `Sending handsA ${newSubmission.handsA} handsB ${newSubmission.handsB}`, variant: 'default' });
+
+    // Persist submission to Supabase so opponent devices can see it
+    try {
+      const { error: subError } = await supabase.from('scores').upsert([
+        {
+          id: newSubmission.id,
+          match_id: newSubmission.matchId,
+          submitted_by: newSubmission.submittedBy,
+          score_a: newSubmission.scoreA,
+          score_b: newSubmission.scoreB,
+          boston: newSubmission.boston,
+          hands_a: newSubmission.handsA,
+          hands_b: newSubmission.handsB,
+          winner: 'pending',
+          confirmed: false,
+          round: newSubmission.round,
+          timestamp: newSubmission.timestamp
+        }
+      ]);
+      if (subError) {
+        console.error('SCORE UPSERT ERROR', subError);
+        toast({ title: 'Failed to save score', description: subError.message, variant: 'destructive' });
+        return;
+      }
+    } catch (err) {
+      console.error('SCORE UPSERT UNEXPECTED', err);
+      toast({ title: 'Unexpected error', description: String(err), variant: 'destructive' });
+      return;
+    }
+
     if (mySubmission) {
       setScoreSubmissions(prev => prev.map(s => 
         s.id === mySubmission.id ? newSubmission : s
@@ -537,11 +682,37 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setScoreSubmissions(prev => [...prev, newSubmission]);
     }
     
+    // Check if opponent submission already in DB and matches
+    let opponent = opponentSubmission;
+    if (!opponent) {
+      const { data: oppRows } = await supabase.from('scores')
+        .select('*')
+        .eq('match_id', matchId)
+        .neq('submitted_by', teamId)
+        .limit(1);
+      opponent = oppRows && oppRows[0] ? {
+        id: oppRows[0].id,
+        matchId: oppRows[0].match_id,
+        teamA: gameData.teamA,
+        teamB: gameData.teamB,
+        scoreA: oppRows[0].score_a,
+        scoreB: oppRows[0].score_b,
+        boston: oppRows[0].boston,
+        handsA: oppRows[0].hands_a,
+        handsB: oppRows[0].hands_b,
+        submittedBy: oppRows[0].submitted_by,
+        timestamp: new Date(oppRows[0].timestamp),
+        round: gameData.round
+      } as ScoreSubmission : null;
+    }
+
     if (
-      opponentSubmission &&
-      opponentSubmission.scoreA === gameData.scoreA &&
-      opponentSubmission.scoreB === gameData.scoreB &&
-      opponentSubmission.boston === gameData.boston
+      opponent &&
+      Number(opponent.scoreA) === Number(gameData.scoreA) &&
+      Number(opponent.scoreB) === Number(gameData.scoreB) &&
+      opponent.boston === gameData.boston &&
+      Number(opponent.handsA) === Number(gameData.handsA) &&
+      Number(opponent.handsB) === Number(gameData.handsB)
     ) {
       
       const confirmedGame: Game = {

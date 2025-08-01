@@ -100,8 +100,9 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
     
     const teamAScore = String(selectedMatch.teamA) === String(team.id) ? parseInt(scoreA) : parseInt(scoreB);
     const teamBScore = String(selectedMatch.teamA) === String(team.id) ? parseInt(scoreB) : parseInt(scoreA);
-    const teamAHands = String(selectedMatch.teamA) === String(team.id) ? parseInt(handsA) : parseInt(handsB);
-    const teamBHands = String(selectedMatch.teamA) === String(team.id) ? parseInt(handsB) : parseInt(handsA);
+    const toNum = (v: string) => v.trim() === '' ? 0 : Number(v);
+    const teamAHands = String(selectedMatch.teamA) === String(team.id) ? toNum(handsA) : toNum(handsB);
+    const teamBHands = String(selectedMatch.teamA) === String(team.id) ? toNum(handsB) : toNum(handsA);
 
     const teamA = teams.find(t => String(t.id) === String(selectedMatch.teamA));
     const teamB = teams.find(t => String(t.id) === String(selectedMatch.teamB));

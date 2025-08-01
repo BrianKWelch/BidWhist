@@ -9,10 +9,20 @@ import TeamEditor from './TeamEditor';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const TeamsByTournament: React.FC = () => {
-  const { teams, tournaments, updateTeam } = useAppContext();
+  const { teams, tournaments, updateTeam, getActiveTournament } = useAppContext();
   const [editingTeam, setEditingTeam] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  // Start with all tournaments collapsed
   const [collapsedTournaments, setCollapsedTournaments] = useState<Set<string>>(new Set());
+  const activeTournament = getActiveTournament && getActiveTournament();
+
+  // Ensure collapsed list is populated once tournaments load
+  React.useEffect(() => {
+    if (tournaments.length > 0 && collapsedTournaments.size === 0) {
+      setCollapsedTournaments(new Set(tournaments.map(t => t.id)));
+    }
+  }, [tournaments]);
+
 
   // Debug logging
   console.log('Available tournaments:', tournaments.map(t => `${t.id}: ${t.name}`));
@@ -50,15 +60,16 @@ const TeamsByTournament: React.FC = () => {
   const filterTeams = (teams: any[]) => {
     if (!searchTerm) return teams;
     
+        const searchLower = searchTerm.toLowerCase();
+    const normalize = (val: any) => (val ? String(val).toLowerCase() : '');
     const filtered = teams.filter(team => {
-      const searchLower = searchTerm.toLowerCase();
       return (
-        team.name.toLowerCase().includes(searchLower) ||
-        team.city.toLowerCase().includes(searchLower) ||
-        team.player1FirstName.toLowerCase().includes(searchLower) ||
-        team.player1LastName.toLowerCase().includes(searchLower) ||
-        team.player2FirstName.toLowerCase().includes(searchLower) ||
-        team.player2LastName.toLowerCase().includes(searchLower)
+        normalize(team.name).includes(searchLower) ||
+        normalize(team.city).includes(searchLower) ||
+        normalize(team.player1FirstName).includes(searchLower) ||
+        normalize(team.player1LastName).includes(searchLower) ||
+        normalize(team.player2FirstName).includes(searchLower) ||
+        normalize(team.player2LastName).includes(searchLower)
       );
     });
     
@@ -96,10 +107,21 @@ const TeamsByTournament: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {tournaments.map((tournament) => {
+            {[...tournaments]
+              .sort((a, b) => {
+                if (activeTournament) {
+                  if (a.id === activeTournament.id) return -1;
+                  if (b.id === activeTournament.id) return 1;
+                }
+                return a.name.localeCompare(b.name);
+              })
+              .map((tournament) => {
               const allTournamentTeams = getTeamsForTournament(tournament.id);
               const tournamentTeams = filterTeams(allTournamentTeams);
-              const isCollapsed = collapsedTournaments.has(tournament.id);
+              let isCollapsed = collapsedTournaments.has(tournament.id);
+              if (searchTerm.trim()) {
+                isCollapsed = tournamentTeams.length === 0;
+              }
               
               console.log(`Tournament ${tournament.name} (${tournament.id}): ${allTournamentTeams.length} total teams, ${tournamentTeams.length} after filtering`);
               

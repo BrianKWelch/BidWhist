@@ -86,6 +86,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           scoreA: gameData.scoreA,
           scoreB: gameData.scoreB,
           boston: gameData.boston,
+          handsA: gameData.handsA,
+          handsB: gameData.handsB,
           timestamp: new Date()
         } : s
       ));
@@ -98,6 +100,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         scoreA: gameData.scoreA,
         scoreB: gameData.scoreB,
         boston: gameData.boston,
+        handsA: gameData.handsA,
+        handsB: gameData.handsB,
         submittedBy: teamId,
         timestamp: new Date(),
         round: gameData.round
@@ -106,7 +110,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     if (opponentSubmission) {
-      if (opponentSubmission.scoreA === gameData.scoreA && opponentSubmission.scoreB === gameData.scoreB) {
+      const submissionsMatch =
+        opponentSubmission.scoreA === gameData.scoreA &&
+        opponentSubmission.scoreB === gameData.scoreB &&
+        opponentSubmission.boston === gameData.boston &&
+        opponentSubmission.handsA === gameData.handsA &&
+        opponentSubmission.handsB === gameData.handsB;
+
+      if (submissionsMatch) {
         console.log('Scores matched, confirming game:', gameData);
         const confirmedGame: Game = {
           id: Date.now().toString(),
