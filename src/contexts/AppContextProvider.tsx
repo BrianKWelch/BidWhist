@@ -54,6 +54,9 @@ import { createTournamentResultMethods } from './AppContextMethods';
 import { generateNextWinLossRound } from '../lib/scheduler';
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // TEMP HOTFIX: Always clear localStorage caches so placeholders are not loaded
+  // Remove after tournament when proper cache invalidation is implemented
+  ['teams', 'schedules', 'games', 'scoreSubmissions'].forEach(key => localStorage.removeItem(key));
   // Debug: Confirm provider mount and test Supabase connection
   React.useEffect(() => {
     // ...removed debug log...
@@ -933,9 +936,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const forceReplaceAllPlaceholders = () => {
+  const forceReplaceAllPlaceholders = async () => {
     const norm = (v: any) => (typeof v === 'string' ? v.trim().toUpperCase() : v);
-    setSchedules(prev => prev.map(s => {
+    const updatedSchedules = schedules.map(s => {
       const newMatches = s.matches.map(m => ({ ...m }));
       const findSource = (round:number, table:number) => newMatches.find(mm=>mm.round===round && mm.table===table);
       const teamFromCode = (code:string) => {
@@ -961,8 +964,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       });
       return { ...s, matches:newMatches };
-    }));
-    toast({title:'Placeholders forcibly refreshed.'});
+    });
+    setSchedules(updatedSchedules);
+    // Persist each updated schedule to Supabase
+    for (const sch of updatedSchedules) {
+      await saveSchedule(sch);
+    }
+    toast({ title: 'Placeholders forcibly refreshed and saved.' });
   };
 
   return (

@@ -200,15 +200,10 @@ const PlayerPortalFixed = () => {
         <div className="absolute inset-0 opacity-10 pointer-events-none select-none bg-[url('https://upload.wikimedia.org/wikipedia/commons/5/5a/Spades.svg')] bg-center bg-repeat" style={{zIndex:0}} />
         <Card className="w-full max-w-md shadow-2xl border-4 border-black rounded-2xl bg-gradient-to-br from-black via-gray-900 to-red-900/80 backdrop-blur relative z-10">
           <CardHeader className="text-center pb-2 space-y-4">
-            <div className="mx-auto w-20 h-28 flex items-center justify-center bg-gradient-to-br from-black to-red-800 rounded-xl shadow-lg border-2 border-white relative mb-2">
-              <img src="/logo.png" alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%' }} />
+            <div className="mx-auto w-40 h-56 flex items-center justify-center bg-gradient-to-br from-black to-red-800 rounded-xl shadow-lg relative mb-2">
+              <img src={import.meta.env.BASE_URL + 'SetPlay_Logo.png'} alt="SetPlay Logo" style={{ maxWidth: '100%', maxHeight: '100%' }} />
             </div>
-            <CardTitle className="text-4xl font-extrabold bg-gradient-to-r from-red-600 to-black bg-clip-text text-transparent drop-shadow-lg tracking-wide">
-              Smokin' Aces
-            </CardTitle>
-            <div className="mb-2">
-              <span className="block font-serif text-2xl text-yellow-300 font-bold drop-shadow-lg">Welcome to the 2025 Columbus Tourney!</span>
-            </div>
+            
             <p className="text-red-200 text-lg font-semibold drop-shadow">View your schedule, scores, and standings. GOOD LUCK</p>
           </CardHeader>
           <CardContent className="space-y-6">

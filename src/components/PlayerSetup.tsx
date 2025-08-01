@@ -68,7 +68,6 @@ const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSetupComplete }) => {
           <CardTitle className="text-4xl font-extrabold bg-gradient-to-r from-red-600 to-black bg-clip-text text-transparent drop-shadow-lg tracking-wide">
             My Tournaments
           </CardTitle>
-          <p className="text-red-200 text-lg font-semibold drop-shadow">Welcome Brian</p>
         </CardHeader>
         <CardContent className="space-y-6">
           {error && (
