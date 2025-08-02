@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Target, Award, Calendar } from 'lucide-react';
 import { TournamentResults } from './TournamentResults';
+const ExportResultsButton = React.lazy(() => import('./ExportResultsButton'));
 
 const CombinedResultsPage = () => {
   const { games, teams, getTournamentResults, tournaments, getActiveTournament } = useAppContext();
@@ -67,8 +68,24 @@ const CombinedResultsPage = () => {
 
   return (
     <div className="space-y-6">
-      <TournamentResults tournamentId={activeTournament.id} />
-      
+      <div>
+        <div className="flex items-center gap-4 mb-2">
+          <span className="text-2xl font-bold flex items-center gap-2">
+            <Trophy className="h-6 w-6 text-yellow-500" />
+            {tournament?.name || 'Tournament'}
+          </span>
+          {/* Export Button */}
+          <div>
+            {/* Dynamically import to avoid SSR issues if any */}
+            {activeTournament && (
+              <React.Suspense fallback={<span>Loading...</span>}>
+                <ExportResultsButton tournamentId={activeTournament.id} />
+              </React.Suspense>
+            )}
+          </div>
+        </div>
+        <TournamentResults tournamentId={activeTournament.id} />
+      </div>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppContext } from '@/contexts/AppContext';
 import { Users, History, RotateCcw, Settings, Calendar, MessageSquare, Award, Target, DollarSign, Search } from 'lucide-react';
 import PlayerTracking from './PlayerTracking';
+import AdminTables from '@/pages/AdminTables';
 
 
 // --- Error Boundary Component ---
@@ -148,9 +149,12 @@ const AppLayout: React.FC = () => {
                         <History size={16} />
                         <span>History</span>
                       </TabsTrigger>
-                      <TabsTrigger value="admin" className="flex items-center gap-2 justify-start text-sm px-3 py-2 h-auto">
+                      <TabsTrigger value="admin-tables" className="flex items-center gap-2 justify-start text-sm px-3 py-2 h-auto">
                         <Settings size={16} />
-                        <span>Admin</span>
+                        <span>Admin Tables</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="admin" className="flex items-center gap-2 justify-start text-sm px-3 py-2 h-auto">
+                        <span className="ml-1">Admin</span>
                       </TabsTrigger>
                     </TabsList>
                   </CardContent>
@@ -187,6 +191,9 @@ const AppLayout: React.FC = () => {
                   <GameHistory />
                 </TabsContent>
                 
+                <TabsContent value="admin-tables" className="mt-0">
+                  <AdminTables />
+                </TabsContent>
                 <TabsContent value="admin" className="mt-0">
                   <TournamentManagement />
                 </TabsContent>

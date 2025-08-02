@@ -56,8 +56,6 @@ export interface Game {
   round?: number;
   teamAScore?: number;
   teamBScore?: number;
-  handsA: number;
-  handsB: number;
 }
 
 export interface ScheduleMatch {
@@ -70,7 +68,6 @@ export interface ScheduleMatch {
   isByeRound?: boolean;
   isSameCity?: boolean;
   table?: number;
-  opponentPlaceholder?: { type: 'winner', table: number };
 }
 
 export interface TournamentSchedule {
@@ -104,8 +101,6 @@ export interface ScoreSubmission {
   scoreA: number;
   scoreB: number;
   boston: 'none' | 'teamA' | 'teamB';
-  handsA: number;
-  handsB: number;
   submittedBy: string;
   timestamp: Date;
   round: number;
@@ -149,6 +144,7 @@ export interface Bracket {
 }
 
 interface AppContextType {
+  setSchedules: React.Dispatch<React.SetStateAction<TournamentSchedule[]>>;
   deleteTeam: (teamId: string) => void;
   setTournaments: React.Dispatch<React.SetStateAction<Tournament[]>>;
   finishTournament: (tournamentId: string) => void;
@@ -170,7 +166,7 @@ interface AppContextType {
   cities: string[];
   currentUser: string;
   setCurrentUser: (user: string) => void;
-  addTeam: (player1First: string, player1Last: string, player2First: string, player2Last: string, phoneNumber: string, city: string, selectedTournaments: string[], bostonPotTournaments: string[]) => Promise<string | null>;
+  addTeam: (player1First: string, player1Last: string, player2First: string, player2Last: string, phoneNumber: string, city: string, selectedTournaments: string[], bostonPotTournaments: string[]) => string;
   updateTeam: (updatedTeam: Team) => void;
   addTournament: (name: string, cost: number, bostonPotCost: number, description?: string) => void;
   updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => void;
@@ -202,10 +198,6 @@ interface AppContextType {
   addCity: (city: string) => void;
   removeCity: (city: string) => void;
   updateCities: (cities: string[]) => void;
-  refreshGamesFromSupabase: () => Promise<void>;
-  updatePlaceholders: () => Promise<void>;
-  forceReplaceAllPlaceholders: () => void;
-  refreshSchedules: () => Promise<void>;
 }
 
 export const AppContext = createContext<AppContextType>({} as AppContextType);
