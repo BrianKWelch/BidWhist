@@ -1436,6 +1436,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setCities(cities);
         toast({ title: "Cities updated successfully!" });
       },
+      setSchedules,
       clearTournamentResults,
       clearGames,
       clearScoreSubmissions,
