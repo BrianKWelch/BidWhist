@@ -1,0 +1,214 @@
+import React, { useState } from 'react';
+import PlayerSetup from './PlayerSetup';
+import TeamSetup from './TeamSetup';
+import TeamBuilder from './TeamBuilder';
+import PlayerRegistration from './PlayerRegistration';
+import TeamsByTournament from './TeamsByTournament';
+import TeamPayments from './TeamPayments';
+import GameHistory from './GameHistory';
+import TournamentManagement from './TournamentManagement';
+import { TournamentScheduler } from './TournamentScheduler';
+import TournamentMessaging from './TournamentMessaging';
+import CombinedResultsPage from './CombinedResultsPage';
+import { BracketGenerator } from './BracketGenerator';
+import FinanceManager from './FinanceManager';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAppContext } from '@/contexts/AppContext';
+import { Users, History, RotateCcw, Settings, Calendar, MessageSquare, Award, Target, DollarSign, Search, UserPlus, Trophy } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import PlayerTracking from './PlayerTracking';
+// import '../assets/SetPlay_Logo.png';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('ErrorBoundary caught error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ color: 'red', padding: 32 }}>
+          <h2>Something went wrong in AppLayout.</h2>
+          <pre>{String(this.state.error)}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const AppLayout = () => {
+  const { currentUser, teams, getActiveTournament, setActiveTournament, tournaments, setTournaments, refreshGamesFromSupabase, refreshSchedules, refreshTeams } = useAppContext();
+  const [showSetup, setShowSetup] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleAdminRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await Promise.all([
+        refreshGamesFromSupabase(),
+        refreshSchedules(),
+        refreshTeams(),
+        (async () => {
+          const { supabase } = await import('../supabaseClient');
+          const { data: tournamentsData, error } = await supabase.from('tournaments').select('*');
+          if (!error && tournamentsData) {
+            setTournaments(tournamentsData);
+          }
+        })()
+      ]);
+      toast({ 
+        title: "Data refreshed successfully", 
+        description: "All tournament data, teams, payments, and schedules have been updated",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      toast({ 
+        title: "Refresh failed", 
+        description: "Some data may not have been updated",
+        variant: "destructive"
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleSetupComplete = () => {
+    setShowSetup(false);
+  };
+
+  const handleSetActiveTournament = (tournamentId) => {
+    setActiveTournament(tournamentId);
+  };
+
+  if (showSetup || !currentUser) {
+    return <PlayerSetup onSetupComplete={handleSetupComplete} />;
+  }
+
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gray-100">
+        {/* White Header */}
+        <div className="bg-white shadow-md">
+          <div className="w-full flex items-center justify-between px-6 py-3">
+            {/* Left: Logo and Title */}
+            <div className="flex items-center gap-4">              
+              <img src={import.meta.env.BASE_URL + 'SetPlay_Logo.png'} alt="SetPlay Logo" style={{ maxWidth: '20%', maxHeight: '18%' }} />
+              <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
+            </div>
+
+            {/* Center: Tournament Dropdowns */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-700 font-medium">Manage:</label>
+                <select
+                  className="border border-gray-300 rounded px-3 py-1 text-sm text-gray-800 bg-white"
+                  value={getActiveTournament()?.id || ''}
+                  onChange={e => handleSetActiveTournament(e.target.value)}
+                >
+                  <option value="" disabled>Select tournament...</option>
+                  {tournaments.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-700 font-medium">Active:</label>
+                <select
+                  className="border border-gray-300 rounded px-3 py-1 text-sm text-gray-800 bg-white"
+                  value={getActiveTournament()?.id || ''}
+                  onChange={e => handleSetActiveTournament(e.target.value)}
+                >
+                  <option value="" disabled>Select tournament...</option>
+                  {tournaments.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Right: Icons and Avatar */}
+<div className="flex items-center gap-4">
+  {/* Refresh Button */}
+  <Button
+    variant="ghost"
+    size="sm"
+    onClick={handleAdminRefresh}
+    disabled={refreshing}
+    className="text-gray-600 hover:text-red-600"
+  >
+    <RotateCcw className="w-5 h-5" />
+  </Button>
+
+  {/* Go to Player Portal Button */}
+  <Button
+    variant="ghost"
+    size="sm"
+    onClick={() => window.open('#/portal?admin=1', '_blank')}
+    className="text-gray-600 hover:text-red-600"
+  >
+    <MessageSquare className="w-5 h-5" />
+  </Button>
+
+  
+  
+  
+</div>
+
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="w-full p-4">
+          <Tabs defaultValue="teams" className="w-full">
+            <div className="flex gap-6">
+              <div className="w-16 flex-shrink-0">
+                <Card className="bg-gray-800 shadow-lg">
+                  <CardContent className="p-2">
+                    <TabsList className="grid w-full grid-cols-1 gap-1 h-auto bg-gray-700">
+                      <TabsTrigger value="teams" className="..."><Users size={20} /></TabsTrigger>
+                      <TabsTrigger value="teams-by-tournament" className="..."><Trophy size={20} /></TabsTrigger>
+                      <TabsTrigger value="team-payments" className="..."><DollarSign size={20} /></TabsTrigger>
+                      <TabsTrigger value="player-tracking" className="..."><Search size={20} /></TabsTrigger>
+                      <TabsTrigger value="registration" className="..."><UserPlus size={20} /></TabsTrigger>
+                      <TabsTrigger value="schedule" className="..."><Calendar size={20} /></TabsTrigger>
+                      <TabsTrigger value="results" className="..."><Award size={20} /></TabsTrigger>
+                      <TabsTrigger value="bracket" className="..."><Target size={20} /></TabsTrigger>
+                      <TabsTrigger value="finance" className="..."><DollarSign size={20} /></TabsTrigger>
+                      <TabsTrigger value="history" className="..."><History size={20} /></TabsTrigger>
+                      <TabsTrigger value="admin" className="..."><Settings size={20} /></TabsTrigger>
+                    </TabsList>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="flex-1">
+                <TabsContent value="teams" className="mt-0"><TeamBuilder /></TabsContent>
+                <TabsContent value="teams-by-tournament" className="mt-0"><TeamsByTournament /></TabsContent>
+                <TabsContent value="team-payments" className="mt-0"><TeamPayments /></TabsContent>
+                <TabsContent value="registration" className="mt-0"><PlayerRegistration /></TabsContent>
+                <TabsContent value="schedule" className="mt-0"><TournamentScheduler /></TabsContent>
+                <TabsContent value="results" className="mt-0"><CombinedResultsPage /></TabsContent>
+                <TabsContent value="bracket" className="mt-0"><BracketGenerator /></TabsContent>
+                <TabsContent value="finance" className="mt-0"><FinanceManager /></TabsContent>
+                <TabsContent value="player-tracking" className="mt-0"><PlayerTracking /></TabsContent>
+                <TabsContent value="history" className="mt-0"><GameHistory /></TabsContent>
+                <TabsContent value="admin" className="mt-0"><TournamentManagement /></TabsContent>
+              </div>
+            </div>
+          </Tabs>
+        </div>
+      </div>
+    </ErrorBoundary>
+  );
+};
+
+export default AppLayout;

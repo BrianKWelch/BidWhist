@@ -14,26 +14,21 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
   const { teams, games, scoreSubmissions } = useAppContext();
 
   const getMatchStatus = (match: any) => {
-    const completedGame = games.find((g) => g.matchId === match.id && g.confirmed);
+    const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
     if (completedGame) {
-      const winner =
-        completedGame.scoreA > completedGame.scoreB
-          ? teams.find((t) => String(t.id) === String(match.teamA))
-          : teams.find((t) => String(t.id) === String(match.teamB));
-      const loserTeam = winner === teams.find((t) => String(t.id) === String(match.teamA)) ? teams.find((t)=> String(t.id) === String(match.teamB)) : teams.find((t)=> String(t.id) === String(match.teamA));
-      return `Winner - Team ${winner?.teamNumber ?? winner?.id ?? 'Unknown'} ${Math.max(completedGame.scoreA, completedGame.scoreB)} ***** Loser - Team ${loserTeam?.teamNumber ?? loserTeam?.id ?? 'Unknown'} ${Math.min(completedGame.scoreA, completedGame.scoreB)}`;
-
+      const winner = completedGame.scoreA > completedGame.scoreB ? 
+        teams.find(t => t.id === match.teamA) : teams.find(t => t.id === match.teamB);
+      return `Completed - Team ${winner?.teamNumber || 'Unknown'} won ${Math.max(completedGame.scoreA, completedGame.scoreB)}-${Math.min(completedGame.scoreA, completedGame.scoreB)}`;
     }
 
-    const submissions = scoreSubmissions.filter((s) => s.matchId === match.id);
+    const submissions = scoreSubmissions.filter(s => s.matchId === match.id);
     if (submissions.length === 2) {
-      const scoresMatch =
-        submissions[0].scoreA === submissions[1].scoreA &&
-        submissions[0].scoreB === submissions[1].scoreB;
+      const scoresMatch = submissions[0].scoreA === submissions[1].scoreA && 
+                         submissions[0].scoreB === submissions[1].scoreB;
       return scoresMatch ? 'Confirming scores' : 'Score conflict - needs resolution';
     }
     if (submissions.length === 1) {
-      const submittingTeam = teams.find((t) => String(t.id) === String(submissions[0].submittedBy));
+      const submittingTeam = teams.find(t => t.id === submissions[0].submittedBy);
       return `Waiting for opponent score (Team ${submittingTeam?.teamNumber || 'Unknown'} submitted)`;
     }
 
@@ -41,14 +36,13 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
       if (match.round === 1) {
         return 'Ready to start';
       } else {
-        const prevRoundMatches = schedule.matches.filter((m) => m.round === match.round - 1);
-        const incompletePrevMatches = prevRoundMatches.filter(
-          (m) => !games.find((g) => g.matchId === m.id && g.confirmed),
+        const prevRoundMatches = schedule.matches.filter(m => m.round === match.round - 1);
+        const incompletePrevMatches = prevRoundMatches.filter(m => 
+          !games.find(g => g.matchId === m.id && g.confirmed)
         );
+        
         if (incompletePrevMatches.length > 0) {
-          return `Waiting for ${incompletePrevMatches.length} Round ${match.round - 1} match${
-            incompletePrevMatches.length > 1 ? 'es' : ''
-          } to complete`;
+          return `Waiting for ${incompletePrevMatches.length} Round ${match.round - 1} match${incompletePrevMatches.length > 1 ? 'es' : ''} to complete`;
         } else {
           return 'Waiting for team assignment';
         }
@@ -59,141 +53,98 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
   };
 
   const getStatusColor = (status: string) => {
-    if (status.includes('Completed') || status.includes('Winner')) return 'bg-green-100 border-green-300 text-green-800';
+    if (status.includes('Completed')) return 'bg-green-100 border-green-300 text-green-800';
     if (status.includes('Ready to score')) return 'bg-blue-100 border-blue-300 text-blue-800';
-    if (status.includes('Waiting for opponent score'))
-      return 'bg-yellow-100 border-yellow-300 text-yellow-800';
+    if (status.includes('Waiting for opponent score')) return 'bg-yellow-100 border-yellow-300 text-yellow-800';
     if (status.includes('Confirming scores')) return 'bg-orange-100 border-orange-300 text-orange-800';
     if (status.includes('Score conflict')) return 'bg-red-100 border-red-300 text-red-800';
     if (status.includes('Ready to start')) return 'bg-blue-100 border-blue-300 text-blue-800';
     return 'bg-gray-100 border-gray-300 text-gray-600';
   };
 
+  // REMOVE_ME: File name display for testing
   return (
-    <Card>
+    <Card className="border-2 border-gray-300">
       <CardHeader>
-        <CardTitle>Complete Tournament Schedule - {tournamentName}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {schedule.rounds} rounds total • {schedule.matches.length} matches
-        </p>
+        <CardTitle className="text-center text-2xl font-bold text-red-600 mb-2 border-b-2 border-red-500 pb-2 shadow-sm">
+          {tournamentName}
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        {Array.from({ length: schedule.rounds }, (_, i) => i + 1).map((round) => {
-          const roundMatches = schedule.matches.filter((m) => m.round === round);
+        <div className="text-center text-sm text-gray-600 mb-4">
+          {schedule.matches.length} matches • {Math.max(...schedule.matches.map(m => m.round))} rounds
+        </div>
+        {Array.from({ length: Math.max(schedule.rounds, Math.max(...schedule.matches.map(m => m.round))) }, (_, i) => i + 1).map(round => {
+          const roundMatches = schedule.matches.filter(m => m.round === round);
           return (
             <div key={round} className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <Badge variant="outline" className="font-medium">
+              <div className="flex justify-center mb-4">
+                <Badge variant="outline" className="font-bold text-lg px-4 py-2 bg-blue-100 border-blue-300 text-blue-800">
                   Round {round}
                 </Badge>
-                <span className="text-sm text-muted-foreground">
-                  {roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}
-                </span>
               </div>
               <div className="space-y-3">
-                {roundMatches.map((match) => {
-                  // BYE ROUND
+                {roundMatches.map(match => {
                   if (match.isBye) {
-                    const team =
-                      teams.find((t) => String(t.id) === String(match.teamA)) ||
-                      ({ name: match.teamA, teamNumber: '', city: '' } as any);
+                    // Find the real team (not BYE) - one of teamA or teamB will be null for BYE matches
+                    const realTeamId = match.teamA || match.teamB;
+                    const team = teams.find(t => t.id === realTeamId);
                     return (
-                      <div
-                        key={match.id}
-                        className="p-2 md:p-4 border rounded-lg bg-green-100 border-green-300 text-green-800"
-                      >
-                        <div className="flex flex-col md:flex-row md:justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="font-bold text-xs md:text-sm">
-                              Team {team.teamNumber || team.id}
-                            </div>
-                            <div className="text-[10px] md:text-xs font-medium">{team.name}</div>
-                            <div className="text-[10px] md:text-xs text-blue-600">{team.city}</div>
+                      <div key={match.id} className={`p-2 md:p-3 border rounded-lg bg-yellow-50 border-yellow-300 text-yellow-800`}>
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-1 gap-2 md:gap-0">
+                          <div className="flex-1 font-medium text-xs md:text-sm">
+                            {team ? (
+                              <span>
+                                {team.teamNumber ?? team.id}: {team.name} - <span className="text-[8px] md:text-[10px]">{team.city}</span>
+                              </span>
+                            ) : 'Unknown Team'}
                           </div>
-                          <div className="flex items-center justify-center">
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] md:text-xs px-2 py-1 bg-yellow-100 border-yellow-300 text-yellow-800"
-                            >
-                              BYE
-                            </Badge>
-                          </div>
+                        </div>
+                        <div className="flex flex-wrap justify-center items-center gap-1 md:gap-2 mt-1">
+                          <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1 bg-yellow-100 border-yellow-300 text-yellow-800">
+                            BYE
+                          </Badge>
                         </div>
                       </div>
                     );
                   }
-
-                  // REGULAR MATCH
-                  const teamA = teams.find((t) => String(t.id) === String(match.teamA));
-                  const teamB = teams.find((t) => String(t.id) === String(match.teamB));
+                  const teamA = teams.find(t => t.id === match.teamA);
+                  const teamB = teams.find(t => t.id === match.teamB);
                   const status = getMatchStatus(match);
                   const statusColor = getStatusColor(status);
-
                   return (
-                    <div
-                      key={match.id}
-                      className={`p-2 md:p-4 border rounded-lg ${statusColor}`}
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                        {/* TEAM A */}
+                    <div key={match.id} className={`p-2 md:p-3 border rounded-lg ${statusColor}`}>
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-1 gap-2 md:gap-0">
                         <div className="flex-1">
-                          <div className="font-bold text-xs md:text-sm">
-                            {match.teamA === 'TBD'
-                              ? 'Team TBD'
-                              : teamA
-                              ? `Team ${teamA.teamNumber ?? teamA.id}`
-                              : `Team ${match.teamA}`}
+                          <div className="font-medium text-xs md:text-sm">
+                            {match.teamA === 'TBD' ? 'TBD' : 
+                             teamA ? (
+                               <span>
+                                 {teamA.teamNumber ?? teamA.id}: {teamA.name} - <span className="text-[8px] md:text-[10px]">{teamA.city}</span>
+                               </span>
+                             ) : `${match.teamA}`}
                           </div>
-                          {teamA && (
-                            <>
-                              <div className="text-[10px] md:text-xs font-medium">{teamA.name}</div>
-                              <div className="text-[10px] md:text-xs text-blue-600">{teamA.city}</div>
-                            </>
-                          )}
                         </div>
-
-                        <div className="flex flex-col items-center mx-0 md:mx-3">
-                          <Badge variant="outline" className="text-[10px] md:text-xs px-2 py-0.5 mb-0.5">
-                            Table {match.table ?? '?'}
+                        <div className="flex flex-col items-center">
+                          <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1 mb-1">
+                            Table {match.table}
                           </Badge>
-                          <span className="text-muted-foreground font-bold text-xs md:text-sm text-center">
-                          vs
-                        </span>
-
+                          <span className="text-muted-foreground mx-0 md:mx-3 font-medium text-xs md:text-sm text-center">vs</span>
                         </div>
-                        {/* TEAM B */}
                         <div className="flex-1 md:text-right">
-                          <div className="font-bold text-xs md:text-sm">
-                            {match.teamB === 'TBD'
-                              ? 'Team TBD'
-                              : teamB
-                              ? `Team ${teamB.teamNumber ?? teamB.id}`
-                              : `Team ${match.teamB}`}
+                          <div className="font-medium text-xs md:text-sm">
+                            {match.teamB === 'TBD' ? 'TBD' : 
+                             teamB ? (
+                               <span>
+                                 {teamB.teamNumber ?? teamB.id}: {teamB.name} - <span className="text-[8px] md:text-[10px]">{teamB.city}</span>
+                               </span>
+                             ) : `${match.teamB}`}
                           </div>
-                          {teamB && (
-                            <>
-                              <div className="text-[10px] md:text-xs font-medium">{teamB.name}</div>
-                              <div className="text-[10px] md:text-xs text-blue-600">{teamB.city}</div>
-                            </>
-                          )}
                         </div>
                       </div>
-
-                      {/* STATUS */}
                       <div className="flex flex-wrap justify-center items-center gap-1 md:gap-2 mt-1">
-                        {status !== 'Ready to score' && (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1"
-                        >
-                          {status}
-                        </Badge>
-                        )}
-                        {false && (
-                          <Badge
-                            variant="destructive"
-                            className="text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1"
-                          >
+                        {teamA && teamB && teamA.city === teamB.city && (
+                          <Badge variant="destructive" className="text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1">
                             Same City
                           </Badge>
                         )}

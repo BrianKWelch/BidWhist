@@ -10,13 +10,13 @@ const Index: React.FC = () => {
         {/* Header with Portal Button */}
         <div className="flex justify-between items-center mb-6">
           <div></div> {/* Empty div for spacing */}
-          <Button 
+         {/* <Button 
             onClick={() => window.open('#/portal?admin=1', '_blank')}
             className="bg-green-600 hover:bg-green-700 text-white"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             Go to Player Portal
-          </Button>
+          </Button> */}
         </div>
         
         {/* Main Content - Full Width */}

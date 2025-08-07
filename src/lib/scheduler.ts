@@ -90,12 +90,11 @@ export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: nu
   leftTeams.push(...splitCityTeams.slice(0, leftSplitCount)); // bottom of left
   rightTeams.unshift(...splitCityTeams.slice(leftSplitCount)); // top of right
 
-  // 4. Add BYE if needed
+  // 4. Add BYE if needed - always put BYE on the left side (static side)
   let totalTeams = leftTeams.length + rightTeams.length;
   if (totalTeams % 2 !== 0) {
     const byeTeam: Team = { id: 'BYE', name: 'BYE', city: 'BYE' };
-    if (leftTeams.length < rightTeams.length) leftTeams.push(byeTeam);
-    else rightTeams.push(byeTeam);
+    leftTeams.push(byeTeam); // Always put BYE on left side
     totalTeams++;
   }
 

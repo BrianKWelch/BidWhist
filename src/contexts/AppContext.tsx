@@ -1,26 +1,41 @@
 import React, { createContext, useContext } from 'react';
 
+export interface Player {
+  id: string;
+  first_name: string;
+  last_name: string;
+  city: string;
+  phone_number: string;
+  created_at: string;
+}
+
+export interface PlayerTournament {
+  id: string;
+  player_id: string;
+  tournament_id: string;
+  paid: boolean;
+  b_paid: boolean;
+  entered_boston_pot: boolean;
+  created_at: string;
+}
+
 export interface Team {
   id: string;
-  teamNumber: number;
+  teamNumber?: number;
   name: string;
-  player1FirstName: string;
-  player1LastName: string;
-  player2FirstName: string;
-  player2LastName: string;
-  phoneNumber: string;
-  // New snake_case fields for SB compatibility
-  player1_first_name?: string;
-  player1_last_name?: string;
-  player2_first_name?: string;
-  player2_last_name?: string;
-  phone_Number?: string;
-  city: string;
+  player1_id: string;
+  player2_id: string;
+  created_at: string;
+  player1?: Player; // For joined data
+  player2?: Player; // For joined data
+  player1FirstName?: string; // Legacy for backward compatibility
+  player1LastName?: string; // Legacy for backward compatibility
+  player2FirstName?: string; // Legacy for backward compatibility
+  player2LastName?: string; // Legacy for backward compatibility
+  phoneNumber?: string; // Legacy for backward compatibility
+  city?: string; // Legacy for backward compatibility
   registeredTournaments?: string[];
   bostonPotTournaments?: string[];
-  /**
-   * If true, team does NOT pay Boston Pot for that tournament. Keyed by tournamentId.
-   */
   bostonPotOptOut?: { [tournamentId: string]: boolean };
   paymentStatus?: 'pending' | 'paid';
   player1PaymentStatus?: 'pending' | 'paid';
@@ -29,6 +44,11 @@ export interface Team {
   player2TournamentPayments?: { [tournamentId: string]: boolean };
   tournamentPayments?: { [tournamentId: string]: boolean };
   totalOwed?: number;
+  // New Boston Pot fields
+  player1BostonPotPayments?: { [tournamentId: string]: boolean };
+  player2BostonPotPayments?: { [tournamentId: string]: boolean };
+  bostonPotPayments?: { [tournamentId: string]: boolean };
+  bostonPotMismatches?: { [tournamentId: string]: boolean };
 }
 
 export interface Tournament {
@@ -56,6 +76,8 @@ export interface Game {
   round?: number;
   teamAScore?: number;
   teamBScore?: number;
+  handsA?: number;
+  handsB?: number;
 }
 
 export interface ScheduleMatch {
@@ -68,6 +90,7 @@ export interface ScheduleMatch {
   isByeRound?: boolean;
   isSameCity?: boolean;
   table?: number;
+  opponentPlaceholder?: string | { type: string; table: number };
 }
 
 export interface TournamentSchedule {
@@ -101,6 +124,8 @@ export interface ScoreSubmission {
   scoreA: number;
   scoreB: number;
   boston: 'none' | 'teamA' | 'teamB';
+  handsA: number;
+  handsB: number;
   submittedBy: string;
   timestamp: Date;
   round: number;
@@ -144,7 +169,6 @@ export interface Bracket {
 }
 
 interface AppContextType {
-  setSchedules: React.Dispatch<React.SetStateAction<TournamentSchedule[]>>;
   deleteTeam: (teamId: string) => void;
   setTournaments: React.Dispatch<React.SetStateAction<Tournament[]>>;
   finishTournament: (tournamentId: string) => void;
@@ -166,7 +190,8 @@ interface AppContextType {
   cities: string[];
   currentUser: string;
   setCurrentUser: (user: string) => void;
-  addTeam: (player1First: string, player1Last: string, player2First: string, player2Last: string, phoneNumber: string, city: string, selectedTournaments: string[], bostonPotTournaments: string[]) => string;
+  addTeam: (player1First: string, player1Last: string, player2First: string, player2Last: string, phoneNumber: string, city: string, selectedTournaments: string[], bostonPotTournaments: string[]) => Promise<string>;
+  createTeamFromPlayers: (player1: Player, player2: Player, tournamentId: string) => Promise<string>;
   updateTeam: (updatedTeam: Team) => void;
   addTournament: (name: string, cost: number, bostonPotCost: number, description?: string) => void;
   updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => void;
@@ -175,7 +200,7 @@ interface AppContextType {
   updatePaymentStatus: (teamId: string, status: 'pending' | 'paid') => void;
   updatePlayerPaymentStatus: (teamId: string, player: 'player1' | 'player2', status: 'pending' | 'paid') => void;
   updatePlayerTournamentPayment: (teamId: string, player: 'player1' | 'player2', tournamentId: string, paid: boolean) => void;
-  updateTeamPayment: (teamId: string, tournamentId: string, paid: boolean) => void;
+  updateTeamPayment: (teamId: string, tournamentId: string, isPaid: boolean) => void;
   updateGameScore: (gameId: string, teamAScore: number, teamBScore: number) => void;
   saveSchedule: (schedule: TournamentSchedule) => void;
   addScoreText: (scoreText: ScoreText) => void;
@@ -198,6 +223,15 @@ interface AppContextType {
   addCity: (city: string) => void;
   removeCity: (city: string) => void;
   updateCities: (cities: string[]) => void;
+  updatePlaceholders: () => Promise<void>;
+  forceReplaceAllPlaceholders: () => Promise<void>;
+  refreshSchedules: () => Promise<void>;
+  refreshGamesFromSupabase: () => Promise<void>;
+  updatePlayerPayment: (playerId: string, tournamentId: string, isPaid: boolean, isBostonPot: boolean) => Promise<void>;
+  getPlayerTournamentPayments: (playerId: string) => Promise<PlayerTournament[]>;
+  getTeamPaymentStatus: (team: Team, tournamentId: string) => { tournamentPaid: boolean; bostonPotPaid: boolean; bostonPotMismatch: boolean };
+  calculateTeamTotalOwed: (team: Team) => number;
+  refreshTeams: () => Promise<void>;
 }
 
 export const AppContext = createContext<AppContextType>({} as AppContextType);
