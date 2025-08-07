@@ -9,21 +9,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { ScheduleDisplay } from './ScheduleDisplay';
+import { ScheduleEditor } from './ScheduleEditor';
 import { generateNRoundsWithByeAndFinal } from '@/lib/scheduler';
 import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export const TournamentScheduler: React.FC = () => {
-  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, getActiveTournament, setSchedules } = useAppContext();
-  const activeTournament = getActiveTournament();
-  const [selectedTournament, setSelectedTournament] = useState<string>(activeTournament?.id || '');
+  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions } = useAppContext();
+  const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [numberOfRounds, setNumberOfRounds] = useState<string>('4');
-  const [scheduleMode, setScheduleMode] = useState<'auto' | 'smart' | 'manual'>('auto');
   const [currentSchedule, setCurrentSchedule] = useState<TournamentSchedule | null>(null);
   const [isScheduleLocked, setIsScheduleLocked] = useState(false);
   const [linksSent, setLinksSent] = useState(false);
   const [showByeDialog, setShowByeDialog] = useState(false);
   const [byeTeamsList, setByeTeamsList] = useState<string[]>([]);
+  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
+  const [scheduleOption, setScheduleOption] = useState<'A' | 'B' | null>(null);
 
   useEffect(() => {
     if (selectedTournament) {
@@ -46,6 +47,37 @@ export const TournamentScheduler: React.FC = () => {
       return;
     }
 
+    const tournamentTeams = teams.filter(team => 
+      team.registeredTournaments?.includes(selectedTournament)
+    );
+
+    if (tournamentTeams.length < 2) {
+      toast({ title: 'Need at least 2 teams to generate schedule', variant: 'destructive' });
+      return;
+    }
+
+    // Show option selection dialog
+    setScheduleOption(null);
+    setShowScheduleEditor(true);
+  };
+
+  const handleScheduleOptionSelect = (option: 'A' | 'B') => {
+    setScheduleOption(option);
+    
+    if (option === 'A') {
+      // Option A: Use ScheduleEditor
+      setShowScheduleEditor(true);
+    } else {
+      // Option B: Use existing logic (for now)
+      generateOptionBSchedule();
+    }
+  };
+
+  const generateOptionBSchedule = () => {
+    const tournamentTeams = teams.filter(team => 
+      team.registeredTournaments?.includes(selectedTournament)
+    );
+
     // Check if there's an existing schedule and warn about clearing results
     const existingSchedule = schedules.find(s => s.tournamentId === selectedTournament);
     if (existingSchedule) {
@@ -57,15 +89,6 @@ export const TournamentScheduler: React.FC = () => {
       }
     }
 
-    const tournamentTeams = teams.filter(team => 
-      team.registeredTournaments?.includes(selectedTournament)
-    );
-
-    if (tournamentTeams.length < 2) {
-      toast({ title: 'Need at least 2 teams to generate schedule', variant: 'destructive' });
-      return;
-    }
-
     // Convert teams to scheduler format
     const schedulerTeams = tournamentTeams.map(team => ({
       id: team.id,
@@ -73,15 +96,11 @@ export const TournamentScheduler: React.FC = () => {
       city: team.city
     }));
 
+    // Use new scheduler logic for correct bye and final round handling
+    const numRounds = parseInt(numberOfRounds);
+    const roundMatches = generateNRoundsWithByeAndFinal(schedulerTeams, numRounds);
 
-    let roundMatches = [];
-    let matches: ScheduleMatch[] = [];
-    let numRounds = parseInt(numberOfRounds);
-    let schedule: TournamentSchedule;
-
-    // Always generate and save only round 1, regardless of mode
-    numRounds = 1;
-    roundMatches = generateNRoundsWithByeAndFinal(schedulerTeams, 1);
+    const matches: ScheduleMatch[] = [];
     let matchId = 1;
     let tableNum = 1;
     const maxTables = Math.floor(tournamentTeams.length / 2);
@@ -93,7 +112,7 @@ export const TournamentScheduler: React.FC = () => {
             id: `${selectedTournament}-r${roundIndex + 1}-m${matchId++}`,
             teamA: match.teamA.id,
             teamB: match.teamB.id,
-            round: 1, // Always round 1
+            round: roundIndex + 1,
             table: Math.min(tableNum++, maxTables),
             tournamentId: selectedTournament,
             isBye: match.teamA.id === 'BYE' || match.teamB.id === 'BYE',
@@ -102,9 +121,10 @@ export const TournamentScheduler: React.FC = () => {
         }
       });
     });
-    schedule = {
+    
+    const schedule: TournamentSchedule = {
       tournamentId: selectedTournament,
-      rounds: 1,
+      rounds: roundMatches.length,
       matches
     };
 
@@ -122,9 +142,7 @@ export const TournamentScheduler: React.FC = () => {
     }
     
     setCurrentSchedule(schedule);
-    // Update global schedules in memory so all pages see it, but do NOT save to Supabase yet
-    setSchedules(prev => [...prev.filter(s => s.tournamentId !== schedule.tournamentId), schedule]);
-    saveSchedule(schedule); // Push to Supabase so Admin Tables sees it after reload
+    saveSchedule(schedule);
     setIsScheduleLocked(true);
     
     const sameCityMatches = matches.filter(m => m.isSameCity).length;
@@ -157,6 +175,29 @@ export const TournamentScheduler: React.FC = () => {
     });
   };
 
+  const handleScheduleSave = (schedule: TournamentSchedule) => {
+    // Clear all existing results and data for this tournament before saving new schedule
+    clearTournamentResults(selectedTournament);
+    clearGames(selectedTournament);
+    clearScoreSubmissions(selectedTournament);
+    
+    setCurrentSchedule(schedule);
+    saveSchedule(schedule);
+    setIsScheduleLocked(true);
+    setShowScheduleEditor(false);
+    
+    toast({ 
+      title: 'Schedule saved successfully!',
+      description: `${schedule.rounds} rounds generated with ${schedule.matches.length} matches.`,
+      variant: 'default'
+    });
+  };
+
+  const handleScheduleCancel = () => {
+    setShowScheduleEditor(false);
+    setScheduleOption(null);
+  };
+
   const handleSendScoreSheets = async () => {
     if (!currentSchedule) return;
     
@@ -186,32 +227,35 @@ export const TournamentScheduler: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Tournament Scheduler (Smart Algorithm)</CardTitle>
+      {/* Schedule Editor Modal */}
+      {showScheduleEditor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+            <ScheduleEditor
+              tournamentId={selectedTournament}
+              teams={teams.filter(team => team.registeredTournaments?.includes(selectedTournament))}
+              numberOfRounds={parseInt(numberOfRounds)}
+              onSave={handleScheduleSave}
+              onCancel={handleScheduleCancel}
+              existingSchedule={currentSchedule}
+            />
+          </div>
+        </div>
+      )}
+
+      <Card className="border-2 border-gray-300">
+        <CardHeader className="border-b-2 border-red-500 pb-2">
+          <div className="flex justify-center items-center">
+            <CardTitle className="text-red-600">Tournament Scheduler</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="schedule-mode">Schedule Mode</Label>
-              <Select value={scheduleMode} onValueChange={v => setScheduleMode(v as any)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto (Legacy)</SelectItem>
-                  <SelectItem value="smart">Smart (All Rounds)</SelectItem>
-              <SelectItem value="manual">Manual (100% Manual Scheduling)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="tournament">Select Tournament</Label>
+          <div className="flex gap-4 items-end mt-4">
+            <div className="w-48">
+              <Label htmlFor="tournament">Tournament</Label>
               <Select value={selectedTournament} onValueChange={setSelectedTournament}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose tournament" />
+                  <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
                   {tournaments.map(tournament => (
@@ -222,52 +266,55 @@ export const TournamentScheduler: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="rounds">Number of Rounds</Label>
+            <div className="w-20">
+              <Label htmlFor="rounds">Rounds</Label>
               <Input
                 id="rounds"
                 type="number"
                 value={numberOfRounds}
                 onChange={(e) => setNumberOfRounds(e.target.value)}
-                placeholder="e.g., 4"
+                placeholder="4"
+                min="1"
+                max="10"
               />
             </div>
-          </div>
-          
-          {selectedTournament && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium">
-                  Teams: {tournamentTeams.length} {isOdd && <Badge variant="secondary" className="ml-1">Odd - Byes Required</Badge>}
-                </p>
-                <div className="flex gap-1">
-                  {Object.entries(teamsByCity).map(([city, count]) => (
-                    <Badge key={city} variant="outline" className="text-xs">
-                      {city}: {count}
-                    </Badge>
-                  ))}
+            <div className="flex-1 flex flex-col items-center">
+              <Button 
+                onClick={generateSchedule}
+                disabled={!selectedTournament || !numberOfRounds}
+                size="sm"
+                className="h-20 w-20 p-0 text-lg font-bold"
+              >
+                Run
+              </Button>
+              {selectedTournament && isOdd && (
+                <Badge variant="secondary" className="text-xs mt-2">
+                  Odd - Byes Required
+                </Badge>
+              )}
+            </div>
+            {selectedTournament && (
+              <div className="w-48">
+                <Label>Teams</Label>
+                <div className="text-sm font-medium">
+                  {tournamentTeams.length}
                 </div>
               </div>
-              <p className="text-sm text-blue-600">
-                Tables: {maxTablesForTournament}
-              </p>
-              <p className="text-xs text-green-600">
-                ✓ Avoids same-city matchups and rematches
-                {isOdd && ' ✓ Handles byes with final bye round'}
-              </p>
-            </div>
-          )}
+            )}
+            {selectedTournament && (
+              <div className="w-20">
+                <Label>Tables</Label>
+                <div className="text-sm text-blue-600">
+                  {maxTablesForTournament}
+                </div>
+              </div>
+            )}
+          </div>
+          
 
-          <div className="flex gap-2">
-            <Button 
-              onClick={generateSchedule}
-              disabled={!selectedTournament || !numberOfRounds}
-              className="flex-1"
-            >
-              {existingSchedule ? 'Regenerate Schedule (Clears Results)' : 'Generate Schedule'}
-            </Button>
-            
-            {isScheduleLocked && currentSchedule && (
+
+          {isScheduleLocked && currentSchedule && (
+            <div className="flex gap-2">
               <Button 
                 onClick={handleSendScoreSheets}
                 disabled={linksSent}
@@ -276,8 +323,8 @@ export const TournamentScheduler: React.FC = () => {
               >
                 {linksSent ? 'Links Sent ✓' : 'Send Score Sheet Out'}
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
