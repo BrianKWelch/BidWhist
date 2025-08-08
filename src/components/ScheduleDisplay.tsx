@@ -84,11 +84,12 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
                 </Badge>
               </div>
               <div className="space-y-3">
-                {roundMatches.map(match => {
-                  if (match.isBye) {
-                    // Find the real team (not BYE) - one of teamA or teamB will be null for BYE matches
-                    const realTeamId = match.teamA === null ? match.teamB : match.teamA;
-                    const team = teams.find(t => String(t.id) === String(realTeamId));
+                                                  {roundMatches.map(match => {
+                   if (match.isBye) {
+                     // Find the real team (not BYE) - one of teamA or teamB will be "null" for BYE matches
+                     const realTeamId = match.teamA === "null" ? match.teamB : match.teamA;
+                     
+                     const team = teams.find(t => String(t.id) === String(realTeamId));
                     return (
                       <div key={match.id} className={`p-2 md:p-3 border rounded-lg bg-yellow-50 border-yellow-300 text-yellow-800`}>
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-1 gap-2 md:gap-0">

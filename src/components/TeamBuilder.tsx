@@ -35,7 +35,6 @@ const TeamBuilder: React.FC = () => {
       try {
         const parsedTeams = JSON.parse(savedPendingTeams);
         setPendingTeams(parsedTeams);
-        console.log('Loaded pending teams from localStorage:', parsedTeams.length);
       } catch (error) {
         console.error('Error parsing pending teams from localStorage:', error);
       }
@@ -48,17 +47,9 @@ const TeamBuilder: React.FC = () => {
     
     const storageKey = `pendingTeams_${activeTournament.id}`;
     localStorage.setItem(storageKey, JSON.stringify(pendingTeams));
-    console.log('Saved pending teams to localStorage:', pendingTeams.length);
   }, [pendingTeams, activeTournament]);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('=== TeamBuilder Debug ===');
-    console.log('Active tournament:', activeTournament);
-    console.log('Teams count:', teams.length);
-    console.log('Sample team:', teams[0]);
-    console.log('Teams with registrations:', teams.filter(t => t.registeredTournaments?.length > 0).length);
-  }, [teams, activeTournament]);
+
 
   // Load available players for the active tournament
   useEffect(() => {
@@ -69,9 +60,7 @@ const TeamBuilder: React.FC = () => {
         setIsLoading(true);
         const { supabase } = await import('../supabaseClient');
         
-        console.log('=== Starting to load players for tournament:', activeTournament.id);
-        console.log('Active tournament ID type:', typeof activeTournament.id);
-        console.log('Active tournament ID value:', activeTournament.id);
+
         
         // Test 1: Get all records first to see what's in the table
         const { data: allRecords, error: allError } = await supabase
@@ -83,15 +72,9 @@ const TeamBuilder: React.FC = () => {
           return;
         }
 
-        console.log('Total records in player_tournament table:', allRecords?.length || 0);
-        if (allRecords && allRecords.length > 0) {
-          console.log('Sample record:', allRecords[0]);
-          console.log('Sample tournament_id type:', typeof allRecords[0].tournament_id);
-          console.log('Sample tournament_id value:', allRecords[0].tournament_id);
-        }
+
         
         // Test 2: Try querying with different data types
-        console.log('\n=== Testing different query approaches ===');
         
         // Test with string
         const { data: testString, error: errorString } = await supabase
@@ -99,7 +82,6 @@ const TeamBuilder: React.FC = () => {
           .select('player_id')
           .eq('tournament_id', String(activeTournament.id));
 
-        console.log('Query with string tournament_id:', testString?.length || 0, 'records');
         if (errorString) console.error('String query error:', errorString);
         
         // Test with number
@@ -108,7 +90,6 @@ const TeamBuilder: React.FC = () => {
           .select('player_id')
           .eq('tournament_id', Number(activeTournament.id));
 
-        console.log('Query with number tournament_id:', testNumber?.length || 0, 'records');
         if (errorNumber) console.error('Number query error:', errorNumber);
         
         // Test with original value
@@ -117,7 +98,6 @@ const TeamBuilder: React.FC = () => {
           .select('player_id')
           .eq('tournament_id', activeTournament.id);
 
-        console.log('Query with original tournament_id:', testOriginal?.length || 0, 'records');
         if (errorOriginal) console.error('Original query error:', errorOriginal);
         
         // Use the working query result
@@ -129,8 +109,7 @@ const TeamBuilder: React.FC = () => {
           return;
         }
 
-        console.log('Final player tournament data:', playerTournamentData);
-        console.log('Number of players in player_tournament table:', playerTournamentData?.length || 0);
+
 
         if (!playerTournamentData || playerTournamentData.length === 0) {
           console.log('No players registered for this tournament');
@@ -140,7 +119,6 @@ const TeamBuilder: React.FC = () => {
 
         // Step 2: Get full player details for those IDs
         const playerIds = playerTournamentData.map(pt => pt.player_id);
-        console.log('Player IDs to fetch:', playerIds);
         
         const { data: tournamentPlayers, error: playersError } = await supabase
           .from('players')
@@ -152,8 +130,7 @@ const TeamBuilder: React.FC = () => {
           return;
         }
 
-        console.log('Tournament players fetched:', tournamentPlayers);
-        console.log('Number of players fetched:', tournamentPlayers?.length || 0);
+
 
         // For now, just show ALL players from the tournament (no filtering)
         const available = tournamentPlayers || [];
@@ -169,14 +146,11 @@ const TeamBuilder: React.FC = () => {
           return;
         }
 
-        console.log('Team registrations for tournament:', teamRegistrations);
-        console.log('Number of teams registered:', teamRegistrations?.length || 0);
-
         // Step 4: Get player IDs from registered teams
         let committedPlayerIds = new Set<string>();
         if (teamRegistrations && teamRegistrations.length > 0) {
           const teamIds = teamRegistrations.map(tr => tr.team_id);
-          console.log('Team IDs to check:', teamIds);
+
 
           const { data: registeredTeams, error: teamsError } = await supabase
             .from('teams')
@@ -188,7 +162,7 @@ const TeamBuilder: React.FC = () => {
             return;
           }
 
-          console.log('Registered teams with players:', registeredTeams);
+
           
           // Collect all player IDs from registered teams
           registeredTeams?.forEach(team => {
@@ -197,7 +171,7 @@ const TeamBuilder: React.FC = () => {
           });
         }
 
-        console.log('Committed player IDs:', Array.from(committedPlayerIds));
+
 
         // Step 5: Filter out players who are already in pending teams
         const pendingPlayerIds = new Set<string>();
@@ -206,7 +180,7 @@ const TeamBuilder: React.FC = () => {
           pendingPlayerIds.add(team.player2.id);
         });
 
-        console.log('Pending player IDs:', Array.from(pendingPlayerIds));
+
 
         // Step 6: Filter available players (exclude both committed and pending players)
         const availableFiltered = available.filter(player => 
@@ -216,8 +190,7 @@ const TeamBuilder: React.FC = () => {
         // Sort players by first name for easier finding
         availableFiltered.sort((a, b) => a.first_name.localeCompare(b.first_name));
 
-        console.log('Final available players count:', availableFiltered.length);
-        console.log('Available players:', availableFiltered.map(p => `${p.first_name} ${p.last_name}`));
+
 
         setAvailablePlayers(availableFiltered);
       } catch (error) {
@@ -239,7 +212,7 @@ const TeamBuilder: React.FC = () => {
         setIsLoading(true);
         const { supabase } = await import('../supabaseClient');
         
-        console.log('=== Starting to load players for tournament:', activeTournament.id);
+
         
         // Step 1: Get all players registered for this tournament from player_tournament table
         const { data: playerTournamentData, error: ptError } = await supabase
@@ -252,18 +225,13 @@ const TeamBuilder: React.FC = () => {
           return;
         }
 
-        console.log('Player tournament data:', playerTournamentData);
-        console.log('Number of players in player_tournament table:', playerTournamentData?.length || 0);
-
         if (!playerTournamentData || playerTournamentData.length === 0) {
-          console.log('No players registered for this tournament');
           setAvailablePlayers([]);
           return;
         }
 
         // Step 2: Get full player details for those IDs
         const playerIds = playerTournamentData.map(pt => pt.player_id);
-        console.log('Player IDs to fetch:', playerIds);
         
         const { data: tournamentPlayers, error: playersError } = await supabase
           .from('players')
@@ -275,8 +243,7 @@ const TeamBuilder: React.FC = () => {
           return;
         }
 
-        console.log('Tournament players fetched:', tournamentPlayers);
-        console.log('Number of players fetched:', tournamentPlayers?.length || 0);
+
 
         // For now, just show ALL players from the tournament (no filtering)
         const available = tournamentPlayers || [];
@@ -292,14 +259,13 @@ const TeamBuilder: React.FC = () => {
           return;
         }
 
-        console.log('Team registrations for tournament:', teamRegistrations);
-        console.log('Number of teams registered:', teamRegistrations?.length || 0);
+
 
         // Step 4: Get player IDs from registered teams
         let committedPlayerIds = new Set<string>();
         if (teamRegistrations && teamRegistrations.length > 0) {
           const teamIds = teamRegistrations.map(tr => tr.team_id);
-          console.log('Team IDs to check:', teamIds);
+
 
           const { data: registeredTeams, error: teamsError } = await supabase
             .from('teams')
@@ -311,7 +277,7 @@ const TeamBuilder: React.FC = () => {
             return;
           }
 
-          console.log('Registered teams with players:', registeredTeams);
+
           
           // Collect all player IDs from registered teams
           registeredTeams?.forEach(team => {
@@ -320,7 +286,7 @@ const TeamBuilder: React.FC = () => {
           });
         }
 
-        console.log('Committed player IDs:', Array.from(committedPlayerIds));
+
 
         // Step 5: Filter out players who are already in pending teams
         const pendingPlayerIds = new Set<string>();
@@ -329,7 +295,7 @@ const TeamBuilder: React.FC = () => {
           pendingPlayerIds.add(team.player2.id);
         });
 
-        console.log('Pending player IDs:', Array.from(pendingPlayerIds));
+
 
         // Step 6: Filter available players (exclude both committed and pending players)
         const availableFiltered = available.filter(player => 
@@ -339,8 +305,7 @@ const TeamBuilder: React.FC = () => {
         // Sort players by first name for easier finding
         availableFiltered.sort((a, b) => a.first_name.localeCompare(b.first_name));
 
-        console.log('Final available players count:', availableFiltered.length);
-        console.log('Available players:', availableFiltered.map(p => `${p.first_name} ${p.last_name}`));
+
 
         setAvailablePlayers(availableFiltered);
       } catch (error) {
