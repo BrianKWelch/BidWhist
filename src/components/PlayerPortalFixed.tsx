@@ -18,16 +18,8 @@ const PlayerPortalFixed = () => {
   const [adminMode, setAdminMode] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
-  const [scoreA, setScoreA] = useState('');
-  const [scoreB, setScoreB] = useState('');
-  const [handsA, setHandsA] = useState('');
-  const [handsB, setHandsB] = useState('');
-  const [bostonA, setBostonA] = useState('0');
-  const [bostonB, setBostonB] = useState('0');
-  const [currentStep, setCurrentStep] = useState(0);
-  const [tieWinner, setTieWinner] = useState<'teamA' | 'teamB' | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [enteringTeamId, setEnteringTeamId] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const { teams, schedules, games, tournaments, getActiveTournament, submitGame, confirmScore, beginScoreEntry, refreshGamesFromSupabase } = useAppContext();
 
   const cleanPhoneNumber = (phone: string) => {
@@ -66,84 +58,6 @@ const PlayerPortalFixed = () => {
       setTeam(selectedTeam);
       setAdminMode(true);
     }
-  };
-
-  // Score entry functions
-  const handleSubmitScore = () => {
-    if (!selectedMatch || !team) return;
-    
-    const toNum = (v: string) => v.trim() === '' ? 0 : Number(v);
-    const myScore = toNum(scoreA);
-    const oppScore = toNum(scoreB);
-    const myHands = toNum(handsA);
-    const oppHands = toNum(handsB);
-    const myBostons = toNum(bostonA);
-    const oppBostons = toNum(bostonB);
-    
-    if (myScore === oppScore && !tieWinner) {
-      toast({ title: 'Tie detected', description: 'Please select who won the tiebreaker.', variant: 'destructive' });
-      return;
-    }
-    
-    const winner = myScore > oppScore ? 'teamA' : oppScore > myScore ? 'teamB' : tieWinner;
-    
-    const gameData = {
-      matchId: selectedMatch.id,
-      teamA: selectedMatch.teamA,
-      teamB: selectedMatch.teamB,
-      scoreA: myScore,
-      scoreB: oppScore,
-      handsA: myHands,
-      handsB: oppHands,
-      boston_a: myBostons,
-      boston_b: oppBostons,
-      winner,
-      submittedBy: team.id,
-      round: selectedMatch.round,
-      status: 'pending_confirmation',
-      entered_by_team_id: team.id
-    };
-    
-    submitGame(gameData);
-    setSelectedMatch(null);
-    setCurrentStep(0);
-    setScoreA('');
-    setScoreB('');
-    setHandsA('');
-    setHandsB('');
-    setBostonA('0');
-    setBostonB('0');
-    setTieWinner(null);
-    setEnteringTeamId(null);
-    setRefreshKey(prev => prev + 1);
-  };
-
-  const getNextStep = (currentStep: number) => {
-    const activeTournament = getActiveTournament();
-    const tracksHands = activeTournament?.tracksHands;
-    
-    if (currentStep === 0) return 1; // My score -> My hands (if tracksHands) or Opponent score
-    if (currentStep === 1 && tracksHands) return 2; // My hands -> My bostons
-    if (currentStep === 1 && !tracksHands) return 3; // My score -> Opponent score
-    if (currentStep === 2) return 3; // My bostons -> Opponent score
-    if (currentStep === 3) return 4; // Opponent score -> Opponent hands (if tracksHands) or Opponent bostons
-    if (currentStep === 4 && tracksHands) return 5; // Opponent hands -> Opponent bostons
-    if (currentStep === 4 && !tracksHands) return 6; // Opponent score -> Opponent bostons
-    if (currentStep === 5) return 6; // Opponent hands -> Opponent bostons
-    return 7; // Final step
-  };
-
-  const getPrevStep = (currentStep: number) => {
-    const activeTournament = getActiveTournament();
-    const tracksHands = activeTournament?.tracksHands;
-    
-    if (currentStep === 1) return 0;
-    if (currentStep === 2) return 1;
-    if (currentStep === 3) return tracksHands ? 2 : 1;
-    if (currentStep === 4) return 3;
-    if (currentStep === 5) return 4;
-    if (currentStep === 6) return tracksHands ? 5 : 4;
-    return 6;
   };
 
   // Force re-render when games change
@@ -548,7 +462,7 @@ const PlayerPortalFixed = () => {
                                                         if (result.ok) {
                                                           setEnteringTeamId(team.id);
                                                           setSelectedMatch(match);
-                                                          setCurrentStep(0);
+                                                          // setCurrentStep(0); // Removed as per edit hint
                                                         } else {
                                                           toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
                                                           await refreshGamesFromSupabase();
@@ -566,7 +480,7 @@ const PlayerPortalFixed = () => {
                                                     onClick={() => {
                                                       if (match.status === 'Pending confirmation') {
                                                         setSelectedMatch(match);
-                                                        setCurrentStep(0);
+                                                        // setCurrentStep(0); // Removed as per edit hint
                                                       }
                                                     }}
                                                   >
@@ -660,329 +574,21 @@ const PlayerPortalFixed = () => {
                       size="sm" 
                       onClick={() => {
                         setSelectedMatch(null);
-                        setCurrentStep(0);
-                        setScoreA('');
-                        setScoreB('');
-                        setHandsA('');
-                        setHandsB('');
-                        setBostonA('0');
-                        setBostonB('0');
-                        setTieWinner(null);
                         setEnteringTeamId(null);
                       }}
                     >
                       ✕
                     </Button>
                   </div>
-
-                  {/* If there's a pending confirmation for this match and this team didn't submit, show confirmation UI */}
-                  {(() => {
-                    const pendingGame = games.find(g => String(g.matchId) === String(selectedMatch.id) && g.status === 'pending_confirmation');
-                    const isOpponentToConfirm = pendingGame && String(pendingGame.entered_by_team_id) !== String(team.id);
-                    
-                    if (pendingGame && isOpponentToConfirm) {
-                      const myIsTeamA = String(pendingGame.teamA) === String(team.id);
-                      const myScore = myIsTeamA ? pendingGame.scoreA : pendingGame.scoreB;
-                      const oppScore = myIsTeamA ? pendingGame.scoreB : pendingGame.scoreA;
-                      const myBostons = myIsTeamA ? (pendingGame.boston_a ?? 0) : (pendingGame.boston_b ?? 0);
-                      const oppBostons = myIsTeamA ? (pendingGame.boston_b ?? 0) : (pendingGame.boston_a ?? 0);
-                      const myHands = myIsTeamA ? (pendingGame.handsA ?? 0) : (pendingGame.handsB ?? 0);
-                      const oppHands = myIsTeamA ? (pendingGame.handsB ?? 0) : (pendingGame.handsA ?? 0);
-                      
-                      const handleConfirm = async (confirm: boolean) => {
-                        try {
-                          await confirmScore(pendingGame.id, confirm);
-                          toast({ title: confirm ? 'Score confirmed' : 'Score disputed', variant: confirm ? 'default' : 'destructive' });
-                          setSelectedMatch(null);
-                          await refreshGamesFromSupabase();
-                          setRefreshKey(prev => prev + 1);
-                        } catch (e) {
-                          toast({ title: 'Action failed', description: 'Please try again.', variant: 'destructive' });
-                        }
-                      };
-
-                      return (
-                        <div className="space-y-4">
-                          <div className="text-center">
-                            <h4 className="font-semibold mb-2">Review Opponent's Score</h4>
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                              <p className="text-sm mb-2">Your score: <span className="font-bold">{myScore}</span></p>
-                              <p className="text-sm mb-2">Opponent score: <span className="font-bold">{oppScore}</span></p>
-                              {myHands > 0 && <p className="text-sm mb-2">Your hands: <span className="font-bold">{myHands}</span></p>}
-                              {oppHands > 0 && <p className="text-sm mb-2">Opponent hands: <span className="font-bold">{oppHands}</span></p>}
-                              {myBostons > 0 && <p className="text-sm mb-2">Your Bostons: <span className="font-bold">{myBostons}</span></p>}
-                              {oppBostons > 0 && <p className="text-sm mb-2">Opponent Bostons: <span className="font-bold">{oppBostons}</span></p>}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              onClick={() => handleConfirm(true)} 
-                              className="flex-1 bg-green-600 hover:bg-green-700"
-                            >
-                              <Check className="h-4 w-4 mr-1" />
-                              Confirm
-                            </Button>
-                            <Button 
-                              onClick={() => handleConfirm(false)} 
-                              variant="destructive" 
-                              className="flex-1"
-                            >
-                              Dispute
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Step-by-step score entry
-                    const activeTournament = getActiveTournament();
-                    const tracksHands = activeTournament?.tracksHands;
-
-                    return (
-                      <div className="space-y-4">
-                        {currentStep === 0 && (
-                          <div className="text-center space-y-4">
-                            <h2 className="text-2xl font-bold text-blue-600">How many points did you have?</h2>
-                            <Input
-                              type="tel"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={scoreA}
-                              onChange={(e) => setScoreA(e.target.value)}
-                              placeholder="Enter your points"
-                              className="text-center text-xl h-12"
-                              autoFocus
-                            />
-                            <Button 
-                              onClick={() => setCurrentStep(getNextStep(0))} 
-                              className="w-full"
-                              disabled={!scoreA}
-                            >
-                              Next
-                            </Button>
-                          </div>
-                        )}
-
-                        {tracksHands && currentStep === 1 && (
-                          <div className="text-center space-y-4">
-                            <h2 className="text-2xl font-bold text-blue-600">How many hands did you win?</h2>
-                            <Input
-                              type="tel"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={handsA}
-                              onChange={(e) => setHandsA(e.target.value)}
-                              placeholder="Enter hands won"
-                              className="text-center text-xl h-12"
-                              autoFocus
-                            />
-                            <div className="flex gap-2">
-                              <Button 
-                                onClick={() => setCurrentStep(getPrevStep(1))} 
-                                variant="outline"
-                                className="flex-1"
-                              >
-                                Back
-                              </Button>
-                              <Button 
-                                onClick={() => setCurrentStep(getNextStep(1))} 
-                                className="flex-1"
-                                disabled={!handsA}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {currentStep === 2 && (
-                          <div className="text-center space-y-4">
-                            <h2 className="text-2xl font-bold text-blue-600">How many Bostons did you make?</h2>
-                            <Input
-                              type="tel"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={bostonA}
-                              onChange={(e) => setBostonA(e.target.value)}
-                              placeholder="Enter your Bostons"
-                              className="text-center text-xl h-12"
-                              autoFocus
-                            />
-                            <div className="flex gap-2">
-                              <Button 
-                                onClick={() => setCurrentStep(getPrevStep(2))} 
-                                variant="outline"
-                                className="flex-1"
-                              >
-                                Back
-                              </Button>
-                              <Button 
-                                onClick={() => setCurrentStep(getNextStep(2))} 
-                                className="flex-1"
-                                disabled={!bostonA}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {currentStep === 3 && (
-                          <div className="text-center space-y-4">
-                            <h2 className="text-2xl font-bold text-blue-600">How many points did your opponent have?</h2>
-                            <Input
-                              type="tel"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={scoreB}
-                              onChange={(e) => setScoreB(e.target.value)}
-                              placeholder="Enter opponent points"
-                              className="text-center text-xl h-12"
-                              autoFocus
-                            />
-                            <div className="flex gap-2">
-                              <Button 
-                                onClick={() => setCurrentStep(getPrevStep(3))} 
-                                variant="outline"
-                                className="flex-1"
-                              >
-                                Back
-                              </Button>
-                              <Button 
-                                onClick={() => setCurrentStep(getNextStep(3))} 
-                                className="flex-1"
-                                disabled={!scoreB}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {tracksHands && currentStep === 4 && (
-                          <div className="text-center space-y-4">
-                            <h2 className="text-2xl font-bold text-blue-600">How many hands did your opponent win?</h2>
-                            <Input
-                              type="tel"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={handsB}
-                              onChange={(e) => setHandsB(e.target.value)}
-                              placeholder="Enter opponent hands"
-                              className="text-center text-xl h-12"
-                              autoFocus
-                            />
-                            <div className="flex gap-2">
-                              <Button 
-                                onClick={() => setCurrentStep(getPrevStep(4))} 
-                                variant="outline"
-                                className="flex-1"
-                              >
-                                Back
-                              </Button>
-                              <Button 
-                                onClick={() => setCurrentStep(getNextStep(4))} 
-                                className="flex-1"
-                                disabled={!handsB}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {currentStep === 5 && (
-                          <div className="text-center space-y-4">
-                            <h2 className="text-2xl font-bold text-blue-600">How many Bostons did your opponent make?</h2>
-                            <Input
-                              type="tel"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={bostonB}
-                              onChange={(e) => setBostonB(e.target.value)}
-                              placeholder="Enter opponent Bostons"
-                              className="text-center text-xl h-12"
-                              autoFocus
-                            />
-                            <div className="flex gap-2">
-                              <Button 
-                                onClick={() => setCurrentStep(getPrevStep(5))} 
-                                variant="outline"
-                                className="flex-1"
-                              >
-                                Back
-                              </Button>
-                              <Button 
-                                onClick={() => setCurrentStep(getNextStep(5))} 
-                                className="flex-1"
-                                disabled={!bostonB}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {currentStep === 6 && (
-                          <div className="text-center space-y-4">
-                            <h2 className="text-2xl font-bold text-blue-600">Review Your Score</h2>
-                            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                              <p className="text-sm">Your score: <span className="font-bold">{scoreA}</span></p>
-                              <p className="text-sm">Opponent score: <span className="font-bold">{scoreB}</span></p>
-                              {tracksHands && <p className="text-sm">Your hands: <span className="font-bold">{handsA}</span></p>}
-                              {tracksHands && <p className="text-sm">Opponent hands: <span className="font-bold">{handsB}</span></p>}
-                              <p className="text-sm">Your Bostons: <span className="font-bold">{bostonA}</span></p>
-                              <p className="text-sm">Opponent Bostons: <span className="font-bold">{bostonB}</span></p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button 
-                                onClick={() => setCurrentStep(getPrevStep(6))} 
-                                variant="outline"
-                                className="flex-1"
-                              >
-                                Back
-                              </Button>
-                              <Button 
-                                onClick={handleSubmitScore} 
-                                className="flex-1 bg-green-600 hover:bg-green-700"
-                              >
-                                Submit Score
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {currentStep === 7 && (
-                          <div className="text-center space-y-4">
-                            <h2 className="text-2xl font-bold text-red-600">Tie Detected!</h2>
-                            <p className="text-sm text-gray-600">The scores are equal. Who won the tiebreaker?</p>
-                            <div className="flex gap-2">
-                              <Button 
-                                onClick={() => {
-                                  setTieWinner('teamA');
-                                  setCurrentStep(6);
-                                }} 
-                                variant={tieWinner === 'teamA' ? 'default' : 'outline'}
-                                className="flex-1"
-                              >
-                                We Won
-                              </Button>
-                              <Button 
-                                onClick={() => {
-                                  setTieWinner('teamB');
-                                  setCurrentStep(6);
-                                }} 
-                                variant={tieWinner === 'teamB' ? 'default' : 'outline'}
-                                className="flex-1"
-                              >
-                                They Won
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  
+                  {/* Use the ScoreEntryCard component for score entry */}
+                  <ScoreEntryCard 
+                    team={team} 
+                    onComplete={() => {
+                      setSelectedMatch(null);
+                      setEnteringTeamId(null);
+                    }}
+                  />
                 </div>
               </div>
             )}

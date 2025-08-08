@@ -11,9 +11,10 @@ import type { Team } from '@/contexts/AppContext';
 
 interface ScoreEntryCardProps {
   team: Team;
+  onComplete?: () => void;
 }
 
-const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
+const ScoreEntryCard = ({ team, onComplete }: ScoreEntryCardProps) => {
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
@@ -155,6 +156,11 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
     setTieWinner(null);
     setEnteringTeamId(null);
     setRefreshKey(prev => prev + 1);
+    
+    // Call the onComplete callback if provided
+    if (onComplete) {
+      onComplete();
+    }
   };
 
 
@@ -364,6 +370,11 @@ const ScoreEntryCard = ({ team }: ScoreEntryCardProps) => {
                     setSelectedMatch(null);
                     await refreshGamesFromSupabase();
                     setRefreshKey(prev => prev + 1);
+                    
+                    // Call the onComplete callback if provided
+                    if (onComplete) {
+                      onComplete();
+                    }
                   } catch (e) {
                     toast({ title: 'Action failed', description: 'Please try again.', variant: 'destructive' });
                   }
