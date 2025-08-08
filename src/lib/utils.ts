@@ -71,14 +71,14 @@ export function getSortedTournamentResults(teams, games, schedule, overrides, nu
             wl: wlA,
             points: game.scoreA,
             hands: handsA,
-            boston: game.boston === 'teamA' ? 1 : 0,
+            boston: game.boston_a ?? 0,
             isTie: true
           };
           resultsMatrix[teamBId][round] = {
             wl: wlB,
             points: game.scoreB,
             hands: handsB,
-            boston: game.boston === 'teamB' ? 1 : 0,
+            boston: game.boston_b ?? 0,
             isTie: true
           };
           continue;
@@ -88,9 +88,10 @@ export function getSortedTournamentResults(teams, games, schedule, overrides, nu
         const myScore = isTeamA ? game.scoreA : game.scoreB;
         const oppScore = isTeamA ? game.scoreB : game.scoreA;
         const myHands = isTeamA ? game.handsA : game.handsB;
-        const boston = (game.boston === 'teamA' && isTeamA) || (game.boston === 'teamB' && !isTeamA) ? 1 : 0;
+        // Use the new boston_a and boston_b fields instead of the old boston string field
+        const myBostons = isTeamA ? (game.boston_a ?? 0) : (game.boston_b ?? 0);
         const wl = myScore > oppScore ? 'W' : 'L';
-        resultsMatrix[teamId][round] = { wl, points: myScore, hands: myHands ?? 0, boston, isTie: false };
+        resultsMatrix[teamId][round] = { wl, points: myScore, hands: myHands ?? 0, boston: myBostons, isTie: false };
       } else {
         resultsMatrix[teamId][round] = { wl: '', points: 0, hands: 0, boston: 0, isTie: false };
       }
@@ -112,7 +113,9 @@ export function getSortedTournamentResults(teams, games, schedule, overrides, nu
       points: Object.entries(resultsMatrix[teamId])
         .filter(([k]) => k !== 'totalPoints')
         .reduce((sum, [, r]) => sum + (r.points || 0), 0),
-      boston: 0,
+      boston: Object.entries(resultsMatrix[teamId])
+        .filter(([k]) => k !== 'totalPoints')
+        .reduce((sum, [, r]) => sum + (r.boston || 0), 0),
       hands: Object.entries(resultsMatrix[teamId])
         .filter(([k]) => k !== 'totalPoints')
         .reduce((sum, [, r]) => sum + (r.hands || 0), 0),

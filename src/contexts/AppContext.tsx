@@ -202,6 +202,7 @@ interface AppContextType {
   updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => void;
   submitGame: (game: any) => void;
   beginScoreEntry: (params: { matchId: string; teamId: string; teamA: string; teamB: string; round: number }) => Promise<{ ok: boolean; reason?: 'conflict' | 'error' }>;
+  releaseScoreEntryLock: (params: { matchId: string; teamId: string }) => Promise<{ ok: boolean }>;
   confirmGame: (gameId: string, confirmedBy: string) => void;
   updatePaymentStatus: (teamId: string, status: 'pending' | 'paid') => void;
   updatePlayerPaymentStatus: (teamId: string, player: 'player1' | 'player2', status: 'pending' | 'paid') => void;

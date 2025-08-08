@@ -14,7 +14,7 @@ interface TournamentResultsProps {
 
 
 export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournamentId }) => {
-  const { tournaments, teams, schedules, games, clearTournamentResults, submitGame, scoreSubmissions, resetAllTournamentData, setGames, setScoreSubmissions, tournamentResults, setTournamentResults } = useAppContext();
+  const { tournaments, teams, schedules, games, clearTournamentResults, submitGame, scoreSubmissions, resetAllTournamentData, setGames, setScoreSubmissions, tournamentResults, setTournamentResults, refreshGamesFromSupabase } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState(tournamentId || '1');
   const effectiveTournamentId = tournamentId || selectedTournament;
   const [sortByWins, setSortByWins] = useState(true);
@@ -23,6 +23,15 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
   const [overrides, setOverrides] = useState<{ [key: string]: string }>({});
   // Force refresh after simulating confirmation
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Real-time updates for admin portal results
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      refreshGamesFromSupabase();
+    }, 2000); // Refresh every 2 seconds for faster admin updates
+
+    return () => clearInterval(interval);
+  }, [refreshGamesFromSupabase]);
 
   // Load overrides from localStorage on mount
   useEffect(() => {

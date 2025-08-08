@@ -278,6 +278,50 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setGames(mappedGames);
     }
     fetchGamesFromSupabase();
+
+    // Real-time subscription for games table
+    const gamesChannel = supabase
+      .channel('public:games')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, payload => {
+        const row: any = payload.new || payload.old;
+        if (!row) return;
+        
+        const mappedGame = {
+          ...row,
+          id: String(row.id),
+          teamA: String(row.teamA ?? row.team_a),
+          teamB: String(row.teamB ?? row.team_b),
+          matchId: String(row.matchId ?? row.match_id),
+          handsA: row.handsA ?? row.hands_a ?? 0,
+          handsB: row.handsB ?? row.hands_b ?? 0,
+          boston_a: row.boston_a ?? row.bostonA ?? 0,
+          boston_b: row.boston_b ?? row.bostonB ?? 0,
+          entered_by_team_id: row.entered_by_team_id ?? row.enteredBy,
+          status: row.status,
+          round: row.round,
+          submittedBy: String(row.submitted_by ?? row.submittedBy ?? ''),
+          confirmed: Boolean(row.confirmed),
+          timestamp: row.timestamp ? new Date(row.timestamp) : new Date(),
+        };
+
+        setGames(prev => {
+          switch (payload.eventType) {
+            case 'DELETE':
+              return prev.filter(g => g.id !== row.id);
+            case 'UPDATE':
+              return prev.map(g => (g.id === row.id ? mappedGame : g));
+            case 'INSERT':
+            default:
+              const exists = prev.some(g => g.id === row.id);
+              return exists ? prev : [...prev, mappedGame];
+          }
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(gamesChannel);
+    };
   }, []);
 
   // After submitting a score, fetch games again from Supabase
@@ -684,17 +728,17 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const matchId = gameData.matchId;
     const teamId = gameData.entered_by_team_id;
     
-    // Find the existing "entering" row to get its ID
+    // Find the existing row to get its ID - could be "entering" or "disputed"
     const { data: existing, error: selErr } = await supabase
       .from('games')
       .select('*')
       .eq('matchId', matchId)
-      .eq('status', 'entering')
       .eq('entered_by_team_id', teamId)
+      .in('status', ['entering', 'disputed'])
       .single();
     
     if (selErr || !existing) {
-      console.error('submitGame: Could not find existing entering row', selErr);
+      console.error('submitGame: Could not find existing score entry or disputed row', selErr);
       toast({ title: 'Error: Could not find score entry session', description: 'Please try again.', variant: 'destructive' });
       return;
     }
@@ -839,7 +883,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const { error } = await supabase
         .from('games')
         .update({ 
-          status: confirm ? 'confirmed' : 'pending_confirmation',
+          status: confirm ? 'confirmed' : 'disputed',
           confirmed: confirm,
           confirmedBy: confirm ? 'opponent' : null
         })
@@ -1430,16 +1474,16 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         .in('status', ['entering', 'pending_confirmation']);
       if (selErr) {
         console.error('beginScoreEntry select error:', selErr);
-        return { ok: false, reason: 'error' };
+        return { ok: false, reason: 'error' as const };
       }
       if (existing && existing.length > 0) {
         const g = existing[0];
         // If another team holds the lock, deny
         if (g.status === 'entering' && String(g.entered_by_team_id) !== String(teamId)) {
-          return { ok: false, reason: 'conflict' };
+          return { ok: false, reason: 'conflict' as const };
         }
         if (g.status === 'pending_confirmation') {
-          return { ok: false, reason: 'conflict' };
+          return { ok: false, reason: 'conflict' as const };
         }
       }
       // Upsert entering record
@@ -1464,13 +1508,35 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const { error } = await supabase.from('games').upsert([row], { onConflict: ['id'] });
       if (error) {
         console.error('beginScoreEntry upsert error:', error);
-        return { ok: false, reason: 'error' };
+        return { ok: false, reason: 'error' as const };
       }
       await refreshGamesFromSupabase();
       return { ok: true };
     } catch (error) {
       console.error('beginScoreEntry catch error:', error);
-      return { ok: false, reason: 'error' };
+      return { ok: false, reason: 'error' as const };
+    }
+  };
+
+  const releaseScoreEntryLock = async ({ matchId, teamId }: { matchId: string; teamId: string }) => {
+    try {
+      const { error } = await supabase
+        .from('games')
+        .delete()
+        .eq('matchId', matchId)
+        .eq('status', 'entering')
+        .eq('entered_by_team_id', teamId);
+      
+      if (error) {
+        console.error('Error releasing score entry lock:', error);
+        return { ok: false };
+      }
+      
+      await refreshGamesFromSupabase();
+      return { ok: true };
+    } catch (error) {
+      console.error('Error releasing score entry lock:', error);
+      return { ok: false };
     }
   };
 
@@ -1668,6 +1734,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       },
       submitGame,
       beginScoreEntry,
+      releaseScoreEntryLock,
       confirmGame: (gameId: string, confirmedBy: string) => { setGames(prev => prev.map(game => game.id === gameId ? { ...game, confirmed: true, confirmedBy } : game)); },
       updateGameScore: (matchId: string, teamAScore: number, teamBScore: number) => {},
       saveSchedule: async (schedule: TournamentSchedule) => {

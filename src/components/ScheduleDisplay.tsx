@@ -11,7 +11,16 @@ interface ScheduleDisplayProps {
 }
 
 export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tournamentName }) => {
-  const { teams, games, scoreSubmissions } = useAppContext();
+  const { teams, games, scoreSubmissions, refreshGamesFromSupabase } = useAppContext();
+
+  // Real-time updates for admin portal schedule
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      refreshGamesFromSupabase();
+    }, 2000); // Refresh every 2 seconds for faster admin updates
+
+    return () => clearInterval(interval);
+  }, [refreshGamesFromSupabase]);
 
   const getMatchStatus = (match: any) => {
     const completedGame = games.find(g => g.matchId === match.id && g.confirmed);

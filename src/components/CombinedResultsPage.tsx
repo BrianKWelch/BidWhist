@@ -7,7 +7,16 @@ import { TournamentResults } from './TournamentResults';
 const ExportResultsButton = React.lazy(() => import('./ExportResultsButton'));
 
 const CombinedResultsPage = () => {
-  const { games, teams, getTournamentResults, tournaments, getActiveTournament } = useAppContext();
+  const { games, teams, getTournamentResults, tournaments, getActiveTournament, refreshGamesFromSupabase } = useAppContext();
+
+  // Real-time updates for admin portal
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      refreshGamesFromSupabase();
+    }, 1500); // Refresh every 1.5 seconds for faster admin updates
+
+    return () => clearInterval(interval);
+  }, [refreshGamesFromSupabase]);
 
   const activeTournament = getActiveTournament();
   const tournamentResults = React.useMemo(() => (

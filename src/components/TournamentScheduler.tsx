@@ -15,7 +15,7 @@ import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export const TournamentScheduler: React.FC = () => {
-  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions } = useAppContext();
+  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, getActiveTournament } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [numberOfRounds, setNumberOfRounds] = useState<string>('4');
   const [currentSchedule, setCurrentSchedule] = useState<TournamentSchedule | null>(null);
@@ -25,6 +25,14 @@ export const TournamentScheduler: React.FC = () => {
   const [byeTeamsList, setByeTeamsList] = useState<string[]>([]);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
   const [scheduleOption, setScheduleOption] = useState<'A' | 'B' | null>(null);
+
+  // Default to active tournament when component mounts
+  useEffect(() => {
+    const activeTournament = getActiveTournament();
+    if (activeTournament && !selectedTournament) {
+      setSelectedTournament(activeTournament.id);
+    }
+  }, [getActiveTournament, selectedTournament]);
 
   useEffect(() => {
     if (selectedTournament) {
