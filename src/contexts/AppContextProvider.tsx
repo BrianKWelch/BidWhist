@@ -155,6 +155,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Only load teams from localStorage or sampleTeams, never auto-generate dummy teams
   const [teams, setTeams] = useState<Team[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   useEffect(() => {
     import('../supabaseClient').then(async ({ supabase }) => {
       // Fetch all teams with player data joined
@@ -241,6 +242,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
       setTeams(teamsWithTournaments);
     });
+  }, []);
+
+  // Load players on mount
+  useEffect(() => {
+    refreshPlayers();
   }, []);
   // Remove localStorage initialization for games
   const [games, setGames] = useState<Game[]>([]);
@@ -676,10 +682,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       }
       const round = game.round;
-      const teamAId = typeof game.teamA === 'object' ? game.teamA.id : game.teamA;
-      const teamBId = typeof game.teamB === 'object' ? game.teamB.id : game.teamB;
-      const teamAWin = game.scoreA > game.scoreB;
-      const teamBWin = game.scoreB > game.scoreA;
+      const teamAId = typeof game.teamA === 'object' ? game.teamA.id : String(game.teamA || '');
+      const teamBId = typeof game.teamB === 'object' ? game.teamB.id : String(game.teamB || '');
+      // Use the winner field from the game data, which handles tied scores correctly
+      const teamAWin = game.winner === 'teamA';
+      const teamBWin = game.winner === 'teamB';
       const bostonA = game.boston === 'teamA' ? 1 : 0;
       const bostonB = game.boston === 'teamB' ? 1 : 0;
 
@@ -927,9 +934,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const currentRound = match.round;
       const nextRoundNum = currentRound + 1;
 
-      // Determine winner and loser
-      const winnerId = effectiveGame.scoreA > effectiveGame.scoreB ? match.teamA : match.teamB;
-      const loserId = effectiveGame.scoreA > effectiveGame.scoreB ? match.teamB : match.teamA;
+      // Determine winner and loser using the winner field from the game data
+      const winnerId = effectiveGame.winner === 'teamA' ? match.teamA : match.teamB;
+      const loserId = effectiveGame.winner === 'teamA' ? match.teamB : match.teamA;
       let placeholderSchedules = schedules;
 
       // After determining winnerId and loserId, replace placeholders in the next round
@@ -1108,8 +1115,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if(!src) return null;
         const game = games.find(g=>g.matchId===src.id && g.confirmed);
         if(!game) return null;
-        const loser = game.scoreA>game.scoreB ? src.teamB : src.teamA;
-        const winner = game.scoreA>game.scoreB ? src.teamA : src.teamB;
+        const loser = game.winner === 'teamA' ? src.teamB : src.teamA;
+        const winner = game.winner === 'teamA' ? src.teamA : src.teamB;
         return wl==='L'? loser : winner;
       };
       newMatches.forEach(mm=>{
@@ -1464,6 +1471,27 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const refreshPlayers = async () => {
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { data: playersData, error: playersError } = await supabase
+        .from('players')
+        .select('*')
+        .order('first_name', { ascending: true });
+
+      if (playersError) {
+        console.error('Error fetching players:', playersError);
+        setPlayers([]);
+        return;
+      }
+
+      setPlayers(playersData || []);
+    } catch (error) {
+      console.error('Error refreshing players:', error);
+    }
+  };
+
   const beginScoreEntry = async ({ matchId, teamId, teamA, teamB, round }: { matchId: string; teamId: string; teamA: string; teamB: string; round: number }) => {
     try {
       // Check existing game for this match
@@ -1471,7 +1499,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         .from('games')
         .select('*')
         .eq('matchId', matchId)
-        .in('status', ['entering', 'pending_confirmation']);
+        .in('status', ['entering', 'pending_confirmation', 'disputed']);
       if (selErr) {
         console.error('beginScoreEntry select error:', selErr);
         return { ok: false, reason: 'error' as const };
@@ -1483,6 +1511,10 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return { ok: false, reason: 'conflict' as const };
         }
         if (g.status === 'pending_confirmation') {
+          return { ok: false, reason: 'conflict' as const };
+        }
+        // For disputed status, only allow the team that originally entered the score to re-enter
+        if (g.status === 'disputed' && String(g.entered_by_team_id) !== String(teamId)) {
           return { ok: false, reason: 'conflict' as const };
         }
       }
@@ -1542,7 +1574,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   return (
     <AppContext.Provider value={{
-      sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, games, setGames, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, setTournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions, setScoreSubmissions, resetAllTournamentData,
+      sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, players, games, setGames, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, setTournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions, setScoreSubmissions, resetAllTournamentData,
       updatePlaceholders,
       forceReplaceAllPlaceholders,
       refreshSchedules,
@@ -1910,7 +1942,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       clearScoreSubmissions,
       refreshGamesFromSupabase,
       createTeamFromPlayers,
-      refreshTeams
+      refreshTeams,
+      refreshPlayers
     }}>
       {children}
     </AppContext.Provider>

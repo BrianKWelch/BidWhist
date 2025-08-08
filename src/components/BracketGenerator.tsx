@@ -10,8 +10,11 @@ import type { BracketTeam, BracketMatch, Bracket } from '@/contexts/AppContext';
 import { getSortedTournamentResults } from '@/lib/utils';
 
 export const BracketGenerator: React.FC = () => {
-  const { tournaments, getTournamentResults, saveBracket, getBracket, updateBracket, deleteBracket, teams, schedules, games } = useAppContext();
-  const [selectedTournament, setSelectedTournament] = useState('1');
+  const { tournaments, getTournamentResults, saveBracket, getBracket, updateBracket, deleteBracket, teams, schedules, games, getActiveTournament } = useAppContext();
+  const [selectedTournament, setSelectedTournament] = useState(() => {
+    const activeTournament = getActiveTournament();
+    return activeTournament?.id || '1';
+  });
   const [bracket, setBracket] = useState<Bracket | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [showRestartDialog, setShowRestartDialog] = useState(false);

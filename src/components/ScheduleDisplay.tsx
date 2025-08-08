@@ -25,9 +25,12 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
   const getMatchStatus = (match: any) => {
     const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
     if (completedGame) {
-      const winner = completedGame.scoreA > completedGame.scoreB ? 
+      // Use the winner field from the game data, which handles tied scores correctly
+      const winner = completedGame.winner === 'teamA' ? 
         teams.find(t => t.id === match.teamA) : teams.find(t => t.id === match.teamB);
-      return `Completed - Team ${winner?.teamNumber || 'Unknown'} won ${Math.max(completedGame.scoreA, completedGame.scoreB)}-${Math.min(completedGame.scoreA, completedGame.scoreB)}`;
+      const winnerScore = completedGame.winner === 'teamA' ? completedGame.scoreA : completedGame.scoreB;
+      const loserScore = completedGame.winner === 'teamA' ? completedGame.scoreB : completedGame.scoreA;
+      return `Completed - Team ${winner?.teamNumber || 'Unknown'} won ${winnerScore}-${loserScore}`;
     }
 
     const submissions = scoreSubmissions.filter(s => s.matchId === match.id);
@@ -122,8 +125,23 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
                   const teamB = teams.find(t => t.id === match.teamB);
                   const status = getMatchStatus(match);
                   const statusColor = getStatusColor(status);
+                  
+                  // Get completed game data for result display
+                  const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
+                  let gameResult = null;
+                  if (completedGame) {
+                    const winner = completedGame.winner === 'teamA' ? teamA : teamB;
+                    const winnerScore = completedGame.winner === 'teamA' ? completedGame.scoreA : completedGame.scoreB;
+                    const loserScore = completedGame.winner === 'teamA' ? completedGame.scoreB : completedGame.scoreA;
+                    gameResult = {
+                      winner,
+                      winnerScore,
+                      loserScore
+                    };
+                  }
+                  
                   return (
-                    <div key={match.id} className={`p-2 md:p-3 border rounded-lg ${statusColor}`}>
+                    <div key={match.id} className={`p-2 md:p-3 border rounded-lg ${statusColor} relative`}>
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-1 gap-2 md:gap-0">
                         <div className="flex-1">
                           <div className="font-medium text-xs md:text-sm">
@@ -159,6 +177,15 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
                           </Badge>
                         )}
                       </div>
+                      
+                      {/* Completed game result in bottom corner */}
+                      {gameResult && (
+                        <div className="absolute bottom-1 right-2">
+                          <span className="text-xs italic text-red-600">
+                            Team {gameResult.winner?.teamNumber ?? gameResult.winner?.id} won {gameResult.winnerScore}-{gameResult.loserScore}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

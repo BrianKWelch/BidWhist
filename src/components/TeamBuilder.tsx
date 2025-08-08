@@ -1,568 +1,671 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Users, Plus, X, Check, ArrowRight, RefreshCw } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Users, Plus, X, Check, ArrowRight, Search, UserPlus, Trash2 } from 'lucide-react';
 import { useAppContext } from '@/contexts/AppContext';
-import { Player, Team } from '@/contexts/AppContext';
+import { Player, Team, Tournament } from '@/contexts/AppContext';
+import { toast } from '@/hooks/use-toast';
 
-interface PendingTeam {
-  id: string;
-  player1: Player;
-  player2: Player;
-  name: string;
+interface NewPlayerForm {
+  first_name: string;
+  last_name: string;
+  city: string;
+  phone_number: string;
 }
 
 const TeamBuilder: React.FC = () => {
-  const { teams, tournaments, getActiveTournament, createTeamFromPlayers } = useAppContext();
-  const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
-  const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
-  const [selectedPlayer1, setSelectedPlayer1] = useState<Player | null>(null);
-  const [selectedPlayer2, setSelectedPlayer2] = useState<Player | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const { teams, tournaments, players, createTeamFromPlayers, updateTeam, refreshPlayers, refreshTeams } = useAppContext();
+  
+  // Column 1 - Players
+  const [selectedPlayerTournament, setSelectedPlayerTournament] = useState<string>('all');
+  const [playerSearchTerm, setPlayerSearchTerm] = useState('');
+  const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
+  const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false);
+  const [newPlayerForm, setNewPlayerForm] = useState<NewPlayerForm>({
+    first_name: '',
+    last_name: '',
+    city: '',
+    phone_number: ''
+  });
 
-  const activeTournament = getActiveTournament();
+  // Column 2 - Teams
+  const [selectedTeamTournament, setSelectedTeamTournament] = useState<string>('all');
+  const [teamSearchTerm, setTeamSearchTerm] = useState('');
+  const [selectedTeams, setSelectedTeams] = useState<Team[]>([]);
 
-  // Load pending teams from localStorage on component mount
-  useEffect(() => {
-    if (!activeTournament) return;
-    
-    const storageKey = `pendingTeams_${activeTournament.id}`;
-    const savedPendingTeams = localStorage.getItem(storageKey);
-    
-    if (savedPendingTeams) {
-      try {
-        const parsedTeams = JSON.parse(savedPendingTeams);
-        setPendingTeams(parsedTeams);
-      } catch (error) {
-        console.error('Error parsing pending teams from localStorage:', error);
+  // Column 3 - Tournaments
+  const [selectedTournaments, setSelectedTournaments] = useState<string[]>([]);
+  const [selectedTournamentFilter, setSelectedTournamentFilter] = useState<string>('all');
+  const [tournamentSearchTerm, setTournamentSearchTerm] = useState('');
+
+  // Filter players based on tournament selection and search
+  const filteredPlayers = players.filter(player => {
+    // Filter by tournament
+    if (selectedPlayerTournament === 'all') {
+      // Show all players
+    } else if (selectedPlayerTournament === 'unassigned') {
+      // Show players not in any tournament
+      const isInAnyTournament = teams.some(team => 
+        (team.player1_id === player.id || team.player2_id === player.id) &&
+        team.registeredTournaments && team.registeredTournaments.length > 0
+      );
+      if (isInAnyTournament) return false;
+    } else {
+      // Show players in specific tournament
+      const isInSelectedTournament = teams.some(team => 
+        (team.player1_id === player.id || team.player2_id === player.id) &&
+        team.registeredTournaments?.includes(selectedPlayerTournament)
+      );
+      if (!isInSelectedTournament) return false;
+    }
+
+    // Filter by search term
+    if (playerSearchTerm) {
+      const searchLower = playerSearchTerm.toLowerCase();
+      return (
+        player.first_name.toLowerCase().includes(searchLower) ||
+        player.last_name.toLowerCase().includes(searchLower) ||
+        player.city.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return true;
+  });
+
+  // Filter teams based on tournament selection and search
+  const filteredTeams = teams.filter(team => {
+    // Filter by tournament
+    if (selectedTeamTournament === 'all') {
+      // Show all teams
+    } else if (selectedTeamTournament === 'unassigned') {
+      // Show teams not in any tournament
+      if (team.registeredTournaments && team.registeredTournaments.length > 0) {
+        return false;
+      }
+    } else {
+      // Show teams in specific tournament
+      if (!team.registeredTournaments?.includes(selectedTeamTournament)) {
+        return false;
       }
     }
-  }, [activeTournament]);
 
-  // Save pending teams to localStorage whenever they change
-  useEffect(() => {
-    if (!activeTournament) return;
-    
-    const storageKey = `pendingTeams_${activeTournament.id}`;
-    localStorage.setItem(storageKey, JSON.stringify(pendingTeams));
-  }, [pendingTeams, activeTournament]);
+    // Filter by search term
+    if (teamSearchTerm) {
+      const searchLower = teamSearchTerm.toLowerCase();
+      return (
+        team.name.toLowerCase().includes(searchLower) ||
+        team.city.toLowerCase().includes(searchLower)
+      );
+    }
 
+    return true;
+  });
 
-
-  // Load available players for the active tournament
-  useEffect(() => {
-    if (!activeTournament) return;
-
-    const loadTournamentPlayers = async () => {
-      try {
-        setIsLoading(true);
-        const { supabase } = await import('../supabaseClient');
-        
-
-        
-        // Test 1: Get all records first to see what's in the table
-        const { data: allRecords, error: allError } = await supabase
-          .from('player_tournament')
-          .select('*');
-
-        if (allError) {
-          console.error('Error fetching all player_tournament records:', allError);
-          return;
-        }
-
-
-        
-        // Test 2: Try querying with different data types
-        
-        // Test with string
-        const { data: testString, error: errorString } = await supabase
-          .from('player_tournament')
-          .select('player_id')
-          .eq('tournament_id', String(activeTournament.id));
-
-        if (errorString) console.error('String query error:', errorString);
-        
-        // Test with number
-        const { data: testNumber, error: errorNumber } = await supabase
-          .from('player_tournament')
-          .select('player_id')
-          .eq('tournament_id', Number(activeTournament.id));
-
-        if (errorNumber) console.error('Number query error:', errorNumber);
-        
-        // Test with original value
-        const { data: testOriginal, error: errorOriginal } = await supabase
-          .from('player_tournament')
-          .select('player_id')
-          .eq('tournament_id', activeTournament.id);
-
-        if (errorOriginal) console.error('Original query error:', errorOriginal);
-        
-        // Use the working query result
-        const playerTournamentData = testString || testNumber || testOriginal;
-        const ptError = errorString || errorNumber || errorOriginal;
-
-        if (ptError) {
-          console.error('Error fetching tournament player IDs:', ptError);
-          return;
-        }
-
-
-
-        if (!playerTournamentData || playerTournamentData.length === 0) {
-          console.log('No players registered for this tournament');
-          setAvailablePlayers([]);
-          return;
-        }
-
-        // Step 2: Get full player details for those IDs
-        const playerIds = playerTournamentData.map(pt => pt.player_id);
-        
-        const { data: tournamentPlayers, error: playersError } = await supabase
-          .from('players')
-          .select('*')
-          .in('id', playerIds);
-
-        if (playersError) {
-          console.error('Error fetching tournament players:', playersError);
-          return;
-        }
-
-
-
-        // For now, just show ALL players from the tournament (no filtering)
-        const available = tournamentPlayers || [];
-
-        // Step 3: Get teams registered for this tournament
-        const { data: teamRegistrations, error: regError } = await supabase
-          .from('team_registrations')
-          .select('team_id')
-          .eq('tournament_id', activeTournament.id);
-
-        if (regError) {
-          console.error('Error fetching team registrations:', regError);
-          return;
-        }
-
-        // Step 4: Get player IDs from registered teams
-        let committedPlayerIds = new Set<string>();
-        if (teamRegistrations && teamRegistrations.length > 0) {
-          const teamIds = teamRegistrations.map(tr => tr.team_id);
-
-
-          const { data: registeredTeams, error: teamsError } = await supabase
-            .from('teams')
-            .select('player1_id, player2_id')
-            .in('id', teamIds);
-
-          if (teamsError) {
-            console.error('Error fetching registered teams:', teamsError);
-            return;
-          }
-
-
-          
-          // Collect all player IDs from registered teams
-          registeredTeams?.forEach(team => {
-            committedPlayerIds.add(team.player1_id);
-            committedPlayerIds.add(team.player2_id);
-          });
-        }
-
-
-
-        // Step 5: Filter out players who are already in pending teams
-        const pendingPlayerIds = new Set<string>();
-        pendingTeams.forEach(team => {
-          pendingPlayerIds.add(team.player1.id);
-          pendingPlayerIds.add(team.player2.id);
-        });
-
-
-
-        // Step 6: Filter available players (exclude both committed and pending players)
-        const availableFiltered = available.filter(player => 
-          !committedPlayerIds.has(player.id) && !pendingPlayerIds.has(player.id)
-        );
-
-        // Sort players by first name for easier finding
-        availableFiltered.sort((a, b) => a.first_name.localeCompare(b.first_name));
-
-
-
-        setAvailablePlayers(availableFiltered);
-      } catch (error) {
-        console.error('Error loading tournament players:', error);
-      } finally {
-        setIsLoading(false);
+  // Filter tournaments based on selection and search
+  const filteredTournaments = tournaments.filter(tournament => {
+    // Filter by selection
+    if (selectedTournamentFilter === 'all') {
+      // Show all tournaments
+    } else if (selectedTournamentFilter === 'active') {
+      // Show only active tournaments
+      if (tournament.status !== 'active') return false;
+    } else if (selectedTournamentFilter === 'pending') {
+      // Show only pending tournaments
+      if (tournament.status !== 'pending') return false;
+    } else if (selectedTournamentFilter === 'finished') {
+      // Show only finished tournaments
+      if (tournament.status !== 'finished') return false;
+    } else {
+      // Show tournaments for specific team
+      const team = teams.find(t => t.id === selectedTournamentFilter);
+      if (!team || !team.registeredTournaments?.includes(tournament.id)) {
+        return false;
       }
-    };
+    }
 
-    loadTournamentPlayers();
-  }, [activeTournament, pendingTeams]); // Added pendingTeams dependency
+    // Filter by search term
+    if (tournamentSearchTerm) {
+      const searchLower = tournamentSearchTerm.toLowerCase();
+      return tournament.name.toLowerCase().includes(searchLower);
+    }
 
-  const handleRefreshPlayers = async () => {
-    if (!activeTournament) return;
-    
-    // Trigger the same loading logic
-    const loadTournamentPlayers = async () => {
-      try {
-        setIsLoading(true);
-        const { supabase } = await import('../supabaseClient');
-        
+    return true;
+  });
 
-        
-        // Step 1: Get all players registered for this tournament from player_tournament table
-        const { data: playerTournamentData, error: ptError } = await supabase
-          .from('player_tournament')
-          .select('player_id')
-          .eq('tournament_id', activeTournament.id);
-
-        if (ptError) {
-          console.error('Error fetching tournament player IDs:', ptError);
-          return;
-        }
-
-        if (!playerTournamentData || playerTournamentData.length === 0) {
-          setAvailablePlayers([]);
-          return;
-        }
-
-        // Step 2: Get full player details for those IDs
-        const playerIds = playerTournamentData.map(pt => pt.player_id);
-        
-        const { data: tournamentPlayers, error: playersError } = await supabase
-          .from('players')
-          .select('*')
-          .in('id', playerIds);
-
-        if (playersError) {
-          console.error('Error fetching tournament players:', playersError);
-          return;
-        }
-
-
-
-        // For now, just show ALL players from the tournament (no filtering)
-        const available = tournamentPlayers || [];
-
-        // Step 3: Get teams registered for this tournament
-        const { data: teamRegistrations, error: regError } = await supabase
-          .from('team_registrations')
-          .select('team_id')
-          .eq('tournament_id', activeTournament.id);
-
-        if (regError) {
-          console.error('Error fetching team registrations:', regError);
-          return;
-        }
-
-
-
-        // Step 4: Get player IDs from registered teams
-        let committedPlayerIds = new Set<string>();
-        if (teamRegistrations && teamRegistrations.length > 0) {
-          const teamIds = teamRegistrations.map(tr => tr.team_id);
-
-
-          const { data: registeredTeams, error: teamsError } = await supabase
-            .from('teams')
-            .select('player1_id, player2_id')
-            .in('id', teamIds);
-
-          if (teamsError) {
-            console.error('Error fetching registered teams:', teamsError);
-            return;
-          }
-
-
-          
-          // Collect all player IDs from registered teams
-          registeredTeams?.forEach(team => {
-            committedPlayerIds.add(team.player1_id);
-            committedPlayerIds.add(team.player2_id);
-          });
-        }
-
-
-
-        // Step 5: Filter out players who are already in pending teams
-        const pendingPlayerIds = new Set<string>();
-        pendingTeams.forEach(team => {
-          pendingPlayerIds.add(team.player1.id);
-          pendingPlayerIds.add(team.player2.id);
-        });
-
-
-
-        // Step 6: Filter available players (exclude both committed and pending players)
-        const availableFiltered = available.filter(player => 
-          !committedPlayerIds.has(player.id) && !pendingPlayerIds.has(player.id)
-        );
-
-        // Sort players by first name for easier finding
-        availableFiltered.sort((a, b) => a.first_name.localeCompare(b.first_name));
-
-
-
-        setAvailablePlayers(availableFiltered);
-      } catch (error) {
-        console.error('Error loading tournament players:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    await loadTournamentPlayers();
+  // Get player names for display
+  const getPlayerDisplayName = (playerId: string) => {
+    const player = players.find(p => p.id === playerId);
+    return player ? `${player.first_name} ${player.last_name}` : 'Unknown Player';
   };
 
-  const handlePlayerClick = (player: Player) => {
-    if (!selectedPlayer1) {
-      setSelectedPlayer1(player);
-    } else if (!selectedPlayer2 && selectedPlayer1.id !== player.id) {
-      setSelectedPlayer2(player);
-      // Automatically create the team when second player is selected
-      handleCreateTeam(player);
+  // Handle player selection for team creation
+  const handlePlayerSelect = (player: Player) => {
+    if (selectedPlayers.find(p => p.id === player.id)) {
+      setSelectedPlayers(selectedPlayers.filter(p => p.id !== player.id));
+    } else if (selectedPlayers.length < 2) {
+      setSelectedPlayers([...selectedPlayers, player]);
+    } else {
+      toast({
+        title: 'Maximum players selected',
+        description: 'You can only select 2 players to create a team.',
+        variant: 'destructive'
+      });
     }
   };
 
-  const handleCreateTeam = (player2?: Player) => {
-    const player1 = selectedPlayer1;
-    const player2Final = player2 || selectedPlayer2;
-    
-    if (!player1 || !player2Final) return;
+  // Create team from selected players
+  const handleCreateTeam = async () => {
+    if (selectedPlayers.length !== 2) {
+      toast({
+        title: 'Invalid selection',
+        description: 'Please select exactly 2 players to create a team.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
-    const newTeam: PendingTeam = {
-      id: `pending-${Date.now()}`,
-      player1: player1,
-      player2: player2Final,
-      name: `${player1.first_name}/${player2Final.first_name}`
-    };
+    const player1 = selectedPlayers[0];
+    const player2 = selectedPlayers[1];
 
-    setPendingTeams(prev => [newTeam, ...prev]);
-    
-    // Remove players from available list
-    setAvailablePlayers(prev => 
-      prev.filter(p => p.id !== player1.id && p.id !== player2Final.id)
+    // Check if a team with these two players already exists
+    const existingTeam = teams.find(team => 
+      (team.player1_id === player1.id && team.player2_id === player2.id) ||
+      (team.player1_id === player2.id && team.player2_id === player1.id)
     );
 
-    // Reset selections
-    setSelectedPlayer1(null);
-    setSelectedPlayer2(null);
-  };
+    if (existingTeam) {
+      toast({
+        title: 'Team already exists',
+        description: `A team with ${player1.first_name} ${player1.last_name} and ${player2.first_name} ${player2.last_name} already exists.`,
+        variant: 'destructive'
+      });
+      return;
+    }
 
-  const handleUndoTeam = (teamId: string) => {
-    const teamToUndo = pendingTeams.find(team => team.id === teamId);
-    if (!teamToUndo) return;
-
-    // Add players back to available list
-    setAvailablePlayers(prev => [...prev, teamToUndo.player1, teamToUndo.player2]);
-
-    // Remove team from pending
-    setPendingTeams(prev => prev.filter(team => team.id !== teamId));
-  };
-
-  const handleCommitTeam = async (team: PendingTeam) => {
-    if (!activeTournament) return;
-    
     try {
-      const teamId = await createTeamFromPlayers(team.player1, team.player2, activeTournament.id);
-      if (teamId) {
-        // Remove from pending teams
-        setPendingTeams(prev => prev.filter(t => t.id !== team.id));
-        
-        // Clear localStorage for this team
-        const storageKey = `pendingTeams_${activeTournament.id}`;
-        const currentPendingTeams = pendingTeams.filter(t => t.id !== team.id);
-        localStorage.setItem(storageKey, JSON.stringify(currentPendingTeams));
-        
-        console.log('Team committed and removed from localStorage');
-        
-        // Refresh available players to reflect the new committed team
-        await handleRefreshPlayers();
-      }
+      const teamName = `${player1.first_name}/${player2.first_name}`;
+      
+      await createTeamFromPlayers(player1, player2, teamName);
+      
+      setSelectedPlayers([]);
+      
+      // Refresh teams list
+      await refreshTeams();
+      
+      toast({
+        title: 'Team created successfully',
+        description: `Team "${teamName}" has been created.`,
+        variant: 'default'
+      });
     } catch (error) {
-      console.error('Failed to commit team:', error);
+      toast({
+        title: 'Error creating team',
+        description: 'Failed to create team. Please try again.',
+        variant: 'destructive'
+      });
     }
   };
 
-  const handleCommitAll = async () => {
-    if (!activeTournament) return;
+  // Add team to selected tournaments
+  const handleAddTeamToTournaments = async () => {
+    if (selectedTeams.length === 0) {
+      toast({
+        title: 'No teams selected',
+        description: 'Please select at least one team.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (selectedTournaments.length === 0) {
+      toast({
+        title: 'No tournaments selected',
+        description: 'Please select at least one tournament.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Check for teams already registered in selected tournaments
+    const teamsAlreadyRegistered: { team: Team; tournaments: string[] }[] = [];
     
-    try {
-      // Commit teams one by one
-      for (const team of pendingTeams) {
-        await createTeamFromPlayers(team.player1, team.player2, activeTournament.id);
+    for (const team of selectedTeams) {
+      const alreadyRegistered = selectedTournaments.filter(t => 
+        team.registeredTournaments?.includes(t)
+      );
+      
+      if (alreadyRegistered.length > 0) {
+        teamsAlreadyRegistered.push({ team, tournaments: alreadyRegistered });
       }
-      // Clear all pending teams
-      setPendingTeams([]);
+    }
+
+    if (teamsAlreadyRegistered.length > 0) {
+      const teamNames = teamsAlreadyRegistered.map(({ team, tournaments }) => 
+        `${team.name} (${tournaments.join(', ')})`
+      ).join(', ');
       
-      // Clear localStorage
-      const storageKey = `pendingTeams_${activeTournament.id}`;
-      localStorage.removeItem(storageKey);
+      toast({
+        title: 'Teams already registered',
+        description: `The following teams are already registered for some selected tournaments: ${teamNames}`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      for (const team of selectedTeams) {
+        const updatedRegisteredTournaments = [
+          ...(team.registeredTournaments || []),
+          ...selectedTournaments
+        ];
+        
+        await updateTeam({
+          ...team,
+          registeredTournaments: updatedRegisteredTournaments
+        });
+      }
+
+      setSelectedTeams([]);
+      setSelectedTournaments([]);
       
-      console.log('All teams committed and localStorage cleared');
+      // Refresh teams list
+      await refreshTeams();
       
-      // Refresh available players to reflect all new committed teams
-      await handleRefreshPlayers();
+      toast({
+        title: 'Teams added to tournaments',
+        description: `${selectedTeams.length} team(s) added to ${selectedTournaments.length} tournament(s).`,
+        variant: 'default'
+      });
     } catch (error) {
-      console.error('Failed to commit all teams:', error);
+      toast({
+        title: 'Error adding teams',
+        description: 'Failed to add teams to tournaments. Please try again.',
+        variant: 'destructive'
+      });
     }
   };
 
-  const isPlayerSelected = (player: Player) => {
-    return selectedPlayer1?.id === player.id || selectedPlayer2?.id === player.id;
+  // Remove team from tournament
+  const handleRemoveTeamFromTournament = async (team: Team, tournamentId: string) => {
+    try {
+      const updatedRegisteredTournaments = team.registeredTournaments?.filter(t => t !== tournamentId) || [];
+      
+      await updateTeam({
+        ...team,
+        registeredTournaments: updatedRegisteredTournaments
+      });
+
+      // Refresh teams list
+      await refreshTeams();
+
+      toast({
+        title: 'Team removed',
+        description: `Team "${team.name}" removed from tournament.`,
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error removing team',
+        description: 'Failed to remove team from tournament. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
 
-  if (!activeTournament) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Card className="w-96">
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              Please select an active tournament to build teams.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Add new player
+  const handleAddPlayer = async () => {
+    if (!newPlayerForm.first_name || !newPlayerForm.last_name || !newPlayerForm.city) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { data, error } = await supabase
+        .from('players')
+        .insert([{
+          first_name: newPlayerForm.first_name,
+          last_name: newPlayerForm.last_name,
+          city: newPlayerForm.city,
+          phone_number: newPlayerForm.phone_number || null
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setNewPlayerForm({
+        first_name: '',
+        last_name: '',
+        city: '',
+        phone_number: ''
+      });
+      setShowAddPlayerDialog(false);
+
+      // Refresh players list
+      await refreshPlayers();
+
+      toast({
+        title: 'Player added successfully',
+        description: `${newPlayerForm.first_name} ${newPlayerForm.last_name} has been added.`,
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error adding player',
+        description: 'Failed to add player. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Team Builder</h1>
-        <p className="text-muted-foreground">
-          Building teams for: <strong>{activeTournament.name}</strong>
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Side - Available Players */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Available Players ({availablePlayers.length})
-              </div>
-              <Button onClick={handleRefreshPlayers} size="sm" variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <p className="text-center text-muted-foreground py-8">
-                Loading players...
-              </p>
-            ) : availablePlayers.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No available players. All players have been assigned to teams.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {availablePlayers.map((player) => (
-                  <div
-                    key={player.id}
-                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                      isPlayerSelected(player)
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                    onClick={() => handlePlayerClick(player)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">
-                          {player.first_name} {player.last_name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {player.city} • {player.phone_number}
-                        </p>
+    <div className="space-y-6">
+             <Card>
+         <CardHeader>
+           <div className="flex items-center justify-between">
+             <CardTitle className="flex items-center gap-2">
+               <Users className="h-5 w-5" />
+               Team Builder
+             </CardTitle>
+             <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
+               <DialogTrigger asChild>
+                 <Button size="sm">
+                   <UserPlus className="h-4 w-4 mr-2" />
+                   Add New Player
+                 </Button>
+               </DialogTrigger>
+               <DialogContent>
+                 <DialogHeader>
+                   <DialogTitle>Add New Player</DialogTitle>
+                 </DialogHeader>
+                 <div className="space-y-4">
+                   <div>
+                     <Label htmlFor="first_name">First Name *</Label>
+                     <Input
+                       id="first_name"
+                       value={newPlayerForm.first_name}
+                       onChange={(e) => setNewPlayerForm({...newPlayerForm, first_name: e.target.value})}
+                     />
+                   </div>
+                   <div>
+                     <Label htmlFor="last_name">Last Name *</Label>
+                     <Input
+                       id="last_name"
+                       value={newPlayerForm.last_name}
+                       onChange={(e) => setNewPlayerForm({...newPlayerForm, last_name: e.target.value})}
+                     />
+                   </div>
+                   <div>
+                     <Label htmlFor="city">City *</Label>
+                     <Input
+                       id="city"
+                       value={newPlayerForm.city}
+                       onChange={(e) => setNewPlayerForm({...newPlayerForm, city: e.target.value})}
+                     />
+                   </div>
+                   <div>
+                     <Label htmlFor="phone_number">Phone Number</Label>
+                     <Input
+                       id="phone_number"
+                       value={newPlayerForm.phone_number}
+                       onChange={(e) => setNewPlayerForm({...newPlayerForm, phone_number: e.target.value})}
+                     />
+                   </div>
+                   <div className="flex gap-2">
+                     <Button onClick={handleAddPlayer} className="flex-1">
+                       Add Player
+                     </Button>
+                     <Button variant="outline" onClick={() => setShowAddPlayerDialog(false)}>
+                       Cancel
+                     </Button>
+                   </div>
+                 </div>
+               </DialogContent>
+             </Dialog>
+           </div>
+         </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                         {/* Column 1 - Players */}
+             <Card className="border-2 border-red-500">
+                             <CardHeader>
+                 <CardTitle className="text-lg text-center">Players</CardTitle>
+                <div className="space-y-2">
+                                     <Select value={selectedPlayerTournament} onValueChange={setSelectedPlayerTournament}>
+                     <SelectTrigger className="border-2 border-black">
+                       <SelectValue placeholder="Filter by tournament" />
+                     </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Players</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {tournaments.map(tournament => (
+                        <SelectItem key={tournament.id} value={tournament.id}>
+                          {tournament.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                                     <div className="relative">
+                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                     <Input
+                       placeholder="Search players..."
+                       value={playerSearchTerm}
+                       onChange={(e) => setPlayerSearchTerm(e.target.value)}
+                       className="pl-8"
+                     />
+                   </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-sm text-muted-foreground">
+                  {filteredPlayers.length} player(s) found
+                </div>
+                <div className="space-y-1 max-h-96 overflow-y-auto">
+                  {filteredPlayers.map(player => (
+                    <div
+                      key={player.id}
+                      className={`p-2 rounded border cursor-pointer transition-colors ${
+                        selectedPlayers.find(p => p.id === player.id)
+                          ? 'bg-blue-50 border-blue-200'
+                          : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => handlePlayerSelect(player)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{player.first_name} {player.last_name}</div>
+                          <div className="text-sm text-muted-foreground">{player.city}</div>
+                        </div>
+                        {selectedPlayers.find(p => p.id === player.id) && (
+                          <Check className="h-4 w-4 text-blue-600" />
+                        )}
                       </div>
-                      {isPlayerSelected(player) && (
-                        <Badge variant="secondary">Selected</Badge>
-                      )}
                     </div>
+                  ))}
+                </div>
+                {selectedPlayers.length > 0 && (
+                  <Button onClick={handleCreateTeam} className="w-full" disabled={selectedPlayers.length !== 2}>
+                    Create Team ({selectedPlayers.length}/2)
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+                         {/* Column 2 - Teams */}
+             <Card className="border-2 border-red-500">
+                             <CardHeader>
+                 <CardTitle className="text-lg text-center">Teams</CardTitle>
+                <div className="space-y-2">
+                                     <Select value={selectedTeamTournament} onValueChange={setSelectedTeamTournament}>
+                     <SelectTrigger className="border-2 border-black">
+                       <SelectValue placeholder="Filter by tournament" />
+                     </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Teams</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {tournaments.map(tournament => (
+                        <SelectItem key={tournament.id} value={tournament.id}>
+                          {tournament.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search teams..."
+                      value={teamSearchTerm}
+                      onChange={(e) => setTeamSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
                   </div>
-                ))}
-              </div>
-            )}
-
-             {/* Team Creation Section - REMOVED - Teams are created automatically */}
-          </CardContent>
-        </Card>
-
-        {/* Right Side - Pending Teams */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ArrowRight className="h-5 w-5" />
-                Pending Teams ({pendingTeams.length})
-              </div>
-              {pendingTeams.length > 0 && (
-                <Button onClick={handleCommitAll} size="sm">
-                  <Check className="h-4 w-4 mr-2" />
-                  Commit All
-                </Button>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pendingTeams.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No pending teams. Select players from the left to create teams.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {pendingTeams.map((team) => (
-                  <Card key={team.id} className="border-dashed">
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium">{team.name}</h4>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleUndoTeam(team.id)}
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            Undo
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => handleCommitTeam(team)}
-                          >
-                            <Check className="h-4 w-4 mr-1" />
-                            Commit
-                          </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-sm text-muted-foreground">
+                  {filteredTeams.length} team(s) found
+                </div>
+                <div className="space-y-1 max-h-96 overflow-y-auto">
+                  {filteredTeams.map(team => (
+                    <div
+                      key={team.id}
+                      className={`p-2 rounded border cursor-pointer transition-colors ${
+                        selectedTeams.find(t => t.id === team.id)
+                          ? 'bg-blue-50 border-blue-200'
+                          : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => {
+                        if (selectedTeams.find(t => t.id === team.id)) {
+                          setSelectedTeams(selectedTeams.filter(t => t.id !== team.id));
+                        } else {
+                          setSelectedTeams([...selectedTeams, team]);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="font-medium">{team.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {getPlayerDisplayName(team.player1_id)} & {getPlayerDisplayName(team.player2_id)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{team.city}</div>
+                          {team.registeredTournaments && team.registeredTournaments.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {team.registeredTournaments.map(tournamentId => {
+                                const tournament = tournaments.find(t => t.id === tournamentId);
+                                return (
+                                  <Badge key={tournamentId} variant="secondary" className="text-xs">
+                                    {tournament?.name || tournamentId}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveTeamFromTournament(team, tournamentId);
+                                      }}
+                                      className="ml-1 hover:text-red-600"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
+                        {selectedTeams.find(t => t.id === team.id) && (
+                          <Check className="h-4 w-4 text-blue-600" />
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">Player 1</Badge>
-                          <span>{team.player1.first_name} {team.player1.last_name}</span>
-                          <span className="text-muted-foreground">({team.player1.city})</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">Player 2</Badge>
-                          <span>{team.player2.first_name} {team.player2.last_name}</span>
-                          <span className="text-muted-foreground">({team.player2.city})</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+                         {/* Column 3 - Tournaments */}
+             <Card className="border-2 border-red-500">
+                                            <CardHeader>
+                 <CardTitle className="text-lg text-center">Tournaments</CardTitle>
+                 <div className="space-y-2">
+                   <Select value={selectedTournamentFilter} onValueChange={setSelectedTournamentFilter}>
+                     <SelectTrigger className="border-2 border-black">
+                       <SelectValue placeholder="Filter tournaments" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="all">All Tournaments</SelectItem>
+                       <SelectItem value="active">Active Only</SelectItem>
+                       <SelectItem value="pending">Pending Only</SelectItem>
+                       <SelectItem value="finished">Finished Only</SelectItem>
+                       <SelectItem value="divider" disabled>──────────</SelectItem>
+                       {teams.map(team => (
+                         <SelectItem key={team.id} value={team.id}>
+                           {team.name} - Tournaments
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                   <div className="relative">
+                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                     <Input
+                       placeholder="Search tournaments..."
+                       value={tournamentSearchTerm}
+                       onChange={(e) => setTournamentSearchTerm(e.target.value)}
+                       className="pl-8"
+                     />
+                   </div>
+                 </div>
+               </CardHeader>
+                             <CardContent className="space-y-3">
+                 <div className="text-sm text-muted-foreground">
+                   {filteredTournaments.length} tournament(s) found
+                 </div>
+                 <div className="space-y-3 max-h-96 overflow-y-auto">
+                   {filteredTournaments.map(tournament => (
+                     <div key={tournament.id} className="flex items-center space-x-3 p-2 rounded border hover:bg-gray-50 transition-colors">
+                       <Checkbox
+                         id={tournament.id}
+                         checked={selectedTournaments.includes(tournament.id)}
+                         onCheckedChange={(checked) => {
+                           if (checked) {
+                             setSelectedTournaments([...selectedTournaments, tournament.id]);
+                           } else {
+                             setSelectedTournaments(selectedTournaments.filter(t => t !== tournament.id));
+                           }
+                         }}
+                       />
+                       <Label 
+                         htmlFor={tournament.id} 
+                         className={`flex-1 cursor-pointer font-medium ${
+                           tournament.status === 'active' ? 'text-red-600' : ''
+                         }`}
+                       >
+                         {tournament.name}
+                       </Label>
+                     </div>
+                   ))}
+                 </div>
+                {selectedTeams.length > 0 && selectedTournaments.length > 0 && (
+                  <Button onClick={handleAddTeamToTournaments} className="w-full">
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                    Add {selectedTeams.length} Team(s) to {selectedTournaments.length} Tournament(s)
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

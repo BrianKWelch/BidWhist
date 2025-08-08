@@ -57,55 +57,56 @@ export function getSortedTournamentResults(teams, games, schedule, overrides, nu
       if (game) {
         const teamAId = String(game.teamA);
         const teamBId = String(game.teamB);
-        const isTieGame = game.scoreA === game.scoreB;
-        if (isTieGame) {
-          // Ensure both teams are initialized in resultsMatrix
-          if (!resultsMatrix[teamAId]) resultsMatrix[teamAId] = {};
-          if (!resultsMatrix[teamBId]) resultsMatrix[teamBId] = {};
-          const handsA = game.handsA ?? 0;
-          const handsB = game.handsB ?? 0;
-          let wlA = 'T', wlB = 'T';
-          if (handsA > handsB) { wlA = 'TW'; wlB = 'TL'; }
-          else if (handsA < handsB) { wlA = 'TL'; wlB = 'TW'; }
-          resultsMatrix[teamAId][round] = {
-            wl: wlA,
-            points: game.scoreA,
-            hands: handsA,
-            boston: game.boston_a ?? 0,
-            isTie: true
-          };
-          resultsMatrix[teamBId][round] = {
-            wl: wlB,
-            points: game.scoreB,
-            hands: handsB,
-            boston: game.boston_b ?? 0,
-            isTie: true
-          };
-          continue;
-        }
-        // Not a tie: normal logic
+        // OLD TIE LOGIC - COMMENTED OUT IN CASE NEEDED LATER
+        // const isTieGame = game.scoreA === game.scoreB;
+        // if (isTieGame) {
+        //   // Ensure both teams are initialized in resultsMatrix
+        //   if (!resultsMatrix[teamAId]) resultsMatrix[teamAId] = {};
+        //   if (!resultsMatrix[teamBId]) resultsMatrix[teamBId] = {};
+        //   const handsA = game.handsA ?? 0;
+        //   const handsB = game.handsB ?? 0;
+        //   let wlA = 'T', wlB = 'T';
+        //   if (handsA > handsB) { wlA = 'TW'; wlB = 'TL'; }
+        //   else if (handsA < handsB) { wlA = 'TL'; wlB = 'TW'; }
+        //   resultsMatrix[teamAId][round] = {
+        //     wl: wlA,
+        //     points: game.scoreA,
+        //     hands: handsA,
+        //     boston: game.boston_a ?? 0,
+        //     isTie: true
+        //   };
+        //   resultsMatrix[teamBId][round] = {
+        //     wl: wlB,
+        //     points: game.scoreB,
+        //     hands: handsB,
+        //     boston: game.boston_b ?? 0,
+        //     isTie: true
+        //   };
+        //   continue;
+        // }
+
+        // NEW LOGIC: Use winner field to determine W/L - no more ties
         const isTeamA = teamId === teamAId;
         const myScore = isTeamA ? game.scoreA : game.scoreB;
         const oppScore = isTeamA ? game.scoreB : game.scoreA;
         const myHands = isTeamA ? game.handsA : game.handsB;
         // Use the new boston_a and boston_b fields instead of the old boston string field
         const myBostons = isTeamA ? (game.boston_a ?? 0) : (game.boston_b ?? 0);
-        const wl = myScore > oppScore ? 'W' : 'L';
+        
+        // Use the winner field from the game data to determine W/L
+        const wl = (isTeamA && game.winner === 'teamA') || (!isTeamA && game.winner === 'teamB') ? 'W' : 'L';
+        
         resultsMatrix[teamId][round] = { wl, points: myScore, hands: myHands ?? 0, boston: myBostons, isTie: false };
       } else {
         resultsMatrix[teamId][round] = { wl: '', points: 0, hands: 0, boston: 0, isTie: false };
       }
     }
-    // Totals logic: sum wins, but add 0.5 for each tie/tiebreak
+    // Totals logic: sum wins (no more ties)
     let wins = 0;
     for (let round = 1; round <= numRounds; round++) {
       const roundData = resultsMatrix[teamId][round];
-      if (roundData) {
-        if (roundData.wl === 'TW' || roundData.wl === 'TL' || roundData.wl === 'T') {
-          wins += 0.5;
-        } else if (roundData.wl === 'W') {
-          wins += 1;
-        }
+      if (roundData && roundData.wl === 'W') {
+        wins += 1;
       }
     }
     resultsMatrix[teamId]['totalPoints'] = {

@@ -52,7 +52,7 @@ const DirectScoreEntry = ({ team, match, onComplete }: { team: Team; match: any;
     return currentStep - 1;
   };
 
-  const handleSubmitScore = () => {
+  const handleSubmitScore = async () => {
     if (!match || !scoreA || !scoreB) return;
     
     if (tracksHands && (!handsA || !handsB)) return;
@@ -90,7 +90,7 @@ const DirectScoreEntry = ({ team, match, onComplete }: { team: Team; match: any;
       entered_by_team_id: team.id
     };
 
-    submitGame(gameData);
+    await submitGame(gameData);
     onComplete();
   };
 
@@ -290,15 +290,15 @@ const DirectScoreEntry = ({ team, match, onComplete }: { team: Team; match: any;
               <p className="text-lg text-orange-600">Scores are tied! Who won the tiebreaker?</p>
               <div className="flex gap-2">
                 <Button 
-                  onClick={() => setTieWinner('teamA')} 
-                  variant={tieWinner === 'teamA' ? 'default' : 'outline'}
+                  onClick={() => setTieWinner(String(match.teamA) === String(team.id) ? 'teamA' : 'teamB')} 
+                  variant={tieWinner === (String(match.teamA) === String(team.id) ? 'teamA' : 'teamB') ? 'default' : 'outline'}
                   className="flex-1"
                 >
                   You Won
                 </Button>
                 <Button 
-                  onClick={() => setTieWinner('teamB')} 
-                  variant={tieWinner === 'teamB' ? 'default' : 'outline'}
+                  onClick={() => setTieWinner(String(match.teamA) === String(team.id) ? 'teamB' : 'teamA')} 
+                  variant={tieWinner === (String(match.teamA) === String(team.id) ? 'teamB' : 'teamA') ? 'default' : 'outline'}
                   className="flex-1"
                 >
                   Opponent Won
@@ -353,6 +353,13 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
   const oppBostons = myIsTeamA ? (pendingGame.boston_b ?? 0) : (pendingGame.boston_a ?? 0);
   const myHands = myIsTeamA ? (pendingGame.handsA ?? 0) : (pendingGame.handsB ?? 0);
   const oppHands = myIsTeamA ? (pendingGame.handsB ?? 0) : (pendingGame.handsA ?? 0);
+  
+  // Check if scores are tied and get tiebreaker winner information
+  const isTied = myScore === oppScore;
+  const tiebreakerWinner = pendingGame.winner;
+  const tiebreakerWinnerName = tiebreakerWinner === 'teamA' ? 
+    (myIsTeamA ? 'You' : 'Opponent') : 
+    (myIsTeamA ? 'Opponent' : 'You');
 
   const handleConfirm = async (confirm: boolean) => {
     try {
@@ -396,6 +403,19 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
           </div>
         </div>
       </div>
+      
+      {/* Show tiebreaker winner information if scores are tied */}
+      {isTied && (
+        <div className="p-4 rounded-lg bg-orange-50 border border-orange-200 text-center">
+          <div className="text-sm text-orange-700 font-medium mb-1">Tiebreaker Winner</div>
+          <div className="text-lg font-bold text-orange-800">
+            {tiebreakerWinnerName} won the tiebreaker
+          </div>
+          <div className="text-xs text-orange-600 mt-1">
+            Please verify this tiebreaker winner is correct
+          </div>
+        </div>
+      )}
       
       <div className="text-center">
         <p className="text-sm text-gray-600 mb-4">
@@ -582,7 +602,8 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
         const isTeamA = match.teamA === team.id;
         const myScore = isTeamA ? existingGame.scoreA : existingGame.scoreB;
         const opponentScore = isTeamA ? existingGame.scoreB : existingGame.scoreA;
-        const isWin = myScore > opponentScore;
+        // Use the winner field from the game data, which handles tied scores correctly
+        const isWin = (isTeamA && existingGame.winner === 'teamA') || (!isTeamA && existingGame.winner === 'teamB');
         
         gameResult = {
           myScore,

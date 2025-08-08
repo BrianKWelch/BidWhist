@@ -254,10 +254,9 @@ export const TournamentScheduler: React.FC = () => {
       <Card className="border-2 border-gray-300">
         <CardHeader className="border-b-2 border-red-500 pb-2">
           <div className="flex justify-center items-center">
-            <CardTitle className="text-red-600 relative">
-              Tournament Scheduler
-              <div className="absolute -bottom-1 left-0 right-0 h-1 bg-red-500 rounded-full"></div>
-            </CardTitle>
+                         <CardTitle className="text-red-600">
+               Tournament Scheduler
+             </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

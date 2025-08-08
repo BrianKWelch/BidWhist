@@ -81,7 +81,7 @@ export interface Game {
   teamBScore?: number;
   handsA?: number;
   handsB?: number;
-  status?: 'pending_confirmation' | 'confirmed' | 'disputed';
+  status?: 'pending_confirmation' | 'confirmed' | 'disputed' | 'entering';
   entered_by_team_id?: string;
 }
 
@@ -182,6 +182,7 @@ interface AppContextType {
   sidebarOpen: boolean;
   toggleSidebar: () => void;
   teams: Team[];
+  players: Player[];
   games: Game[];
   setGames: React.Dispatch<React.SetStateAction<Game[]>>;
   tournaments: Tournament[];
@@ -239,6 +240,7 @@ interface AppContextType {
   getTeamPaymentStatus: (team: Team, tournamentId: string) => { tournamentPaid: boolean; bostonPotPaid: boolean; bostonPotMismatch: boolean };
   calculateTeamTotalOwed: (team: Team) => number;
   refreshTeams: () => Promise<void>;
+  refreshPlayers: () => Promise<void>;
 }
 
 export const AppContext = createContext<AppContextType>({} as AppContextType);
