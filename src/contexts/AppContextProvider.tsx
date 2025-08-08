@@ -261,11 +261,19 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const mappedGames = gamesData.map(g => ({
         ...g,
         id: String(g.id),
-        teamA: String(g.teamA),
-        teamB: String(g.teamB),
-        matchId: String(g.matchId),
+        teamA: String(g.teamA ?? g.team_a),
+        teamB: String(g.teamB ?? g.team_b),
+        matchId: String(g.matchId ?? g.match_id),
         handsA: g.handsA ?? g.hands_a ?? 0,
         handsB: g.handsB ?? g.hands_b ?? 0,
+        boston_a: g.boston_a ?? g.bostonA ?? 0,
+        boston_b: g.boston_b ?? g.bostonB ?? 0,
+        entered_by_team_id: g.entered_by_team_id ?? g.enteredBy,
+        status: g.status,
+        round: g.round,
+        submittedBy: String(g.submitted_by ?? g.submittedBy ?? ''),
+        confirmed: Boolean(g.confirmed),
+        timestamp: g.timestamp ? new Date(g.timestamp) : new Date(),
       }));
       setGames(mappedGames);
     }
@@ -282,8 +290,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       const mappedGames = (gamesData || []).map(g => ({
         ...g,
+        id: String(g.id),
+        teamA: String(g.teamA ?? g.team_a),
+        teamB: String(g.teamB ?? g.team_b),
+        matchId: String(g.matchId ?? g.match_id),
         handsA: g.handsA ?? g.hands_a ?? 0,
         handsB: g.handsB ?? g.hands_b ?? 0,
+        boston_a: g.boston_a ?? g.bostonA ?? 0,
+        boston_b: g.boston_b ?? g.bostonB ?? 0,
+        entered_by_team_id: g.entered_by_team_id ?? g.enteredBy,
+        status: g.status,
+        round: g.round,
+        submittedBy: String(g.submitted_by ?? g.submittedBy ?? ''),
+        confirmed: Boolean(g.confirmed),
+        timestamp: g.timestamp ? new Date(g.timestamp) : new Date(),
       }));
       setGames(mappedGames);
     } catch (err) {
@@ -307,7 +327,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (data) {
         setScoreSubmissions(data.map((row: any) => ({
           id: row.id,
-          matchId: row.match_id,
+          matchId: row.matchId,
           teamA: teams.find(t => String(t.id) === String(row.team_a)) || { id: String(row.team_a) } as Team,
           teamB: teams.find(t => String(t.id) === String(row.team_b)) || { id: String(row.team_b) } as Team,
           scoreA: Number(row.score_a),
@@ -331,7 +351,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (!row) return;
         const mapped: ScoreSubmission = {
           id: row.id,
-          matchId: row.match_id,
+          matchId: row.matchId,
           teamA: teams.find(t => String(t.id) === String(row.team_a)) || { id: String(row.team_a) } as Team,
           teamB: teams.find(t => String(t.id) === String(row.team_b)) || { id: String(row.team_b) } as Team,
           scoreA: Number(row.score_a),
@@ -662,240 +682,90 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const submitGame = async (gameData: any) => {
     const matchId = gameData.matchId;
-    const teamId = gameData.submittedBy;
+    const teamId = gameData.entered_by_team_id;
     
-    const existingSubmissions = scoreSubmissions.filter(s => s.matchId === matchId);
-    const mySubmission = existingSubmissions.find(s => s.submittedBy === teamId);
-    const opponentSubmission = existingSubmissions.find(s => s.submittedBy !== teamId);
+    // Find the existing "entering" row to get its ID
+    const { data: existing, error: selErr } = await supabase
+      .from('games')
+      .select('*')
+      .eq('matchId', matchId)
+      .eq('status', 'entering')
+      .eq('entered_by_team_id', teamId)
+      .single();
     
-    const newSubmission: ScoreSubmission = {
-      id: mySubmission?.id || Date.now().toString(),
-      matchId,
+    if (selErr || !existing) {
+      console.error('submitGame: Could not find existing entering row', selErr);
+      toast({ title: 'Error: Could not find score entry session', description: 'Please try again.', variant: 'destructive' });
+      return;
+    }
+    
+    // Create the game record with pending confirmation status, using the existing ID
+    const newGame: Game = {
+      id: existing.id, // Use the existing ID from the "entering" row
       teamA: gameData.teamA,
       teamB: gameData.teamB,
       scoreA: gameData.scoreA,
       scoreB: gameData.scoreB,
-      boston: gameData.boston,
-      handsA: Number(gameData.handsA) || 0,
-          handsB: Number(gameData.handsB) || 0,
-      submittedBy: teamId,
+      teamAScore: gameData.scoreA,
+      teamBScore: gameData.scoreB,
+      boston: 'none', // Default for backward compatibility
+      boston_a: gameData.boston_a,
+      boston_b: gameData.boston_b,
+      winner: gameData.winner,
+      submittedBy: String(teamId),
+      confirmed: false,
       timestamp: new Date(),
-      round: gameData.round
+      matchId,
+      round: gameData.round,
+      handsA: gameData.handsA,
+      handsB: gameData.handsB,
+      status: 'pending_confirmation',
+      entered_by_team_id: teamId
     };
     
-    // DEBUG: log the payload we're sending
-    console.log('DEBUG submitGame payload', {
-      match_id: newSubmission.matchId,
-      submitted_by: newSubmission.submittedBy,
-      score_a: newSubmission.scoreA,
-      score_b: newSubmission.scoreB,
-      hands_a: newSubmission.handsA,
-      hands_b: newSubmission.handsB,
-      boston: newSubmission.boston
-    });
-    toast({ title: 'Debug', description: `Sending handsA ${newSubmission.handsA} handsB ${newSubmission.handsB}`, variant: 'default' });
-
-    // Persist submission to Supabase so opponent devices can see it
+    // Save to games table in Supabase - this will update the existing row
     try {
-      const { error: subError } = await supabase.from('scores').upsert([
+      const { error } = await supabase.from('games').upsert([
         {
-          id: newSubmission.id,
-          match_id: newSubmission.matchId,
-          submitted_by: newSubmission.submittedBy,
-          score_a: newSubmission.scoreA,
-          score_b: newSubmission.scoreB,
-          boston: newSubmission.boston,
-          hands_a: newSubmission.handsA,
-          hands_b: newSubmission.handsB,
-          winner: 'pending',
-          confirmed: false,
-          round: newSubmission.round,
-          timestamp: newSubmission.timestamp
+          id: newGame.id,
+          matchId: newGame.matchId,
+          teamA: String(newGame.teamA),
+          teamB: String(newGame.teamB),
+          scoreA: newGame.scoreA,
+          scoreB: newGame.scoreB,
+          boston_a: newGame.boston_a,
+          boston_b: newGame.boston_b,
+          winner: newGame.winner,
+          submittedBy: newGame.submittedBy,
+          confirmed: newGame.confirmed,
+          confirmedBy: null,
+          round: newGame.round,
+          timestamp: newGame.timestamp,
+          handsA: newGame.handsA,
+          handsB: newGame.handsB,
+          status: newGame.status,
+          entered_by_team_id: newGame.entered_by_team_id
         }
-      ]);
-      if (subError) {
-        console.error('SCORE UPSERT ERROR', subError);
-        toast({ title: 'Failed to save score', description: subError.message, variant: 'destructive' });
+      ], { onConflict: ['id'] });
+      
+      if (error) {
+        console.error('GAME UPSERT ERROR', error);
+        toast({ title: 'Failed to save game', description: error.message, variant: 'destructive' });
         return;
       }
+      
+      toast({ title: 'Score submitted successfully!', description: 'Waiting for opponent confirmation.', variant: 'default' });
+      
+      // Update local state by replacing the existing game
+      setGames(prev => prev.map(game => game.id === newGame.id ? newGame : game));
+      
+      // Refresh from Supabase to ensure consistency
+      await refreshGamesFromSupabase();
+      
     } catch (err) {
-      console.error('SCORE UPSERT UNEXPECTED', err);
+      console.error('GAME UPSERT UNEXPECTED', err);
       toast({ title: 'Unexpected error', description: String(err), variant: 'destructive' });
       return;
-    }
-
-    if (mySubmission) {
-      setScoreSubmissions(prev => prev.map(s => 
-        s.id === mySubmission.id ? newSubmission : s
-      ));
-    } else {
-      setScoreSubmissions(prev => [...prev, newSubmission]);
-    }
-    
-    // Check if opponent submission already in DB and matches
-    let opponent = opponentSubmission;
-    if (!opponent) {
-      const { data: oppRows } = await supabase.from('scores')
-        .select('*')
-        .eq('match_id', matchId)
-        .neq('submitted_by', teamId)
-        .limit(1);
-      opponent = oppRows && oppRows[0] ? {
-        id: oppRows[0].id,
-        matchId: oppRows[0].match_id,
-        teamA: gameData.teamA,
-        teamB: gameData.teamB,
-        scoreA: oppRows[0].score_a,
-        scoreB: oppRows[0].score_b,
-        boston: oppRows[0].boston,
-        handsA: oppRows[0].hands_a,
-        handsB: oppRows[0].hands_b,
-        submittedBy: oppRows[0].submitted_by,
-        timestamp: new Date(oppRows[0].timestamp),
-        round: gameData.round
-      } as ScoreSubmission : null;
-    }
-
-    if (
-      opponent &&
-      Number(opponent.scoreA) === Number(gameData.scoreA) &&
-      Number(opponent.scoreB) === Number(gameData.scoreB) &&
-      opponent.boston === gameData.boston &&
-      Number(opponent.handsA) === Number(gameData.handsA) &&
-      Number(opponent.handsB) === Number(gameData.handsB)
-    ) {
-      
-      const confirmedGame: Game = {
-        id: Date.now().toString(),
-        teamA: gameData.teamA,
-        teamB: gameData.teamB,
-        scoreA: gameData.scoreA,
-        scoreB: gameData.scoreB,
-        teamAScore: gameData.scoreA,
-        teamBScore: gameData.scoreB,
-        boston: gameData.boston,
-        winner: gameData.scoreA > gameData.scoreB ? 'teamA' : 'teamB',
-        submittedBy: 'Both Teams',
-        confirmed: true,
-        timestamp: new Date(),
-        matchId,
-        round: gameData.round,
-        handsA: gameData.handsA,
-        handsB: gameData.handsB
-      };
-      
-      // Upsert the confirmed game to Supabase
-      try {
-        const { error } = await supabase.from('games').upsert([
-          {
-            id: confirmedGame.id,
-            matchId: confirmedGame.matchId,
-            teamA: String(confirmedGame.teamA.id || confirmedGame.teamA),
-            teamB: String(confirmedGame.teamB.id || confirmedGame.teamB),
-            scoreA: confirmedGame.scoreA,
-            scoreB: confirmedGame.scoreB,
-            boston: confirmedGame.boston,
-            winner: confirmedGame.winner,
-            submittedBy: confirmedGame.submittedBy,
-            confirmed: confirmedGame.confirmed,
-            confirmedBy: null,
-            round: confirmedGame.round,
-            timestamp: confirmedGame.timestamp,
-            handsA: confirmedGame.handsA,
-            handsB: confirmedGame.handsB
-          }
-        ], { onConflict: ['id'] });
-        if (error) {
-          toast({ title: 'Failed to save game to Supabase', description: error.message, variant: 'destructive' });
-          return;
-        }
-        toast({ title: 'Game result saved to Supabase!', variant: 'default' });
-        // Refresh games from Supabase
-        // Add to local state immediately so confirmScore can run
-        setGames(prev => [...prev, confirmedGame]);
-        // Update schedule progression for Option B
-        await confirmScore(confirmedGame.id, true, confirmedGame);
-        // Finally sync with Supabase
-        await refreshGamesFromSupabase();
-      } catch (err) {
-        toast({ title: 'Unexpected error saving game', description: String(err), variant: 'destructive' });
-      }
-      // Update local state for UI
-      setGames(prev => [...prev.filter(g => g.matchId !== matchId), confirmedGame]);
-      setScoreSubmissions(prev => prev.filter(s => s.matchId !== matchId));
-      
-
-      const tournamentId = '1';
-      const winnerTeam = gameData.scoreA > gameData.scoreB ? gameData.teamA : gameData.teamB;
-      const loserTeam = gameData.scoreA > gameData.scoreB ? gameData.teamB : gameData.teamA;
-      const winnerScore = Math.max(gameData.scoreA, gameData.scoreB);
-      const loserScore = Math.min(gameData.scoreA, gameData.scoreB);
-      
-      updateTournamentResult(tournamentId, winnerTeam.id, gameData.round, 'wl', 'W');
-      updateTournamentResult(tournamentId, winnerTeam.id, gameData.round, 'points', winnerScore);
-      updateTournamentResult(tournamentId, loserTeam.id, gameData.round, 'wl', 'L');
-      updateTournamentResult(tournamentId, loserTeam.id, gameData.round, 'points', loserScore);
-      
-      if (gameData.boston === (gameData.scoreA > gameData.scoreB ? 'teamA' : 'teamB')) {
-        updateTournamentResult(tournamentId, winnerTeam.id, gameData.round, 'boston', 1);
-      }
-      if (gameData.boston === (gameData.scoreA > gameData.scoreB ? 'teamB' : 'teamA')) {
-        updateTournamentResult(tournamentId, loserTeam.id, gameData.round, 'boston', 1);
-      }
-      
-      if (gameData.round < 4) {
-        setSchedules(prev => prev.map(schedule => {
-          if (schedule.tournamentId === tournamentId) {
-            const updatedMatches = schedule.matches.map(match => {
-              if (match.round === gameData.round + 1) {
-                const currentRoundMatches = schedule.matches.filter(m => m.round === gameData.round);
-                const currentMatchIndex = currentRoundMatches.findIndex(m => m.id === matchId);
-                const nextRoundMatches = schedule.matches.filter(m => m.round === gameData.round + 1);
-                const targetMatchIndex = Math.floor(currentMatchIndex / 2);
-                const targetMatch = nextRoundMatches[targetMatchIndex];
-                
-                if (match.id === targetMatch?.id) {
-                  if (currentMatchIndex % 2 === 0) {
-                    return { ...match, teamA: winnerTeam.id };
-                  } else {
-                    return { ...match, teamB: winnerTeam.id };
-                  }
-                }
-              }
-              return match;
-            });
-            return { ...schedule, matches: updatedMatches };
-          }
-          return schedule;
-        }));
-      }
-      
-      toast({ title: 'Score confirmed! Results updated.' });
-    } else {
-      if (opponentSubmission) {
-        if (
-          opponentSubmission.scoreA === gameData.scoreA &&
-          opponentSubmission.scoreB === gameData.scoreB &&
-          opponentSubmission.boston !== gameData.boston
-        ) {
-          toast({
-            title: 'Score Conflict',
-            description: 'Boston values do not match. Please resolve with opponent.',
-            variant: 'destructive'
-          });
-        } else {
-          toast({ 
-            title: 'Score Conflict', 
-            description: 'Scores dont match. Please resolve with opponent.',
-            variant: 'destructive'
-          });
-        }
-      } else {
-        toast({ 
-          title: 'Score Submitted', 
-          description: 'Waiting for opponent to confirm.' 
-        });
-      }
     }
   };
 
@@ -959,9 +829,33 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const confirmScore = async (gameId: string, confirm: boolean, gameObj?: Game) => {
+    // Update local state
     setGames(prevGames => prevGames.map(game =>
       game.id === gameId ? { ...game, confirmed: confirm } : game
     ));
+    
+    // Update database record
+    try {
+      const { error } = await supabase
+        .from('games')
+        .update({ 
+          status: confirm ? 'confirmed' : 'pending_confirmation',
+          confirmed: confirm,
+          confirmedBy: confirm ? 'opponent' : null
+        })
+        .eq('id', gameId);
+      
+      if (error) {
+        console.error('confirmScore database update error:', error);
+        toast({ title: 'Error updating score confirmation', description: error.message, variant: 'destructive' });
+        return;
+      }
+    } catch (err) {
+      console.error('confirmScore unexpected error:', err);
+      toast({ title: 'Unexpected error updating confirmation', description: String(err), variant: 'destructive' });
+      return;
+    }
+    
     const game = games.find(g => g.id === gameId);
     const effectiveGame = game || gameObj;
     if (!effectiveGame) return;
@@ -1526,6 +1420,60 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const beginScoreEntry = async ({ matchId, teamId, teamA, teamB, round }: { matchId: string; teamId: string; teamA: string; teamB: string; round: number }) => {
+    try {
+      // Check existing game for this match
+      const { data: existing, error: selErr } = await supabase
+        .from('games')
+        .select('*')
+        .eq('matchId', matchId)
+        .in('status', ['entering', 'pending_confirmation']);
+      if (selErr) {
+        console.error('beginScoreEntry select error:', selErr);
+        return { ok: false, reason: 'error' };
+      }
+      if (existing && existing.length > 0) {
+        const g = existing[0];
+        // If another team holds the lock, deny
+        if (g.status === 'entering' && String(g.entered_by_team_id) !== String(teamId)) {
+          return { ok: false, reason: 'conflict' };
+        }
+        if (g.status === 'pending_confirmation') {
+          return { ok: false, reason: 'conflict' };
+        }
+      }
+      // Upsert entering record
+      const id = existing && existing[0] ? existing[0].id : Date.now().toString();
+      const row: any = {
+        id,
+        matchId,
+        teamA: String(teamA),
+        teamB: String(teamB),
+        round,
+        scoreA: 0,
+        scoreB: 0,
+        boston_a: 0,
+        boston_b: 0,
+        handsA: 0,
+        handsB: 0,
+        status: 'entering',
+        entered_by_team_id: String(teamId),
+        confirmed: false,
+        timestamp: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('games').upsert([row], { onConflict: ['id'] });
+      if (error) {
+        console.error('beginScoreEntry upsert error:', error);
+        return { ok: false, reason: 'error' };
+      }
+      await refreshGamesFromSupabase();
+      return { ok: true };
+    } catch (error) {
+      console.error('beginScoreEntry catch error:', error);
+      return { ok: false, reason: 'error' };
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, games, setGames, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, setTournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions, setScoreSubmissions, resetAllTournamentData,
@@ -1719,6 +1667,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       },
       submitGame,
+      beginScoreEntry,
       confirmGame: (gameId: string, confirmedBy: string) => { setGames(prev => prev.map(game => game.id === gameId ? { ...game, confirmed: true, confirmedBy } : game)); },
       updateGameScore: (matchId: string, teamAScore: number, teamBScore: number) => {},
       saveSchedule: async (schedule: TournamentSchedule) => {

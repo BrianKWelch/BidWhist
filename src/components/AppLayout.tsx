@@ -185,7 +185,7 @@ const AppLayout = () => {
                   ['admin', <Settings size={20} />],
                 ].map(([val, icon]) => (
                   <TabsTrigger
-                    key={val}
+                    key={val as string}
                     value={val as string}
                     className="text-red-600 hover:text-red-600 hover:bg-gray-200 data-[state=active]:bg-gray-100 data-[state=active]:text-black w-full p-3 flex justify-center"
                   >

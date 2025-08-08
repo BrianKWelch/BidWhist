@@ -118,7 +118,7 @@ const PlayerPortal = () => {
     console.log('games:', games.map(g => ({ teamA: g.teamA, typeA: typeof g.teamA, teamB: g.teamB, typeB: typeof g.teamB, matchId: g.matchId, confirmed: g.confirmed })));
     return games.filter(game =>
       (game.teamA === team.id || game.teamB === team.id) &&
-      game.confirmed &&
+      game.status === 'confirmed' &&
       game.matchId && matchIds.has(game.matchId)
     );
   };

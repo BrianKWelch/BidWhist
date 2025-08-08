@@ -86,8 +86,8 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
               <div className="space-y-3">
                 {roundMatches.map(match => {
                   if (match.isBye) {
-                    // Find the real team (not BYE) - one of teamA or teamB will be null for BYE matches
-                    const realTeamId = match.teamA || match.teamB;
+                    // Find the real team (not BYE) - one of teamA or teamB will be 'BYE' for BYE matches
+                    const realTeamId = match.teamA === 'BYE' ? match.teamB : match.teamA;
                     const team = teams.find(t => t.id === realTeamId);
                     return (
                       <div key={match.id} className={`p-2 md:p-3 border rounded-lg bg-yellow-50 border-yellow-300 text-yellow-800`}>

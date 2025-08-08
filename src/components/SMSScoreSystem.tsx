@@ -45,7 +45,7 @@ export const SMSScoreSystem: React.FC<SMSScoreSystemProps> = ({ tournamentId }) 
   // Check if current round is complete
   const isRoundComplete = currentRoundMatches.every(match => 
     games.some(game => 
-      game.matchId === match.id && game.confirmed
+      game.matchId === match.id && game.status === 'confirmed'
     )
   );
 

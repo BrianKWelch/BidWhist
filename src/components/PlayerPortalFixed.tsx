@@ -4,11 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppContext } from '@/contexts/AppContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Trophy, Users, Target, AlertCircle, TestTube, Crown } from 'lucide-react';
+import { Calendar, Trophy, Users, Target, AlertCircle, TestTube, Crown, Clock, Check } from 'lucide-react';
 import ScoreEntryCard from './ScoreEntryCard';
 import type { Team } from '@/contexts/AppContext';
+import { toast } from '@/hooks/use-toast';
 
 const PlayerPortalFixed = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -17,7 +17,18 @@ const PlayerPortalFixed = () => {
   const [testMode, setTestMode] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const { teams, schedules, games, tournaments, getActiveTournament } = useAppContext();
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
+  const [handsA, setHandsA] = useState('');
+  const [handsB, setHandsB] = useState('');
+  const [bostonA, setBostonA] = useState('0');
+  const [bostonB, setBostonB] = useState('0');
+  const [currentStep, setCurrentStep] = useState(0);
+  const [tieWinner, setTieWinner] = useState<'teamA' | 'teamB' | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [enteringTeamId, setEnteringTeamId] = useState<string | null>(null);
+  const { teams, schedules, games, tournaments, getActiveTournament, submitGame, confirmScore, beginScoreEntry, refreshGamesFromSupabase } = useAppContext();
 
   const cleanPhoneNumber = (phone: string) => {
     return phone.replace(/\D/g, '');
@@ -57,6 +68,84 @@ const PlayerPortalFixed = () => {
     }
   };
 
+  // Score entry functions
+  const handleSubmitScore = () => {
+    if (!selectedMatch || !team) return;
+    
+    const toNum = (v: string) => v.trim() === '' ? 0 : Number(v);
+    const myScore = toNum(scoreA);
+    const oppScore = toNum(scoreB);
+    const myHands = toNum(handsA);
+    const oppHands = toNum(handsB);
+    const myBostons = toNum(bostonA);
+    const oppBostons = toNum(bostonB);
+    
+    if (myScore === oppScore && !tieWinner) {
+      toast({ title: 'Tie detected', description: 'Please select who won the tiebreaker.', variant: 'destructive' });
+      return;
+    }
+    
+    const winner = myScore > oppScore ? 'teamA' : oppScore > myScore ? 'teamB' : tieWinner;
+    
+    const gameData = {
+      matchId: selectedMatch.id,
+      teamA: selectedMatch.teamA,
+      teamB: selectedMatch.teamB,
+      scoreA: myScore,
+      scoreB: oppScore,
+      handsA: myHands,
+      handsB: oppHands,
+      boston_a: myBostons,
+      boston_b: oppBostons,
+      winner,
+      submittedBy: team.id,
+      round: selectedMatch.round,
+      status: 'pending_confirmation',
+      entered_by_team_id: team.id
+    };
+    
+    submitGame(gameData);
+    setSelectedMatch(null);
+    setCurrentStep(0);
+    setScoreA('');
+    setScoreB('');
+    setHandsA('');
+    setHandsB('');
+    setBostonA('0');
+    setBostonB('0');
+    setTieWinner(null);
+    setEnteringTeamId(null);
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const getNextStep = (currentStep: number) => {
+    const activeTournament = getActiveTournament();
+    const tracksHands = activeTournament?.tracksHands;
+    
+    if (currentStep === 0) return 1; // My score -> My hands (if tracksHands) or Opponent score
+    if (currentStep === 1 && tracksHands) return 2; // My hands -> My bostons
+    if (currentStep === 1 && !tracksHands) return 3; // My score -> Opponent score
+    if (currentStep === 2) return 3; // My bostons -> Opponent score
+    if (currentStep === 3) return 4; // Opponent score -> Opponent hands (if tracksHands) or Opponent bostons
+    if (currentStep === 4 && tracksHands) return 5; // Opponent hands -> Opponent bostons
+    if (currentStep === 4 && !tracksHands) return 6; // Opponent score -> Opponent bostons
+    if (currentStep === 5) return 6; // Opponent hands -> Opponent bostons
+    return 7; // Final step
+  };
+
+  const getPrevStep = (currentStep: number) => {
+    const activeTournament = getActiveTournament();
+    const tracksHands = activeTournament?.tracksHands;
+    
+    if (currentStep === 1) return 0;
+    if (currentStep === 2) return 1;
+    if (currentStep === 3) return tracksHands ? 2 : 1;
+    if (currentStep === 4) return 3;
+    if (currentStep === 5) return 4;
+    if (currentStep === 6) return tracksHands ? 5 : 4;
+    return 6;
+  };
+
   // Force re-render when games change
   useEffect(() => {
     // This effect will run whenever games change, ensuring the component updates
@@ -72,13 +161,86 @@ const PlayerPortalFixed = () => {
     const teamMatches = schedule.matches.filter(match =>
       match.teamA === team.id || match.teamB === team.id
     );
+    
+    // Find the current round (first uncompleted round)
+    const completedRounds = new Set();
+    games.forEach(game => {
+      if ((game.teamA === team.id || game.teamB === team.id) && 
+          (game.confirmed || game.status === 'confirmed') &&
+          game.matchId) {
+        const match = schedule.matches.find(m => m.id === game.matchId);
+        if (match) completedRounds.add(match.round);
+      }
+    });
+    
+    const currentRound = Math.min(...Array.from({ length: schedule.rounds }, (_, i) => i + 1)
+      .filter(round => !completedRounds.has(round)));
+    
     return teamMatches.map(match => {
       const opponentId = match.teamA === team.id ? match.teamB : match.teamA;
       const opponentTeam = teams.find(t => t.id === opponentId);
+      
+      // Find any game for this match
+      const existingGame = games.find(game => game.matchId === match.id);
+      
+      // Determine card type
+      let cardType = 'future'; // Default for future rounds
+      let status = '';
+      let statusMessage = '';
+      
+      if (existingGame) {
+        if (existingGame.status === 'confirmed' || existingGame.confirmed) {
+          cardType = 'completed';
+        } else if (existingGame.status === 'pending_confirmation') {
+          if (existingGame.entered_by_team_id === team.id) {
+            status = 'Waiting for opponent confirmation';
+            statusMessage = 'Your score has been entered. Waiting for opponent to confirm.';
+          } else {
+            status = 'Pending confirmation';
+            statusMessage = 'Review and confirm the score entered by your opponent.';
+          }
+          cardType = 'current';
+        } else if (existingGame.status === 'disputed') {
+          if (existingGame.entered_by_team_id === team.id) {
+            status = 'Entering score';
+            statusMessage = 'You are currently entering the score.';
+          } else {
+            status = 'Opponent entering score';
+            statusMessage = 'Opponent is entering the score. Please wait.';
+          }
+          cardType = 'current';
+        }
+      } else if (match.round === currentRound) {
+        cardType = 'current';
+        status = 'Ready to Score';
+        statusMessage = 'Click to enter your score';
+      }
+      
+      // For completed games, calculate result
+      let gameResult = null;
+      if (cardType === 'completed' && existingGame) {
+        const isTeamA = match.teamA === team.id;
+        const myScore = isTeamA ? existingGame.scoreA : existingGame.scoreB;
+        const opponentScore = isTeamA ? existingGame.scoreB : existingGame.scoreA;
+        const isWin = myScore > opponentScore;
+        
+        gameResult = {
+          myScore,
+          opponentScore,
+          isWin,
+          boston: existingGame.boston
+        };
+      }
+      
       return {
         ...match,
         tournamentName: activeTournament.name,
-        opponentTeam
+        opponentTeam,
+        gameResult,
+        cardType,
+        status,
+        statusMessage,
+        existingGame
       };
     }).sort((a, b) => a.round - b.round);
   };
@@ -91,12 +253,12 @@ const PlayerPortalFixed = () => {
     if (!schedule) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: '0.0', results: [] };
     const matchIds = new Set(schedule.matches.map(m => m.id));
     const results = games.filter(game =>
-      (game.teamA.id === team.id || game.teamB.id === team.id) &&
-      game.confirmed &&
+      (game.teamA === team.id || game.teamB === team.id) &&
+      (game.confirmed || game.status === 'confirmed') &&
       game.matchId && matchIds.has(game.matchId)
     ).map(game => {
-      const isTeamA = game.teamA.id === team.id;
-      const opponentId = isTeamA ? game.teamB.id : game.teamA.id;
+      const isTeamA = game.teamA === team.id;
+      const opponentId = isTeamA ? game.teamB : game.teamA;
       const opponent = teams.find(t => t.id === opponentId) || null;
       return {
         ...game,
@@ -247,243 +409,585 @@ const PlayerPortalFixed = () => {
       </div>
 
       <div className="max-w-4xl mx-auto p-4">
-        <Tabs defaultValue="scores" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="scores"><Target className="h-4 w-4 mr-1" />Scores</TabsTrigger>
-            <TabsTrigger value="schedule"><Calendar className="h-4 w-4 mr-1" />Schedule</TabsTrigger>
-            <TabsTrigger value="results"><Trophy className="h-4 w-4 mr-1" />Results & Record</TabsTrigger>
-          </TabsList>
+                 {/* Tournament Name and Record Boxes */}
+         <div className="mb-6">
+           <div className="text-center mb-4">
+             <h2 className="text-xl font-bold text-white mb-1">{getActiveTournament()?.name}</h2>
+             <p className="text-sm text-gray-300">Schedule</p>
+           </div>
+          
+          {/* Horizontal Scrollable Record Boxes */}
+          <div className="flex overflow-x-auto gap-4 pb-2 scrollbar-hide">
+            <div className="flex-shrink-0 text-center p-4 bg-blue-50 rounded-lg min-w-[120px]">
+              <p className="text-2xl font-bold text-blue-600">{teamRecord.wins}</p>
+              <p className="text-sm text-gray-600">Wins</p>
+            </div>
+            <div className="flex-shrink-0 text-center p-4 bg-gray-50 rounded-lg min-w-[120px]">
+              <p className="text-2xl font-bold">{teamRecord.totalGames}</p>
+              <p className="text-sm text-gray-600">Games Played</p>
+            </div>
+            <div className="flex-shrink-0 text-center p-4 bg-green-50 rounded-lg min-w-[120px]">
+              <p className="text-2xl font-bold text-green-600">{teamRecord.avgPoints}</p>
+              <p className="text-sm text-gray-600">Avg Points/Game</p>
+            </div>
+            <div className="flex-shrink-0 text-center p-4 bg-purple-50 rounded-lg min-w-[120px]">
+              <p className="text-2xl font-bold text-purple-600">{teamRecord.totalPoints}</p>
+              <p className="text-sm text-gray-600">Total Points</p>
+            </div>
+          </div>
+        </div>
 
-          <TabsContent value="scores">
-            <ScoreEntryCard team={team} />
-          </TabsContent>
+                 {/* Schedule Content */}
+         <Card>
+           <CardHeader><CardTitle></CardTitle></CardHeader>
+          <CardContent>
+            {teamSchedule.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <p>No scheduled matches found</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Show all rounds */}
+                {(() => {
+                  const maxRound = Math.max(...teamSchedule.map(m => m.round));
+                  return Array.from({ length: maxRound }, (_, i) => i + 1).map(round => {
+                    const roundMatches = teamSchedule.filter(match => match.round === round);
+                    return (
+                      <div key={round} className="space-y-3">
+                        <div className="space-y-3">
+                          {roundMatches.map((match: any, index: number) => {
+                            // Determine card styling based on card type
+                            let cardClassName = 'border rounded-lg p-4 ';
+                            if (match.isBye) {
+                              cardClassName += 'bg-yellow-50 border-yellow-200';
+                            } else if (match.cardType === 'completed') {
+                              cardClassName += match.gameResult?.isWin ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+                            } else if (match.cardType === 'current') {
+                              cardClassName += 'bg-blue-50 border-blue-200';
+                            } else {
+                              cardClassName += 'bg-white';
+                            }
 
-          <TabsContent value="schedule">
-            <Card>
-                {/* Removed file name tag from top of My Tournament Schedule card */}
-              <CardHeader><CardTitle>My Tournament Schedule</CardTitle></CardHeader>
-              <CardContent>
-                {teamSchedule.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
-                    <p>No scheduled matches found</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Group matches by tournament */}
-                    {Array.from(new Set(teamSchedule.map(match => match.tournamentName))).map(tournamentName => {
-                      const tournamentMatches = teamSchedule.filter(match => match.tournamentName === tournamentName);
-                      const maxRound = Math.max(...tournamentMatches.map(m => m.round));
-                      
-                      return (
-                        <div key={tournamentName} className="space-y-4">
-                          <div className="border-b pb-2">
-                            <h3 className="font-semibold text-lg">{tournamentName}</h3>
-                            <p className="text-sm text-gray-600">{tournamentMatches.length} matches • {maxRound} rounds</p>
-                          </div>
-                          
-                          {/* Show all rounds for this tournament */}
-                          {Array.from({ length: maxRound }, (_, i) => i + 1).map(round => {
-                            const roundMatches = tournamentMatches.filter(match => match.round === round);
                             return (
-                              <div key={round} className="space-y-3">
-                                {/* Removed the outer round header, move round badge inside each match card */}
-                                <div className="space-y-3">
-                                  {roundMatches.map((match: any, index: number) => (
-                                    <div key={index} className={`border rounded-lg p-4 ${
-                                      match.isBye ? 'bg-yellow-50 border-yellow-200' : 'bg-white'
-                                    }`}>
-                                      <div className="flex justify-between items-start">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            {/* Round badge now inside the card */}
-                                            <Badge variant="outline" className="font-medium">
-                                              Round {round}
-                                            </Badge>
-                                            {match.table && match.table > 0 && (
-                                              <Badge variant="secondary" className="text-xs">
-                                                Table {match.table}
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          {match.isBye ? (
-                                            <div className="text-center">
-                                              <Badge variant="secondary" className="text-sm">BYE ROUND</Badge>
-                                              <p className="text-xs text-gray-600 mt-1">No game this round</p>
+                              <div key={index} className={cardClassName}>
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+                                  <div className="flex-1">
+                                    
+                                    {match.isBye ? (
+                                      <div className="text-center">
+                                        <Badge variant="secondary" className="text-sm">BYE ROUND</Badge>
+                                        <p className="text-xs text-gray-600 mt-1">No game this round</p>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        {/* Card Type 1: Future rounds - show opponent info */}
+                                        {match.cardType === 'future' && (
+                                          <>
+                                            <div className="flex items-center justify-between h-16">
+                                              {/* Left side: Round pill */}
+                                              <div className="flex items-center justify-center">
+                                                <Badge variant="outline" className="text-xs">
+                                                  Round {match.round}
+                                                </Badge>
+                                              </div>
+                                              
+                                              {/* Middle: Team, team number, and team name all centered */}
+                                              <div className="flex flex-col items-center justify-center">
+                                                <span className="text-xs text-gray-600">Team</span>
+                                                <span className="font-bold text-lg">{match.opponentTeam?.id || match.opponentId}</span>
+                                                <span className="text-xs text-gray-600">
+                                                  {match.opponentTeam?.player1FirstName || ''}/{match.opponentTeam?.player2FirstName || ''}
+                                                </span>
+                                              </div>
+                                             
+                                              {/* Right side: Table pill */}
+                                              <div className="flex items-center justify-center">
+                                                <Badge variant="secondary" className="text-xs">
+                                                  Table {match.table}
+                                                </Badge>
+                                              </div>
                                             </div>
-                                          ) : (
-                                            <div>
-                                              <p className="text-sm font-medium">
-                                                My team plays{' '}
-                                                {match.opponentTeam ? (
-                                                  (() => {
-                                                    let teamNum = 'TBD';
-                                                    if (match.opponentTeam.teamNumber) {
-                                                      teamNum = `Team # ${match.opponentTeam.teamNumber}`;
-                                                    } else if (match.opponentTeam.id) {
-                                                      teamNum = `Team # ${match.opponentTeam.id}`;
-                                                    }
-                                                    const p1 = (match.opponentTeam.player1_first_name || '').trim();
-                                                    const p2 = (match.opponentTeam.player2_first_name || '').trim();
-                                                    const city = match.opponentTeam.city;
-                                                    let nameStr = '';
-                                                    if (p1 && p2) {
-                                                      nameStr = `${p1} & ${p2}`;
-                                                    } else if (p1) {
-                                                      nameStr = p1;
-                                                    } else if (p2) {
-                                                      nameStr = p2;
-                                                    }
-                                                    if (nameStr) {
-                                                      return (
-                                                        <>
-                                                          <span className="font-bold text-red-600">{teamNum}</span>
-                                                          <span className="text-xs text-gray-700 font-semibold ml-1">
-                                                            {nameStr}{city ? ` - ${city}` : ''}
-                                                          </span>
-                                                        </>
-                                                      );
-                                                    } else {
-                                                      return (
-                                                        <span className="font-bold text-red-600">{teamNum}</span>
-                                                      );
-                                                    }
-                                                  })()
+                                          </>
+                                        )}
+
+                                        {/* Card Type 2: Current round - Ready to Score or status */}
+                                        {match.cardType === 'current' && (
+                                          <>
+                                            <div className="flex items-center justify-between h-16">
+                                              {/* Left side: Round pill */}
+                                              <div className="flex items-center justify-center">
+                                                <Badge variant="outline" className="text-xs">
+                                                  Round {match.round}
+                                                </Badge>
+                                              </div>
+                                              
+                                              {/* Middle: Team, team number, and team name all centered */}
+                                              <div className="flex flex-col items-center justify-center">
+                                                <span className="text-xs text-gray-600">Team</span>
+                                                <span className="font-bold text-lg">{match.opponentTeam?.id || match.opponentId}</span>
+                                                <span className="text-xs text-gray-600">
+                                                  {match.opponentTeam?.player1FirstName || ''}/{match.opponentTeam?.player2FirstName || ''}
+                                                </span>
+                                              </div>
+                                            
+                                              {/* Right side: Status pill or Enter Score button */}
+                                              <div className="flex items-center justify-center">
+                                                {match.status === 'Ready to Score' ? (
+                                                  <Button 
+                                                    size="sm" 
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1 text-xs rounded-md shadow-sm animate-pulse"
+                                                    onClick={() => {
+                                                      (async () => {
+                                                        const result = await beginScoreEntry({
+                                                          matchId: match.id,
+                                                          teamId: String(team.id),
+                                                          teamA: String(match.teamA),
+                                                          teamB: String(match.teamB),
+                                                          round: match.round,
+                                                        });
+                                                        if (result.ok) {
+                                                          setEnteringTeamId(team.id);
+                                                          setSelectedMatch(match);
+                                                          setCurrentStep(0);
+                                                        } else {
+                                                          toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                          await refreshGamesFromSupabase();
+                                                        }
+                                                      })();
+                                                    }}
+                                                  >
+                                                    Score
+                                                  </Button>
                                                 ) : (
-                                                  <span className="font-bold text-red-600">TBD</span>
+                                                  <Badge 
+                                                    variant={match.status === 'Waiting for opponent confirmation' ? 'secondary' : 
+                                                            match.status === 'Opponent entering score' ? 'destructive' : 'default'}
+                                                    className="text-xs"
+                                                    onClick={() => {
+                                                      if (match.status === 'Pending confirmation') {
+                                                        setSelectedMatch(match);
+                                                        setCurrentStep(0);
+                                                      }
+                                                    }}
+                                                  >
+                                                    {match.status === 'Waiting for opponent' && <Clock className="h-3 w-3 mr-1" />}
+                                                    {match.status}
+                                                  </Badge>
                                                 )}
-                                              </p>
-                                              {/* No extra opponent name row */}
+                                              </div>
                                             </div>
-                                          )}
-                                        </div>
-                                        {match.isSameCity && (
-                                          <Badge variant="destructive" className="text-xs">
-                                            Same City
-                                          </Badge>
+                                            
+                                            {/* Upper left: Small italic "in progress" */}
+                                            <div className="flex justify-start -mt-3">
+                                              <span className="text-xs italic text-blue-800">
+                                                in progress
+                                              </span>
+                                            </div>
+                                          </>
+                                        )}
+
+                                        {/* Card Type 3: Completed rounds - show results ONLY (no "My team plays" text) */}
+                                        {match.cardType === 'completed' && match.gameResult && (
+                                          <>
+                                            <div className="flex items-center justify-between h-16">
+                                              {/* Left side: Round pill */}
+                                              <div className="flex items-center justify-center">
+                                                <Badge variant="outline" className="text-xs">
+                                                  Round {match.round}
+                                                </Badge>
+                                              </div>
+                                              
+                                              {/* Middle: Team, team number, and team name all centered */}
+                                              <div className="flex flex-col items-center justify-center">
+                                                <span className="text-xs text-gray-600">Team</span>
+                                                <span className="font-bold text-lg">{match.opponentTeam?.id || match.opponentId}</span>
+                                                <span className="text-xs text-gray-600">
+                                                  {match.opponentTeam?.player1FirstName || ''}/{match.opponentTeam?.player2FirstName || ''}
+                                                </span>
+                                              </div>
+                                             
+                                              {/* Right side: Result pill */}
+                                              <div className="flex items-center justify-center">
+                                                <Badge 
+                                                  variant={match.gameResult.isWin ? 'default' : 'destructive'} 
+                                                  className="text-xs"
+                                                  style={{ 
+                                                    backgroundColor: match.gameResult.isWin ? '#10b981' : '#ef4444',
+                                                    color: 'white'
+                                                  }}
+                                                >
+                                                  {match.gameResult.isWin ? 'WIN' : 'LOSS'}
+                                                </Badge>
+                                              </div>
+                                            </div>
+                                            
+                                            {/* Bottom right: Small italic result */}
+                                            <div className="flex justify-end -mt-3">
+                                              <span className="text-xs italic text-red-600">
+                                                {match.gameResult.isWin ? 'won' : 'loss'} {match.gameResult.myScore}-{match.gameResult.opponentScore}
+                                              </span>
+                                            </div>
+                                          </>
                                         )}
                                       </div>
-                                    </div>
-                                  ))}
+                                    )}
+                                  </div>
+                                  {match.isSameCity && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Same City
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
                             );
                           })}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
 
-          <TabsContent value="results">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader><CardTitle>My Team Record</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <p className="text-2xl font-bold text-blue-600">{teamRecord.wins}</p>
-                      <p className="text-sm text-gray-600">Wins</p>
-                    </div>
-                    <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <p className="text-2xl font-bold">{teamRecord.totalGames}</p>
-                      <p className="text-sm text-gray-600">Games Played</p>
-                    </div>
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
-                      <p className="text-2xl font-bold text-green-600">{teamRecord.avgPoints}</p>
-                      <p className="text-sm text-gray-600">Avg Points/Game</p>
-                    </div>
-                    <div className="text-center p-4 bg-purple-50 rounded-lg">
-                      <p className="text-2xl font-bold text-purple-600">{teamRecord.totalPoints}</p>
-                      <p className="text-sm text-gray-600">Total Points</p>
-                    </div>
+            {/* Score Entry Modal */}
+            {selectedMatch && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Enter Score - Round {selectedMatch.round}</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedMatch(null);
+                        setCurrentStep(0);
+                        setScoreA('');
+                        setScoreB('');
+                        setHandsA('');
+                        setHandsB('');
+                        setBostonA('0');
+                        setBostonB('0');
+                        setTieWinner(null);
+                        setEnteringTeamId(null);
+                      }}
+                    >
+                      ✕
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5" />
-                    My Game Results
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {teamRecord.results.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p className="font-medium">No completed games yet</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {teamRecord.results.map((game) => {
-                        let teamNum = 'TBD';
-                        let nameStr = '';
-                        let city = '';
-                        if (game.opponent && typeof game.opponent === 'object') {
-                          if (game.opponent.teamNumber) {
-                            teamNum = `Team ${game.opponent.teamNumber}`;
-                          } else if (game.opponent.id) {
-                            teamNum = `Team ${game.opponent.id}`;
-                          }
-                          if ((!game.opponent.teamNumber || game.opponent.teamNumber === 'undefined') && game.opponent.id) {
-                            teamNum = `Team ${game.opponent.id}`;
-                          }
-                          const p1 = (game.opponent.player1_first_name || '').trim();
-                          const p2 = (game.opponent.player2_first_name || '').trim();
-                          city = game.opponent.city || '';
-                          if (p1 && p2) {
-                            nameStr = `${p1} & ${p2}`;
-                          } else if (p1) {
-                            nameStr = p1;
-                          } else if (p2) {
-                            nameStr = p2;
-                          }
+
+                  {/* If there's a pending confirmation for this match and this team didn't submit, show confirmation UI */}
+                  {(() => {
+                    const pendingGame = games.find(g => String(g.matchId) === String(selectedMatch.id) && g.status === 'pending_confirmation');
+                    const isOpponentToConfirm = pendingGame && String(pendingGame.entered_by_team_id) !== String(team.id);
+                    
+                    if (pendingGame && isOpponentToConfirm) {
+                      const myIsTeamA = String(pendingGame.teamA) === String(team.id);
+                      const myScore = myIsTeamA ? pendingGame.scoreA : pendingGame.scoreB;
+                      const oppScore = myIsTeamA ? pendingGame.scoreB : pendingGame.scoreA;
+                      const myBostons = myIsTeamA ? (pendingGame.boston_a ?? 0) : (pendingGame.boston_b ?? 0);
+                      const oppBostons = myIsTeamA ? (pendingGame.boston_b ?? 0) : (pendingGame.boston_a ?? 0);
+                      const myHands = myIsTeamA ? (pendingGame.handsA ?? 0) : (pendingGame.handsB ?? 0);
+                      const oppHands = myIsTeamA ? (pendingGame.handsB ?? 0) : (pendingGame.handsA ?? 0);
+                      
+                      const handleConfirm = async (confirm: boolean) => {
+                        try {
+                          await confirmScore(pendingGame.id, confirm);
+                          toast({ title: confirm ? 'Score confirmed' : 'Score disputed', variant: confirm ? 'default' : 'destructive' });
+                          setSelectedMatch(null);
+                          await refreshGamesFromSupabase();
+                          setRefreshKey(prev => prev + 1);
+                        } catch (e) {
+                          toast({ title: 'Action failed', description: 'Please try again.', variant: 'destructive' });
                         }
-                        if (!teamNum || teamNum.toLowerCase().includes('unknown') || teamNum === 'undefined') {
-                          teamNum = 'TBD';
-                        }
-                        return (
-                          <div 
-                            key={game.id} 
-                            className={`p-4 rounded-lg border ${
-                              game.isWin 
-                                ? 'bg-green-50 border-green-200' 
-                                : 'bg-red-50 border-red-200'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <Badge variant="outline">Round {game.round}</Badge>
-                                <span className={`font-semibold ${
-                                  game.isWin ? 'text-green-700' : 'text-red-700'
-                                }`}>
-                                  {game.isWin ? 'WIN' : 'LOSS'}
-                                </span>
-                                <span className="font-bold">
-                                  {game.teamScore} - {game.opponentScore}
-                                </span>
-                                <span className="text-sm text-gray-600">
-                                  vs <span className="font-bold text-red-600">{teamNum}</span>
-                                  {nameStr && (
-                                    <span className="text-xs text-gray-700 font-semibold ml-1">
-                                      {nameStr}{city ? ` - ${city}` : ''}
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
+                      };
+
+                      return (
+                        <div className="space-y-4">
+                          <div className="text-center">
+                            <h4 className="font-semibold mb-2">Review Opponent's Score</h4>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                              <p className="text-sm mb-2">Your score: <span className="font-bold">{myScore}</span></p>
+                              <p className="text-sm mb-2">Opponent score: <span className="font-bold">{oppScore}</span></p>
+                              {myHands > 0 && <p className="text-sm mb-2">Your hands: <span className="font-bold">{myHands}</span></p>}
+                              {oppHands > 0 && <p className="text-sm mb-2">Opponent hands: <span className="font-bold">{oppHands}</span></p>}
+                              {myBostons > 0 && <p className="text-sm mb-2">Your Bostons: <span className="font-bold">{myBostons}</span></p>}
+                              {oppBostons > 0 && <p className="text-sm mb-2">Opponent Bostons: <span className="font-bold">{oppBostons}</span></p>}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={() => handleConfirm(true)} 
+                              className="flex-1 bg-green-600 hover:bg-green-700"
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Confirm
+                            </Button>
+                            <Button 
+                              onClick={() => handleConfirm(false)} 
+                              variant="destructive" 
+                              className="flex-1"
+                            >
+                              Dispute
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Step-by-step score entry
+                    const activeTournament = getActiveTournament();
+                    const tracksHands = activeTournament?.tracksHands;
+
+                    return (
+                      <div className="space-y-4">
+                        {currentStep === 0 && (
+                          <div className="text-center space-y-4">
+                            <h2 className="text-2xl font-bold text-blue-600">How many points did you have?</h2>
+                            <Input
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={scoreA}
+                              onChange={(e) => setScoreA(e.target.value)}
+                              placeholder="Enter your points"
+                              className="text-center text-xl h-12"
+                              autoFocus
+                            />
+                            <Button 
+                              onClick={() => setCurrentStep(getNextStep(0))} 
+                              className="w-full"
+                              disabled={!scoreA}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        )}
+
+                        {tracksHands && currentStep === 1 && (
+                          <div className="text-center space-y-4">
+                            <h2 className="text-2xl font-bold text-blue-600">How many hands did you win?</h2>
+                            <Input
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={handsA}
+                              onChange={(e) => setHandsA(e.target.value)}
+                              placeholder="Enter hands won"
+                              className="text-center text-xl h-12"
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => setCurrentStep(getPrevStep(1))} 
+                                variant="outline"
+                                className="flex-1"
+                              >
+                                Back
+                              </Button>
+                              <Button 
+                                onClick={() => setCurrentStep(getNextStep(1))} 
+                                className="flex-1"
+                                disabled={!handsA}
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {currentStep === 2 && (
+                          <div className="text-center space-y-4">
+                            <h2 className="text-2xl font-bold text-blue-600">How many Bostons did you make?</h2>
+                            <Input
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={bostonA}
+                              onChange={(e) => setBostonA(e.target.value)}
+                              placeholder="Enter your Bostons"
+                              className="text-center text-xl h-12"
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => setCurrentStep(getPrevStep(2))} 
+                                variant="outline"
+                                className="flex-1"
+                              >
+                                Back
+                              </Button>
+                              <Button 
+                                onClick={() => setCurrentStep(getNextStep(2))} 
+                                className="flex-1"
+                                disabled={!bostonA}
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {currentStep === 3 && (
+                          <div className="text-center space-y-4">
+                            <h2 className="text-2xl font-bold text-blue-600">How many points did your opponent have?</h2>
+                            <Input
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={scoreB}
+                              onChange={(e) => setScoreB(e.target.value)}
+                              placeholder="Enter opponent points"
+                              className="text-center text-xl h-12"
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => setCurrentStep(getPrevStep(3))} 
+                                variant="outline"
+                                className="flex-1"
+                              >
+                                Back
+                              </Button>
+                              <Button 
+                                onClick={() => setCurrentStep(getNextStep(3))} 
+                                className="flex-1"
+                                disabled={!scoreB}
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {tracksHands && currentStep === 4 && (
+                          <div className="text-center space-y-4">
+                            <h2 className="text-2xl font-bold text-blue-600">How many hands did your opponent win?</h2>
+                            <Input
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={handsB}
+                              onChange={(e) => setHandsB(e.target.value)}
+                              placeholder="Enter opponent hands"
+                              className="text-center text-xl h-12"
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => setCurrentStep(getPrevStep(4))} 
+                                variant="outline"
+                                className="flex-1"
+                              >
+                                Back
+                              </Button>
+                              <Button 
+                                onClick={() => setCurrentStep(getNextStep(4))} 
+                                className="flex-1"
+                                disabled={!handsB}
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {currentStep === 5 && (
+                          <div className="text-center space-y-4">
+                            <h2 className="text-2xl font-bold text-blue-600">How many Bostons did your opponent make?</h2>
+                            <Input
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={bostonB}
+                              onChange={(e) => setBostonB(e.target.value)}
+                              placeholder="Enter opponent Bostons"
+                              className="text-center text-xl h-12"
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => setCurrentStep(getPrevStep(5))} 
+                                variant="outline"
+                                className="flex-1"
+                              >
+                                Back
+                              </Button>
+                              <Button 
+                                onClick={() => setCurrentStep(getNextStep(5))} 
+                                className="flex-1"
+                                disabled={!bostonB}
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {currentStep === 6 && (
+                          <div className="text-center space-y-4">
+                            <h2 className="text-2xl font-bold text-blue-600">Review Your Score</h2>
+                            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                              <p className="text-sm">Your score: <span className="font-bold">{scoreA}</span></p>
+                              <p className="text-sm">Opponent score: <span className="font-bold">{scoreB}</span></p>
+                              {tracksHands && <p className="text-sm">Your hands: <span className="font-bold">{handsA}</span></p>}
+                              {tracksHands && <p className="text-sm">Opponent hands: <span className="font-bold">{handsB}</span></p>}
+                              <p className="text-sm">Your Bostons: <span className="font-bold">{bostonA}</span></p>
+                              <p className="text-sm">Opponent Bostons: <span className="font-bold">{bostonB}</span></p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => setCurrentStep(getPrevStep(6))} 
+                                variant="outline"
+                                className="flex-1"
+                              >
+                                Back
+                              </Button>
+                              <Button 
+                                onClick={handleSubmitScore} 
+                                className="flex-1 bg-green-600 hover:bg-green-700"
+                              >
+                                Submit Score
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {currentStep === 7 && (
+                          <div className="text-center space-y-4">
+                            <h2 className="text-2xl font-bold text-red-600">Tie Detected!</h2>
+                            <p className="text-sm text-gray-600">The scores are equal. Who won the tiebreaker?</p>
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => {
+                                  setTieWinner('teamA');
+                                  setCurrentStep(6);
+                                }} 
+                                variant={tieWinner === 'teamA' ? 'default' : 'outline'}
+                                className="flex-1"
+                              >
+                                We Won
+                              </Button>
+                              <Button 
+                                onClick={() => {
+                                  setTieWinner('teamB');
+                                  setCurrentStep(6);
+                                }} 
+                                variant={tieWinner === 'teamB' ? 'default' : 'outline'}
+                                className="flex-1"
+                              >
+                                They Won
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

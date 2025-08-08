@@ -58,15 +58,18 @@ export interface Tournament {
   bostonPotCost: number;
   description?: string;
   status: 'active' | 'pending' | 'finished';
+  tracksHands?: boolean;
 }
 
 export interface Game {
   id: string;
-  teamA: Team;
-  teamB: Team;
+  teamA: string;
+  teamB: string;
   scoreA: number;
   scoreB: number;
-  boston: 'none' | 'teamA' | 'teamB';
+  boston?: 'none' | 'teamA' | 'teamB'; // Made optional for backward compatibility
+  boston_a?: number;
+  boston_b?: number;
   winner: 'teamA' | 'teamB';
   submittedBy: string;
   confirmedBy?: string;
@@ -78,6 +81,8 @@ export interface Game {
   teamBScore?: number;
   handsA?: number;
   handsB?: number;
+  status?: 'pending_confirmation' | 'confirmed' | 'disputed';
+  entered_by_team_id?: string;
 }
 
 export interface ScheduleMatch {
@@ -196,6 +201,7 @@ interface AppContextType {
   addTournament: (name: string, cost: number, bostonPotCost: number, description?: string) => void;
   updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => void;
   submitGame: (game: any) => void;
+  beginScoreEntry: (params: { matchId: string; teamId: string; teamA: string; teamB: string; round: number }) => Promise<{ ok: boolean; reason?: 'conflict' | 'error' }>;
   confirmGame: (gameId: string, confirmedBy: string) => void;
   updatePaymentStatus: (teamId: string, status: 'pending' | 'paid') => void;
   updatePlayerPaymentStatus: (teamId: string, player: 'player1' | 'player2', status: 'pending' | 'paid') => void;

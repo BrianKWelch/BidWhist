@@ -16,7 +16,7 @@ export const ScoreConfirmationFlow: React.FC<ScoreConfirmationFlowProps> = ({ to
 
   const tournament = tournaments.find(t => t.id === tournamentId);
   const pendingGames = games.filter(game => 
-    !game.confirmed && 
+    game.status !== 'confirmed' && 
     game.matchId?.startsWith(tournamentId)
   );
 
