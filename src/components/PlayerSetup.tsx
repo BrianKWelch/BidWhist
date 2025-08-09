@@ -104,6 +104,8 @@ const PlayerSetup: React.FC<PlayerSetupProps> = ({ onSetupComplete }) => {
             <Play size={20} />
             Enter My Tournaments Admin portal
           </Button>
+
+
           
           {teams?.length === 0 && (
             <p className="text-sm text-red-300 text-center italic">

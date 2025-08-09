@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings, Plus, Trophy, Star, Edit2, Save, X, MessageSquare } from 'lucide-react';
 import CityManager from './CityManager';
 import { IntegratedScoreSystem } from './IntegratedScoreSystem';
+import MessageManager from './MessageManager';
 import { useAppContext } from '@/contexts/AppContext';
 
 const TournamentManagement: React.FC = () => {
@@ -31,7 +32,7 @@ const TournamentManagement: React.FC = () => {
   const [editCost, setEditCost] = useState('');
   const [editBostonCost, setEditBostonCost] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [selectedTournamentForScores, setSelectedTournamentForScores] = useState<string>('');
+
 
   const activeTournament = getActiveTournament();
 
@@ -95,7 +96,7 @@ const TournamentManagement: React.FC = () => {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="tournaments">Tournament Setup</TabsTrigger>
           <TabsTrigger value="cities">City Management</TabsTrigger>
-          <TabsTrigger value="scores">Score Management</TabsTrigger>
+          <TabsTrigger value="messaging">Messaging</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tournaments" className="space-y-6">
@@ -300,36 +301,8 @@ const TournamentManagement: React.FC = () => {
           <CityManager />
         </TabsContent>
 
-        <TabsContent value="scores" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5" />
-                SMS Score Management
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Select Tournament for Score Management</Label>
-                <select 
-                  className="w-full p-2 border rounded"
-                  value={selectedTournamentForScores}
-                  onChange={(e) => setSelectedTournamentForScores(e.target.value)}
-                >
-                  <option value="">Select a tournament...</option>
-                  {tournaments.map(tournament => (
-                    <option key={tournament.id} value={tournament.id}>
-                      {tournament.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {selectedTournamentForScores && (
-                <IntegratedScoreSystem tournamentId={selectedTournamentForScores} />
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="messaging" className="space-y-6">
+          <MessageManager />
         </TabsContent>
       </Tabs>
     </div>

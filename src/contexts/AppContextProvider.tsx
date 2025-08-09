@@ -53,7 +53,7 @@ function generateDummyTeams(num: number, cities: string[], tournamentId: string)
   }
   return teams;
 }
-import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket, ScheduleMatch, Player, PlayerTournament } from './AppContext';
+import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, TournamentResult, ScoreSubmission, Bracket, ScheduleMatch, Player, PlayerTournament, Message } from './AppContext';
 import { createTournamentResultMethods } from './AppContextMethods';
 import { generateNextWinLossRound } from '../lib/scheduler';
 
@@ -609,6 +609,97 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     toast({ title: 'Tournament finished and cleared.' });
   };
   const [currentUser, setCurrentUser] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  // Fetch messages from Supabase
+  const fetchMessagesFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching messages:', error);
+        return;
+      }
+      
+      if (data) {
+        // Convert database format to Message interface
+        const formattedMessages: Message[] = data.map((msg: any) => ({
+          id: msg.id,
+          text: msg.text,
+          type: msg.type,
+          active: msg.active,
+          createdAt: new Date(msg.created_at),
+          expiresAt: msg.expires_at ? new Date(msg.expires_at) : undefined,
+          createdBy: msg.created_by
+        }));
+        console.log('Fetched messages:', formattedMessages);
+        setMessages(formattedMessages);
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
+  // Load messages on component mount
+  useEffect(() => {
+    fetchMessagesFromSupabase();
+  }, []);
+
+  // Periodic refresh as backup to real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchMessagesFromSupabase();
+    }, 5000); // Refresh every 5 seconds as backup
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Real-time subscription for messages
+  useEffect(() => {
+    console.log('Setting up real-time subscription for messages');
+    
+    const setupSubscription = async () => {
+      try {
+        const channel = supabase
+          .channel('messages-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
+            console.log('Message change detected:', payload);
+            // Add a small delay to ensure the database change is committed
+            setTimeout(() => {
+              fetchMessagesFromSupabase();
+            }, 100);
+          })
+          .subscribe((status) => {
+            console.log('Messages subscription status:', status);
+            if (status === 'SUBSCRIBED') {
+              console.log('Messages subscription successful');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error('Messages subscription error');
+            }
+          });
+
+        return channel;
+      } catch (error) {
+        console.error('Error setting up messages subscription:', error);
+        return null;
+      }
+    };
+
+    let channel: any = null;
+    setupSubscription().then((ch) => {
+      channel = ch;
+    });
+
+    return () => {
+      console.log('Cleaning up messages subscription');
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
 
   const { updateTournamentResult, getTournamentResults, formatTeamName } = createTournamentResultMethods(
     tournamentResults, setTournamentResults, teams
@@ -1875,6 +1966,72 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         toast({ title: `Tournament "${name}" updated successfully!` });
       },
+      createTournament: async (name: string, status: 'pending' | 'active' | 'finished') => {
+        const { supabase } = await import('../supabaseClient');
+        const { data, error } = await supabase
+          .from('tournaments')
+          .insert([{
+            name,
+            status,
+            cost: 0,
+            boston_pot_cost: 0
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          toast({ title: 'Failed to create tournament in database.', description: error.message, variant: 'destructive' });
+          return;
+        }
+
+        // Refetch tournaments from Supabase to update local state
+        const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
+        if (!fetchError) {
+          setTournaments(tournamentsData || []);
+        }
+        toast({ title: `Tournament "${name}" created successfully!` });
+      },
+      updateTournamentStatus: async (tournament: Tournament) => {
+        const { supabase } = await import('../supabaseClient');
+        const { error } = await supabase
+          .from('tournaments')
+          .update({
+            name: tournament.name,
+            status: tournament.status
+          })
+          .eq('id', tournament.id);
+
+        if (error) {
+          toast({ title: 'Failed to update tournament in database.', description: error.message, variant: 'destructive' });
+          return;
+        }
+
+        // Refetch tournaments from Supabase to update local state
+        const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
+        if (!fetchError) {
+          setTournaments(tournamentsData || []);
+        }
+        toast({ title: `Tournament "${tournament.name}" updated successfully!` });
+      },
+      deleteTournament: async (tournamentId: string) => {
+        const { supabase } = await import('../supabaseClient');
+        const { error } = await supabase
+          .from('tournaments')
+          .delete()
+          .eq('id', tournamentId);
+
+        if (error) {
+          toast({ title: 'Failed to delete tournament from database.', description: error.message, variant: 'destructive' });
+          return;
+        }
+
+        // Refetch tournaments from Supabase to update local state
+        const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
+        if (!fetchError) {
+          setTournaments(tournamentsData || []);
+        }
+        toast({ title: 'Tournament deleted successfully!' });
+      },
       updatePaymentStatus: () => {}, 
       updatePlayerPaymentStatus: () => {}, 
       updatePlayerTournamentPayment, 
@@ -1943,7 +2100,86 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       refreshGamesFromSupabase,
       createTeamFromPlayers,
       refreshTeams,
-      refreshPlayers
+      refreshPlayers,
+      messages,
+      addMessage: async (message: Omit<Message, 'id' | 'createdAt'>) => {
+        try {
+          const { data, error } = await supabase
+            .from('messages')
+            .insert([{
+              text: message.text,
+              type: message.type,
+              active: message.active,
+              expires_at: message.expiresAt,
+              created_by: message.createdBy || 'admin'
+            }])
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('Error adding message:', error);
+            toast({ title: 'Error adding message', variant: 'destructive' });
+            return;
+          }
+          
+          // Let the real-time subscription handle the state update
+          toast({ title: 'Message added successfully!' });
+        } catch (error) {
+          console.error('Error adding message:', error);
+          toast({ title: 'Error adding message', variant: 'destructive' });
+        }
+      },
+      updateMessage: async (id: string, updates: Partial<Message>) => {
+        try {
+          const updateData: any = {};
+          if (updates.text !== undefined) updateData.text = updates.text;
+          if (updates.type !== undefined) updateData.type = updates.type;
+          if (updates.active !== undefined) updateData.active = updates.active;
+          if (updates.expiresAt !== undefined) updateData.expires_at = updates.expiresAt;
+          
+          const { error } = await supabase
+            .from('messages')
+            .update(updateData)
+            .eq('id', id);
+          
+          if (error) {
+            console.error('Error updating message:', error);
+            toast({ title: 'Error updating message', variant: 'destructive' });
+            return;
+          }
+          
+          // Let the real-time subscription handle the state update
+          toast({ title: 'Message updated successfully!' });
+        } catch (error) {
+          console.error('Error updating message:', error);
+          toast({ title: 'Error updating message', variant: 'destructive' });
+        }
+      },
+      deleteMessage: async (id: string) => {
+        try {
+          const { error } = await supabase
+            .from('messages')
+            .delete()
+            .eq('id', id);
+          
+          if (error) {
+            console.error('Error deleting message:', error);
+            toast({ title: 'Error deleting message', variant: 'destructive' });
+            return;
+          }
+          
+          // Let the real-time subscription handle the state update
+          toast({ title: 'Message deleted successfully!' });
+        } catch (error) {
+          console.error('Error deleting message:', error);
+          toast({ title: 'Error deleting message', variant: 'destructive' });
+        }
+      },
+      getActiveMessages: () => {
+        const activeMessages = messages.filter(msg => msg.active);
+        console.log('getActiveMessages called, returning:', activeMessages);
+        return activeMessages;
+      }
     }}>
       {children}
     </AppContext.Provider>

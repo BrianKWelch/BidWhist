@@ -9,6 +9,7 @@ import { Calendar, Trophy, Users, Target, AlertCircle, TestTube, Crown, Clock, C
 import ScoreEntryCard from './ScoreEntryCard';
 import type { Team } from '@/contexts/AppContext';
 import { toast } from '@/hooks/use-toast';
+import MessageBanner from './MessageBanner';
 
 
 // Direct score entry component without the wrapper UI
@@ -446,6 +447,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
  
  const PlayerPortalFixed = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [teamNumber, setTeamNumber] = useState('');
   const [team, setTeam] = useState<Team | null>(null);
   const [loginError, setLoginError] = useState('');
   const [testMode, setTestMode] = useState(false);
@@ -454,7 +456,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [enteringTeamId, setEnteringTeamId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const { teams, schedules, games, tournaments, getActiveTournament, submitGame, confirmScore, beginScoreEntry, releaseScoreEntryLock, refreshGamesFromSupabase } = useAppContext();
+  const { teams, schedules, games, tournaments, getActiveTournament, submitGame, confirmScore, beginScoreEntry, releaseScoreEntryLock, refreshGamesFromSupabase, getActiveMessages } = useAppContext();
 
   const cleanPhoneNumber = (phone: string) => {
     return phone.replace(/\D/g, '');
@@ -494,11 +496,46 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
     }
   };
 
+  const handleAdminTeamNumberLogin = () => {
+    if (!teamNumber.trim()) return;
+    
+    const teamNumberInt = parseInt(teamNumber.trim());
+    const selectedTeam = teams.find(t => 
+      t.teamNumber === teamNumberInt || 
+      t.id === teamNumber.trim()
+    );
+    if (selectedTeam) {
+      setTeam(selectedTeam);
+      setAdminMode(true);
+      setTeamNumber('');
+      setLoginError('');
+    } else {
+      setLoginError(`No team found with number ${teamNumber.trim()}`);
+    }
+  };
+
   // Force re-render when games change
   useEffect(() => {
     // This effect will run whenever games change, ensuring the component updates
     setRefreshKey(prev => prev + 1);
   }, [games]);
+
+  // Scroll to top when team logs in
+  useEffect(() => {
+    if (team) {
+      window.scrollTo(0, 0);
+    }
+  }, [team]);
+
+  // Force re-render when messages change
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // This will trigger a re-render when messages change
+      setRefreshKey(prev => prev + 1);
+    }, 1000); // Check every second
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Periodic refresh as backup to real-time updates
   useEffect(() => {
@@ -656,44 +693,44 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
     return { wins, totalGames, totalPoints, avgPoints, results };
   }, [games, team, schedules, getActiveTournament, teams]);
 
-  // REMOVE_ME: File name display for testing
+  // Login screen
   if (!team) {
+    const activeMessage = getActiveMessages()[0];
+    console.log('Login screen - active message:', activeMessage);
     return (
-      <div className="min-h-screen flex flex-col justify-between items-center bg-gradient-to-br from-black via-red-900 to-black p-4 relative">
-        {/* Removed file name tag from top of page */}
-        {/* Card suit background pattern */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none select-none bg-[url('https://upload.wikimedia.org/wikipedia/commons/5/5a/Spades.svg')] bg-center bg-repeat" style={{zIndex:0}} />
-        <Card className="w-full max-w-md shadow-2xl border-4 border-black rounded-2xl bg-gradient-to-br from-black via-gray-900 to-red-900/80 backdrop-blur relative z-10">
-          <CardHeader className="text-center pb-2 space-y-4">
-            <div className="mx-auto w-20 h-28 flex items-center justify-center bg-gradient-to-br from-black to-red-800 rounded-xl shadow-lg border-2 border-white relative mb-2">
-              <img src="/logo.png" alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%' }} />
-            </div>
-            <CardTitle className="text-4xl font-extrabold bg-gradient-to-r from-red-600 to-black bg-clip-text text-transparent drop-shadow-lg tracking-wide">
-              Smokin' Aces
-            </CardTitle>
-            <div className="mb-2">
-              <span className="block font-serif text-2xl text-yellow-300 font-bold drop-shadow-lg">Welcome to the 2025 Columbus Tourney!</span>
-            </div>
-            <p className="text-red-200 text-lg font-semibold drop-shadow">View your schedule, scores, and standings. GOOD LUCK</p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Input
-                  placeholder="Enter 10-digit phone number"
-                  value={phoneNumber}
-                  onChange={(e) => {
-                    setPhoneNumber(e.target.value);
-                    setLoginError('');
-                  }}
-                  className="text-center text-lg bg-black/80 text-white border-red-500 focus:border-red-700 focus:ring-red-700"
-                  maxLength={14}
-                  autoFocus
+              <div className="min-h-screen flex flex-col justify-start items-center bg-gray-50 p-4 pt-8">
+                <MessageBanner 
+                  key={`login-${activeMessage?.id || 'none'}`}
+                  message={activeMessage?.text || ''} 
+                  type={activeMessage?.type} 
                 />
-                <Button onClick={handleLogin} className="w-full bg-gradient-to-r from-black via-red-700 to-black hover:from-red-800 hover:to-black text-white font-bold py-3 px-4 rounded-xl shadow-xl transform transition hover:scale-105">
-                  Enter My Tournaments Portal
-                </Button>
+        <Card className="w-full max-w-md shadow-lg border-2 border-red-500 mt-16">
+          <CardHeader className="text-center pb-2 space-y-4">
+                                       <div className="mx-auto w-61 h-61 flex items-center justify-center bg-red-600 rounded-lg shadow-sm relative mb-0">
+                <img src={import.meta.env.BASE_URL + 'SetPlay_Logo.png'} alt="SetPlay Logo" className="w-61 h-61" />
               </div>
+              <div className="flex flex-col items-center -mt-28">
+                <img src={import.meta.env.BASE_URL + 'tp.png'} alt="Teams Portal" className="w-75 h-25 object-contain" />
+              </div>
+          </CardHeader>
+                     <CardContent className="space-y-6">
+             <div className="space-y-3 mt-8">
+                              <div className="space-y-2">
+                  <Input
+                    placeholder="Enter 10-digit phone number"
+                    value={phoneNumber}
+                    onChange={(e) => {
+                      setPhoneNumber(e.target.value);
+                      setLoginError('');
+                    }}
+                    className="text-center text-lg border-2 border-black focus:border-red-500 focus:ring-red-500"
+                    maxLength={14}
+                    autoFocus
+                  />
+                  <Button onClick={handleLogin} className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md">
+                    Enter Tournament Portal
+                  </Button>
+                </div>
               {loginError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
@@ -701,75 +738,92 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                 </div>
               )}
             </div>
-            {typeof window !== 'undefined' && window.location.hash.includes('admin=1') && (
-              <div className="border-t pt-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Crown className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium text-gray-700">Admin Access</span>
-                </div>
-                <div className="space-y-2">
-                  <Select onValueChange={handleAdminTeamSelect}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select any team to view their portal" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teams.map((team) => (
-                        <SelectItem key={team.id} value={team.id}>
-                          Team {team.id}: {team.name} ({team.city})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500 text-center">
-                    Select any team to view their portal as admin
-                  </p>
-                </div>
-              </div>
-            )}
-            {/* Credit */}
-            <div className="mt-6 text-xs text-center text-red-200 font-mono tracking-wide">
-              Built and Managed by Brian Welch
-            </div>
-          </CardContent>
-        </Card>
-        {/* Footer credit for extra visibility on mobile */}
-        <div className="w-full text-center text-xs text-red-300 mt-4 z-10">
-          Built and Managed by Brian Welch
-        </div>
-      </div>
+                         {typeof window !== 'undefined' && window.location.hash.includes('admin=1') && (
+               <div className="border-t pt-4">
+                 <div className="flex items-center gap-2 mb-3">
+                   <Crown className="h-4 w-4 text-red-600" />
+                   <span className="text-sm font-medium text-gray-700">Admin Access</span>
+                 </div>
+                 <div className="space-y-2">
+                   <Select onValueChange={handleAdminTeamSelect}>
+                     <SelectTrigger className="border-2 border-black">
+                       <SelectValue placeholder="Select any team to view their portal" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {teams.map((team) => (
+                         <SelectItem key={team.id} value={team.id}>
+                           Team {team.id}: {team.name} ({team.city})
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                   <p className="text-xs text-gray-500 text-center">
+                     Select any team to view their portal as admin
+                   </p>
+                   
+                   <div className="relative">
+                     <div className="absolute inset-0 flex items-center">
+                       <span className="w-full border-t border-gray-300" />
+                     </div>
+                     <div className="relative flex justify-center text-xs uppercase">
+                       <span className="bg-white px-2 text-gray-500">OR</span>
+                     </div>
+                   </div>
+                   
+                   <div className="space-y-2">
+                     <Input
+                       placeholder="Enter team number"
+                       value={teamNumber}
+                       onChange={(e) => setTeamNumber(e.target.value)}
+                       className="text-center text-lg border-2 border-black"
+                       type="number"
+                       onKeyPress={(e) => {
+                         if (e.key === 'Enter') {
+                           handleAdminTeamNumberLogin();
+                         }
+                       }}
+                     />
+                     <Button 
+                       onClick={handleAdminTeamNumberLogin}
+                       disabled={!teamNumber.trim()}
+                       className="w-full bg-red-600 hover:bg-red-700 text-white"
+                     >
+                       Login as Team {teamNumber || '#'}
+                     </Button>
+                   </div>
+                 </div>
+               </div>
+             )}
+                         {/* Credit */}
+             <div className="mt-6 text-xs text-center text-gray-500">
+               Built and Managed by Brian Welch
+             </div>
+           </CardContent>
+         </Card>
+       </div>
     );
   }
 
   const teamSchedule = getTeamSchedule();
-  const teamRecord = getTeamRecord;
 
+  const activeMessage = getActiveMessages()[0];
+  console.log('Main portal - active message:', activeMessage);
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-red-900 to-black">
-      {/* Themed Portal Header */}
-      <div className="relative w-full bg-gradient-to-r from-black via-red-800 to-black shadow-lg border-b-4 border-red-700 py-4 px-2 flex flex-col items-center justify-center">
-        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-          {/* Ace of Spades SVG */}
-          <div className="w-14 h-20 flex items-center justify-center bg-gradient-to-br from-black to-red-800 rounded-xl shadow-lg border-2 border-white relative">
-            <svg width="48" height="64" viewBox="0 0 48 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="48" height="64" rx="8" fill="#fff" stroke="#000" strokeWidth="2"/>
-              <text x="24" y="40" textAnchor="middle" fontSize="36" fontWeight="bold" fill="#000">🂡</text>
-            </svg>
-            <span className="absolute top-1 left-2 text-black text-lg font-bold">A</span>
-            <span className="absolute bottom-1 right-2 text-black text-lg font-bold rotate-180">A</span>
-            <span className="absolute top-5 left-3 text-black text-2xl">♠</span>
-            <span className="absolute bottom-5 right-3 text-black text-2xl rotate-180">♠</span>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      <MessageBanner 
+        key={`portal-${activeMessage?.id || 'none'}`}
+        message={activeMessage?.text || ''} 
+        type={activeMessage?.type} 
+      />
+      {/* Clean Portal Header */}
+      <div className="relative w-full bg-white shadow-sm border-b-2 border-red-500 py-4 px-4 flex flex-col items-center justify-center mt-8">
         <div className="flex-1 flex flex-col items-center justify-center">
-          <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-red-600 to-black bg-clip-text text-transparent drop-shadow-lg tracking-wide mb-1">
-            Smokin' Aces
-          </h1>
           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4">
-            <span className="text-lg md:text-xl font-bold text-red-100 drop-shadow">Team {team.id}: {team.name}</span>
-            <span className="text-sm text-red-200">{team.player1FirstName} {team.player1LastName} & {team.player2FirstName} {team.player2LastName}</span>
-            <span className="text-xs text-red-300">Phone: {team.phoneNumber}</span>
-            {testMode && <Badge variant="secondary" className="mt-1 text-xs bg-yellow-700">Test Mode</Badge>}
-            {adminMode && <Badge variant="default" className="mt-1 text-xs bg-purple-700">Admin Mode</Badge>}
+            <span className="text-lg md:text-xl font-bold text-gray-700">Team {team.id}: {team.name}</span>
+            <span className="text-sm text-gray-600">{team.player1FirstName} {team.player1LastName} & {team.player2FirstName} {team.player2LastName}</span>
+            <span className="text-xs text-gray-500">Phone: {team.phoneNumber}</span>
+            {testMode && <Badge variant="secondary" className="mt-1 text-xs bg-yellow-100 text-yellow-800">Test Mode</Badge>}
+            {adminMode && <Badge variant="default" className="mt-1 text-xs bg-red-100 text-red-800">Admin Mode</Badge>}
           </div>
         </div>
         <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
@@ -782,7 +836,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
               setAdminMode(false);
               setSelectedTeamId('');
             }}
-            className="text-red-600 border-white hover:bg-white hover:text-black font-bold"
+            className="text-red-600 border-red-600 hover:bg-red-600 hover:text-white"
           >
             Logout
           </Button>
@@ -790,29 +844,29 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
       </div>
 
       <div className="max-w-4xl mx-auto p-4">
-                 {/* Tournament Name and Record Boxes */}
-         <div className="mb-6">
-           <div className="text-center mb-4">
-             <h2 className="text-xl font-bold text-white mb-1">{getActiveTournament()?.name}</h2>
-             <p className="text-sm text-gray-300">Schedule</p>
-           </div>
+        {/* Tournament Name and Record Boxes */}
+        <div className="mb-6">
+          <div className="text-center mb-4">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">{getActiveTournament()?.name}</h2>
+            <p className="text-sm text-gray-600">Schedule</p>
+          </div>
           
           {/* Horizontal Scrollable Record Boxes */}
           <div className="flex overflow-x-auto gap-4 pb-2 scrollbar-hide">
             <div className="flex-shrink-0 text-center p-4 bg-blue-50 rounded-lg min-w-[120px]">
-              <p className="text-2xl font-bold text-blue-600">{teamRecord.wins}</p>
+              <p className="text-2xl font-bold text-blue-600">{getTeamRecord.wins}</p>
               <p className="text-sm text-gray-600">Wins</p>
             </div>
             <div className="flex-shrink-0 text-center p-4 bg-gray-50 rounded-lg min-w-[120px]">
-              <p className="text-2xl font-bold">{teamRecord.totalGames}</p>
+              <p className="text-2xl font-bold">{getTeamRecord.totalGames}</p>
               <p className="text-sm text-gray-600">Games Played</p>
             </div>
             <div className="flex-shrink-0 text-center p-4 bg-green-50 rounded-lg min-w-[120px]">
-              <p className="text-2xl font-bold text-green-600">{teamRecord.avgPoints}</p>
+              <p className="text-2xl font-bold text-green-600">{getTeamRecord.avgPoints}</p>
               <p className="text-sm text-gray-600">Avg Points/Game</p>
             </div>
             <div className="flex-shrink-0 text-center p-4 bg-purple-50 rounded-lg min-w-[120px]">
-              <p className="text-2xl font-bold text-purple-600">{teamRecord.totalPoints}</p>
+              <p className="text-2xl font-bold text-purple-600">{getTeamRecord.totalPoints}</p>
               <p className="text-sm text-gray-600">Total Points</p>
             </div>
           </div>

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Users, Plus, X, Check, ArrowRight, Search, UserPlus, Trash2 } from 'lucide-react';
+import { Users, Plus, X, Check, ArrowRight, Search, UserPlus, Trash2, Edit } from 'lucide-react';
 import { useAppContext } from '@/contexts/AppContext';
 import { Player, Team, Tournament } from '@/contexts/AppContext';
 import { toast } from '@/hooks/use-toast';
@@ -19,14 +19,40 @@ interface NewPlayerForm {
   phone_number: string;
 }
 
+interface EditPlayerForm extends NewPlayerForm {
+  id: string;
+}
+
+interface NewTeamForm {
+  name: string;
+  city: string;
+  player1_id: string;
+  player2_id: string;
+}
+
+interface EditTeamForm extends NewTeamForm {
+  id: string;
+}
+
+interface NewTournamentForm {
+  name: string;
+  status: 'pending' | 'active' | 'finished';
+}
+
+interface EditTournamentForm extends NewTournamentForm {
+  id: string;
+}
+
 const TeamBuilder: React.FC = () => {
-  const { teams, tournaments, players, createTeamFromPlayers, updateTeam, refreshPlayers, refreshTeams } = useAppContext();
+  const { teams, tournaments, players, createTeamFromPlayers, updateTeam, refreshPlayers, refreshTeams, createTournament, updateTournamentStatus, deleteTournament } = useAppContext();
   
   // Column 1 - Players
   const [selectedPlayerTournament, setSelectedPlayerTournament] = useState<string>('all');
   const [playerSearchTerm, setPlayerSearchTerm] = useState('');
   const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
   const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false);
+  const [showEditPlayerDialog, setShowEditPlayerDialog] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [newPlayerForm, setNewPlayerForm] = useState<NewPlayerForm>({
     first_name: '',
     last_name: '',
@@ -38,11 +64,27 @@ const TeamBuilder: React.FC = () => {
   const [selectedTeamTournament, setSelectedTeamTournament] = useState<string>('all');
   const [teamSearchTerm, setTeamSearchTerm] = useState('');
   const [selectedTeams, setSelectedTeams] = useState<Team[]>([]);
+  const [showAddTeamDialog, setShowAddTeamDialog] = useState(false);
+  const [showEditTeamDialog, setShowEditTeamDialog] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [newTeamForm, setNewTeamForm] = useState<NewTeamForm>({
+    name: '',
+    city: '',
+    player1_id: '',
+    player2_id: ''
+  });
 
   // Column 3 - Tournaments
   const [selectedTournaments, setSelectedTournaments] = useState<string[]>([]);
   const [selectedTournamentFilter, setSelectedTournamentFilter] = useState<string>('all');
   const [tournamentSearchTerm, setTournamentSearchTerm] = useState('');
+  const [showAddTournamentDialog, setShowAddTournamentDialog] = useState(false);
+  const [showEditTournamentDialog, setShowEditTournamentDialog] = useState(false);
+  const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
+  const [newTournamentForm, setNewTournamentForm] = useState<NewTournamentForm>({
+    name: '',
+    status: 'pending'
+  });
 
   // Filter players based on tournament selection and search
   const filteredPlayers = players.filter(player => {
@@ -370,83 +412,434 @@ const TeamBuilder: React.FC = () => {
     }
   };
 
+  // Edit player
+  const handleEditPlayer = async () => {
+    if (!editingPlayer || !editingPlayer.first_name || !editingPlayer.last_name || !editingPlayer.city) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { error } = await supabase
+        .from('players')
+        .update({
+          first_name: editingPlayer.first_name,
+          last_name: editingPlayer.last_name,
+          city: editingPlayer.city,
+          phone_number: editingPlayer.phone_number || null
+        })
+        .eq('id', editingPlayer.id);
+
+      if (error) throw error;
+
+      setEditingPlayer(null);
+      setShowEditPlayerDialog(false);
+
+      // Refresh players list
+      await refreshPlayers();
+
+      toast({
+        title: 'Player updated successfully',
+        description: `${editingPlayer.first_name} ${editingPlayer.last_name} has been updated.`,
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error updating player',
+        description: 'Failed to update player. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Delete player
+  const handleDeletePlayer = async (playerId: string) => {
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { error } = await supabase
+        .from('players')
+        .delete()
+        .eq('id', playerId);
+
+      if (error) throw error;
+
+      // Refresh players list
+      await refreshPlayers();
+
+      toast({
+        title: 'Player deleted successfully',
+        description: 'Player has been removed.',
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error deleting player',
+        description: 'Failed to delete player. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Add new team
+  const handleAddTeam = async () => {
+    if (!newTeamForm.name || !newTeamForm.city || !newTeamForm.player1_id || !newTeamForm.player2_id) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (newTeamForm.player1_id === newTeamForm.player2_id) {
+      toast({
+        title: 'Invalid selection',
+        description: 'Please select two different players.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { data, error } = await supabase
+        .from('teams')
+        .insert([{
+          name: newTeamForm.name,
+          city: newTeamForm.city,
+          player1_id: newTeamForm.player1_id,
+          player2_id: newTeamForm.player2_id,
+          registeredTournaments: []
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setNewTeamForm({
+        name: '',
+        city: '',
+        player1_id: '',
+        player2_id: ''
+      });
+      setShowAddTeamDialog(false);
+
+      // Refresh teams list
+      await refreshTeams();
+
+      toast({
+        title: 'Team added successfully',
+        description: `Team "${newTeamForm.name}" has been created.`,
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error adding team',
+        description: 'Failed to add team. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Edit team
+  const handleEditTeam = async () => {
+    if (!editingTeam || !editingTeam.name || !editingTeam.city || !editingTeam.player1_id || !editingTeam.player2_id) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (editingTeam.player1_id === editingTeam.player2_id) {
+      toast({
+        title: 'Invalid selection',
+        description: 'Please select two different players.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      await updateTeam(editingTeam);
+
+      setEditingTeam(null);
+      setShowEditTeamDialog(false);
+
+      // Refresh teams list
+      await refreshTeams();
+
+      toast({
+        title: 'Team updated successfully',
+        description: `Team "${editingTeam.name}" has been updated.`,
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error updating team',
+        description: 'Failed to update team. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Delete team
+  const handleDeleteTeam = async (teamId: string) => {
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { error } = await supabase
+        .from('teams')
+        .delete()
+        .eq('id', teamId);
+
+      if (error) throw error;
+
+      // Refresh teams list
+      await refreshTeams();
+
+      toast({
+        title: 'Team deleted successfully',
+        description: 'Team has been removed.',
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error deleting team',
+        description: 'Failed to delete team. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Add new tournament
+  const handleAddTournament = async () => {
+    if (!newTournamentForm.name) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      await createTournament(newTournamentForm.name, newTournamentForm.status);
+
+      setNewTournamentForm({
+        name: '',
+        status: 'pending'
+      });
+      setShowAddTournamentDialog(false);
+
+      toast({
+        title: 'Tournament added successfully',
+        description: `Tournament "${newTournamentForm.name}" has been created.`,
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error adding tournament',
+        description: 'Failed to add tournament. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Edit tournament
+  const handleEditTournament = async () => {
+    if (!editingTournament || !editingTournament.name) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      await updateTournamentStatus(editingTournament);
+
+      setEditingTournament(null);
+      setShowEditTournamentDialog(false);
+
+      toast({
+        title: 'Tournament updated successfully',
+        description: `Tournament "${editingTournament.name}" has been updated.`,
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error updating tournament',
+        description: 'Failed to update tournament. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Delete tournament
+  const handleDeleteTournament = async (tournamentId: string) => {
+    try {
+      await deleteTournament(tournamentId);
+
+      toast({
+        title: 'Tournament deleted successfully',
+        description: 'Tournament has been removed.',
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error deleting tournament',
+        description: 'Failed to delete tournament. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
-             <Card>
-         <CardHeader>
-           <div className="flex items-center justify-between">
-             <CardTitle className="flex items-center gap-2">
-               <Users className="h-5 w-5" />
-               Team Builder
-             </CardTitle>
-             <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
-               <DialogTrigger asChild>
-                 <Button size="sm">
-                   <UserPlus className="h-4 w-4 mr-2" />
-                   Add New Player
-                 </Button>
-               </DialogTrigger>
-               <DialogContent>
-                 <DialogHeader>
-                   <DialogTitle>Add New Player</DialogTitle>
-                 </DialogHeader>
-                 <div className="space-y-4">
-                   <div>
-                     <Label htmlFor="first_name">First Name *</Label>
-                     <Input
-                       id="first_name"
-                       value={newPlayerForm.first_name}
-                       onChange={(e) => setNewPlayerForm({...newPlayerForm, first_name: e.target.value})}
-                     />
-                   </div>
-                   <div>
-                     <Label htmlFor="last_name">Last Name *</Label>
-                     <Input
-                       id="last_name"
-                       value={newPlayerForm.last_name}
-                       onChange={(e) => setNewPlayerForm({...newPlayerForm, last_name: e.target.value})}
-                     />
-                   </div>
-                   <div>
-                     <Label htmlFor="city">City *</Label>
-                     <Input
-                       id="city"
-                       value={newPlayerForm.city}
-                       onChange={(e) => setNewPlayerForm({...newPlayerForm, city: e.target.value})}
-                     />
-                   </div>
-                   <div>
-                     <Label htmlFor="phone_number">Phone Number</Label>
-                     <Input
-                       id="phone_number"
-                       value={newPlayerForm.phone_number}
-                       onChange={(e) => setNewPlayerForm({...newPlayerForm, phone_number: e.target.value})}
-                     />
-                   </div>
-                   <div className="flex gap-2">
-                     <Button onClick={handleAddPlayer} className="flex-1">
-                       Add Player
-                     </Button>
-                     <Button variant="outline" onClick={() => setShowAddPlayerDialog(false)}>
-                       Cancel
-                     </Button>
-                   </div>
-                 </div>
-               </DialogContent>
-             </Dialog>
-           </div>
-         </CardHeader>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Team Builder
+            </CardTitle>
+            <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add New Player
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Player</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="first_name">First Name *</Label>
+                    <Input
+                      id="first_name"
+                      value={newPlayerForm.first_name}
+                      onChange={(e) => setNewPlayerForm({...newPlayerForm, first_name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="last_name">Last Name *</Label>
+                    <Input
+                      id="last_name"
+                      value={newPlayerForm.last_name}
+                      onChange={(e) => setNewPlayerForm({...newPlayerForm, last_name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="city">City *</Label>
+                    <Input
+                      id="city"
+                      value={newPlayerForm.city}
+                      onChange={(e) => setNewPlayerForm({...newPlayerForm, city: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone_number">Phone Number</Label>
+                    <Input
+                      id="phone_number"
+                      value={newPlayerForm.phone_number}
+                      onChange={(e) => setNewPlayerForm({...newPlayerForm, phone_number: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={handleAddPlayer} className="flex-1">
+                      Add Player
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowAddPlayerDialog(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                         {/* Column 1 - Players */}
-             <Card className="border-2 border-red-500">
-                             <CardHeader>
-                 <CardTitle className="text-lg text-center">Players</CardTitle>
+            {/* Column 1 - Players */}
+            <Card className="border-2 border-red-500">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg text-center">Players</CardTitle>
+                  <div className="flex gap-1">
+                    <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add New Player</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="first_name">First Name *</Label>
+                            <Input
+                              id="first_name"
+                              value={newPlayerForm.first_name}
+                              onChange={(e) => setNewPlayerForm({...newPlayerForm, first_name: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="last_name">Last Name *</Label>
+                            <Input
+                              id="last_name"
+                              value={newPlayerForm.last_name}
+                              onChange={(e) => setNewPlayerForm({...newPlayerForm, last_name: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="city">City *</Label>
+                            <Input
+                              id="city"
+                              value={newPlayerForm.city}
+                              onChange={(e) => setNewPlayerForm({...newPlayerForm, city: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="phone_number">Phone Number</Label>
+                            <Input
+                              id="phone_number"
+                              value={newPlayerForm.phone_number}
+                              onChange={(e) => setNewPlayerForm({...newPlayerForm, phone_number: e.target.value})}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={handleAddPlayer} className="flex-1">
+                              Add Player
+                            </Button>
+                            <Button variant="outline" onClick={() => setShowAddPlayerDialog(false)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
                 <div className="space-y-2">
-                                     <Select value={selectedPlayerTournament} onValueChange={setSelectedPlayerTournament}>
-                     <SelectTrigger className="border-2 border-black">
-                       <SelectValue placeholder="Filter by tournament" />
-                     </SelectTrigger>
+                  <Select value={selectedPlayerTournament} onValueChange={setSelectedPlayerTournament}>
+                    <SelectTrigger className="border-2 border-black">
+                      <SelectValue placeholder="Filter by tournament" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Players</SelectItem>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
@@ -457,15 +850,15 @@ const TeamBuilder: React.FC = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                                     <div className="relative">
-                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                     <Input
-                       placeholder="Search players..."
-                       value={playerSearchTerm}
-                       onChange={(e) => setPlayerSearchTerm(e.target.value)}
-                       className="pl-8"
-                     />
-                   </div>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search players..."
+                      value={playerSearchTerm}
+                      onChange={(e) => setPlayerSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -488,9 +881,34 @@ const TeamBuilder: React.FC = () => {
                           <div className="font-medium">{player.first_name} {player.last_name}</div>
                           <div className="text-sm text-muted-foreground">{player.city}</div>
                         </div>
-                        {selectedPlayers.find(p => p.id === player.id) && (
-                          <Check className="h-4 w-4 text-blue-600" />
-                        )}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingPlayer(player);
+                              setShowEditPlayerDialog(true);
+                            }}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePlayer(player.id);
+                            }}
+                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                          {selectedPlayers.find(p => p.id === player.id) && (
+                            <Check className="h-4 w-4 text-blue-600" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -503,15 +921,87 @@ const TeamBuilder: React.FC = () => {
               </CardContent>
             </Card>
 
-                         {/* Column 2 - Teams */}
-             <Card className="border-2 border-red-500">
-                             <CardHeader>
-                 <CardTitle className="text-lg text-center">Teams</CardTitle>
+            {/* Column 2 - Teams */}
+            <Card className="border-2 border-red-500">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg text-center">Teams</CardTitle>
+                  <div className="flex gap-1">
+                    <Dialog open={showAddTeamDialog} onOpenChange={setShowAddTeamDialog}>
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add New Team</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="team_name">Team Name *</Label>
+                            <Input
+                              id="team_name"
+                              value={newTeamForm.name}
+                              onChange={(e) => setNewTeamForm({...newTeamForm, name: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="team_city">City *</Label>
+                            <Input
+                              id="team_city"
+                              value={newTeamForm.city}
+                              onChange={(e) => setNewTeamForm({...newTeamForm, city: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="player1">Player 1 *</Label>
+                            <Select value={newTeamForm.player1_id} onValueChange={(value) => setNewTeamForm({...newTeamForm, player1_id: value})}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select player 1" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {players.map(player => (
+                                  <SelectItem key={player.id} value={player.id}>
+                                    {player.first_name} {player.last_name} ({player.city})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="player2">Player 2 *</Label>
+                            <Select value={newTeamForm.player2_id} onValueChange={(value) => setNewTeamForm({...newTeamForm, player2_id: value})}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select player 2" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {players.map(player => (
+                                  <SelectItem key={player.id} value={player.id}>
+                                    {player.first_name} {player.last_name} ({player.city})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={handleAddTeam} className="flex-1">
+                              Add Team
+                            </Button>
+                            <Button variant="outline" onClick={() => setShowAddTeamDialog(false)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
                 <div className="space-y-2">
-                                     <Select value={selectedTeamTournament} onValueChange={setSelectedTeamTournament}>
-                     <SelectTrigger className="border-2 border-black">
-                       <SelectValue placeholder="Filter by tournament" />
-                     </SelectTrigger>
+                  <Select value={selectedTeamTournament} onValueChange={setSelectedTeamTournament}>
+                    <SelectTrigger className="border-2 border-black">
+                      <SelectValue placeholder="Filter by tournament" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Teams</SelectItem>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
@@ -583,9 +1073,34 @@ const TeamBuilder: React.FC = () => {
                             </div>
                           )}
                         </div>
-                        {selectedTeams.find(t => t.id === team.id) && (
-                          <Check className="h-4 w-4 text-blue-600" />
-                        )}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTeam(team);
+                              setShowEditTeamDialog(true);
+                            }}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTeam(team.id);
+                            }}
+                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                          {selectedTeams.find(t => t.id === team.id) && (
+                            <Check className="h-4 w-4 text-blue-600" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -593,68 +1108,138 @@ const TeamBuilder: React.FC = () => {
               </CardContent>
             </Card>
 
-                         {/* Column 3 - Tournaments */}
-             <Card className="border-2 border-red-500">
-                                            <CardHeader>
-                 <CardTitle className="text-lg text-center">Tournaments</CardTitle>
-                 <div className="space-y-2">
-                   <Select value={selectedTournamentFilter} onValueChange={setSelectedTournamentFilter}>
-                     <SelectTrigger className="border-2 border-black">
-                       <SelectValue placeholder="Filter tournaments" />
-                     </SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="all">All Tournaments</SelectItem>
-                       <SelectItem value="active">Active Only</SelectItem>
-                       <SelectItem value="pending">Pending Only</SelectItem>
-                       <SelectItem value="finished">Finished Only</SelectItem>
-                       <SelectItem value="divider" disabled>──────────</SelectItem>
-                       {teams.map(team => (
-                         <SelectItem key={team.id} value={team.id}>
-                           {team.name} - Tournaments
-                         </SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
-                   <div className="relative">
-                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                     <Input
-                       placeholder="Search tournaments..."
-                       value={tournamentSearchTerm}
-                       onChange={(e) => setTournamentSearchTerm(e.target.value)}
-                       className="pl-8"
-                     />
-                   </div>
-                 </div>
-               </CardHeader>
-                             <CardContent className="space-y-3">
-                 <div className="text-sm text-muted-foreground">
-                   {filteredTournaments.length} tournament(s) found
-                 </div>
-                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                   {filteredTournaments.map(tournament => (
-                     <div key={tournament.id} className="flex items-center space-x-3 p-2 rounded border hover:bg-gray-50 transition-colors">
-                       <Checkbox
-                         id={tournament.id}
-                         checked={selectedTournaments.includes(tournament.id)}
-                         onCheckedChange={(checked) => {
-                           if (checked) {
-                             setSelectedTournaments([...selectedTournaments, tournament.id]);
-                           } else {
-                             setSelectedTournaments(selectedTournaments.filter(t => t !== tournament.id));
-                           }
-                         }}
-                       />
-                       <Label 
-                         htmlFor={tournament.id} 
-                         className={`flex-1 cursor-pointer font-medium ${
-                           tournament.status === 'active' ? 'text-red-600' : ''
-                         }`}
-                       >
-                         {tournament.name}
-                       </Label>
-                     </div>
-                   ))}
-                 </div>
+            {/* Column 3 - Tournaments */}
+            <Card className="border-2 border-red-500">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg text-center">Tournaments</CardTitle>
+                  <div className="flex gap-1">
+                    <Dialog open={showAddTournamentDialog} onOpenChange={setShowAddTournamentDialog}>
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add New Tournament</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="tournament_name">Tournament Name *</Label>
+                            <Input
+                              id="tournament_name"
+                              value={newTournamentForm.name}
+                              onChange={(e) => setNewTournamentForm({...newTournamentForm, name: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="tournament_status">Status *</Label>
+                            <Select value={newTournamentForm.status} onValueChange={(value: 'pending' | 'active' | 'finished') => setNewTournamentForm({...newTournamentForm, status: value})}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="finished">Finished</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={handleAddTournament} className="flex-1">
+                              Add Tournament
+                            </Button>
+                            <Button variant="outline" onClick={() => setShowAddTournamentDialog(false)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Select value={selectedTournamentFilter} onValueChange={setSelectedTournamentFilter}>
+                    <SelectTrigger className="border-2 border-black">
+                      <SelectValue placeholder="Filter tournaments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tournaments</SelectItem>
+                      <SelectItem value="active">Active Only</SelectItem>
+                      <SelectItem value="pending">Pending Only</SelectItem>
+                      <SelectItem value="finished">Finished Only</SelectItem>
+                      <SelectItem value="divider" disabled>──────────</SelectItem>
+                      {teams.map(team => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name} - Tournaments
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search tournaments..."
+                      value={tournamentSearchTerm}
+                      onChange={(e) => setTournamentSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  {filteredTournaments.length} tournament(s) found
+                </div>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {filteredTournaments.map(tournament => (
+                    <div key={tournament.id} className="flex items-center space-x-3 p-2 rounded border hover:bg-gray-50 transition-colors">
+                      <Checkbox
+                        id={tournament.id}
+                        checked={selectedTournaments.includes(tournament.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedTournaments([...selectedTournaments, tournament.id]);
+                          } else {
+                            setSelectedTournaments(selectedTournaments.filter(t => t !== tournament.id));
+                          }
+                        }}
+                      />
+                      <Label 
+                        htmlFor={tournament.id} 
+                        className={`flex-1 cursor-pointer font-medium ${
+                          tournament.status === 'active' ? 'text-red-600' : ''
+                        }`}
+                      >
+                        {tournament.name}
+                      </Label>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingTournament(tournament);
+                          setShowEditTournamentDialog(true);
+                        }}
+                        className="h-6 w-6 p-0"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTournament(tournament.id);
+                        }}
+                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
                 {selectedTeams.length > 0 && selectedTournaments.length > 0 && (
                   <Button onClick={handleAddTeamToTournaments} className="w-full">
                     <ArrowRight className="h-4 w-4 mr-2" />
@@ -666,6 +1251,168 @@ const TeamBuilder: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Player Dialog */}
+      <Dialog open={showEditPlayerDialog && editingPlayer !== null} onOpenChange={setShowEditPlayerDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Player</DialogTitle>
+          </DialogHeader>
+          {editingPlayer && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit_first_name">First Name *</Label>
+                <Input
+                  id="edit_first_name"
+                  value={editingPlayer.first_name}
+                  onChange={(e) => setEditingPlayer({...editingPlayer, first_name: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_last_name">Last Name *</Label>
+                <Input
+                  id="edit_last_name"
+                  value={editingPlayer.last_name}
+                  onChange={(e) => setEditingPlayer({...editingPlayer, last_name: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_city">City *</Label>
+                <Input
+                  id="edit_city"
+                  value={editingPlayer.city}
+                  onChange={(e) => setEditingPlayer({...editingPlayer, city: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_phone_number">Phone Number</Label>
+                <Input
+                  id="edit_phone_number"
+                  value={editingPlayer.phone_number || ''}
+                  onChange={(e) => setEditingPlayer({...editingPlayer, phone_number: e.target.value})}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleEditPlayer} className="flex-1">
+                  Update Player
+                </Button>
+                <Button variant="outline" onClick={() => setShowEditPlayerDialog(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Team Dialog */}
+      <Dialog open={showEditTeamDialog && editingTeam !== null} onOpenChange={setShowEditTeamDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Team</DialogTitle>
+          </DialogHeader>
+          {editingTeam && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit_team_name">Team Name *</Label>
+                <Input
+                  id="edit_team_name"
+                  value={editingTeam.name}
+                  onChange={(e) => setEditingTeam({...editingTeam, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_team_city">City *</Label>
+                <Input
+                  id="edit_team_city"
+                  value={editingTeam.city}
+                  onChange={(e) => setEditingTeam({...editingTeam, city: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_player1">Player 1 *</Label>
+                <Select value={editingTeam.player1_id} onValueChange={(value) => setEditingTeam({...editingTeam, player1_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select player 1" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.map(player => (
+                      <SelectItem key={player.id} value={player.id}>
+                        {player.first_name} {player.last_name} ({player.city})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit_player2">Player 2 *</Label>
+                <Select value={editingTeam.player2_id} onValueChange={(value) => setEditingTeam({...editingTeam, player2_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select player 2" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.map(player => (
+                      <SelectItem key={player.id} value={player.id}>
+                        {player.first_name} {player.last_name} ({player.city})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleEditTeam} className="flex-1">
+                  Update Team
+                </Button>
+                <Button variant="outline" onClick={() => setShowEditTeamDialog(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tournament Dialog */}
+      <Dialog open={showEditTournamentDialog && editingTournament !== null} onOpenChange={setShowEditTournamentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Tournament</DialogTitle>
+          </DialogHeader>
+          {editingTournament && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit_tournament_name">Tournament Name *</Label>
+                <Input
+                  id="edit_tournament_name"
+                  value={editingTournament.name}
+                  onChange={(e) => setEditingTournament({...editingTournament, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_tournament_status">Status *</Label>
+                <Select value={editingTournament.status} onValueChange={(value: 'pending' | 'active' | 'finished') => setEditingTournament({...editingTournament, status: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="finished">Finished</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleEditTournament} className="flex-1">
+                  Update Tournament
+                </Button>
+                <Button variant="outline" onClick={() => setShowEditTournamentDialog(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

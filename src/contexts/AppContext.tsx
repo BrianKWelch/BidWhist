@@ -173,6 +173,16 @@ export interface Bracket {
   createdAt: Date;
 }
 
+export interface Message {
+  id: string;
+  text: string;
+  type: 'info' | 'warning' | 'success' | 'error';
+  active: boolean;
+  createdAt: Date;
+  expiresAt?: Date;
+  createdBy: string;
+}
+
 interface AppContextType {
   deleteTeam: (teamId: string) => void;
   setTournaments: React.Dispatch<React.SetStateAction<Tournament[]>>;
@@ -200,7 +210,10 @@ interface AppContextType {
   createTeamFromPlayers: (player1: Player, player2: Player, tournamentId: string) => Promise<string>;
   updateTeam: (updatedTeam: Team) => void;
   addTournament: (name: string, cost: number, bostonPotCost: number, description?: string) => void;
+  createTournament: (name: string, status: 'pending' | 'active' | 'finished') => Promise<void>;
   updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => void;
+  updateTournamentStatus: (tournament: Tournament) => Promise<void>;
+  deleteTournament: (tournamentId: string) => Promise<void>;
   submitGame: (game: any) => void;
   beginScoreEntry: (params: { matchId: string; teamId: string; teamA: string; teamB: string; round: number }) => Promise<{ ok: boolean; reason?: 'conflict' | 'error' }>;
   releaseScoreEntryLock: (params: { matchId: string; teamId: string }) => Promise<{ ok: boolean }>;
@@ -241,6 +254,11 @@ interface AppContextType {
   calculateTeamTotalOwed: (team: Team) => number;
   refreshTeams: () => Promise<void>;
   refreshPlayers: () => Promise<void>;
+  messages: Message[];
+  addMessage: (message: Omit<Message, 'id' | 'createdAt'>) => Promise<void>;
+  updateMessage: (id: string, updates: Partial<Message>) => Promise<void>;
+  deleteMessage: (id: string) => Promise<void>;
+  getActiveMessages: () => Message[];
 }
 
 export const AppContext = createContext<AppContextType>({} as AppContextType);
