@@ -214,7 +214,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             player2FirstName: team.player2?.first_name || '',
             player2LastName: team.player2?.last_name || '',
             phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
-            city: team.player1?.city || team.player2?.city || '',
+            player1_phone: team.player1?.phone_number || '',
+            player2_phone: team.player2?.phone_number || '',
+            city: team.city || '',
             registeredTournaments: []
           }));
           setTeams(teamsWithPlayers);
@@ -264,6 +266,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             player2FirstName: team.player2?.first_name || '',
             player2LastName: team.player2?.last_name || '',
             phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
+            player1_phone: team.player1?.phone_number || '',
+            player2_phone: team.player2?.phone_number || '',
             city: team.city || '',
             registeredTournaments: regTournaments,
             player1TournamentPayments,
@@ -1374,13 +1378,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       const teamName = `${player1.first_name}/${player2.first_name}`;
       
-      // First, create the team
+      // First, create the team with city from player1
       const { data: teamData, error: teamError } = await supabase
         .from('teams')
         .insert([{
           name: teamName,
           player1_id: player1.id,
-          player2_id: player2.id
+          player2_id: player2.id,
+          city: player1.city || player2.city || '' // Use player1's city, fallback to player2
         }])
         .select()
         .single();
@@ -1490,7 +1495,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           player2FirstName: team.player2?.first_name || '',
           player2LastName: team.player2?.last_name || '',
           phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
-          city: team.player1?.city || team.player2?.city || '',
+          player1_phone: team.player1?.phone_number || '',
+          player2_phone: team.player2?.phone_number || '',
+          city: team.city || '', // Use team's city field directly
           registeredTournaments: regTournaments
         };
       });
@@ -1553,6 +1560,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           player2FirstName: team.player2?.first_name || '',
           player2LastName: team.player2?.last_name || '',
           phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
+          player1_phone: team.player1?.phone_number || '',
+          player2_phone: team.player2?.phone_number || '',
           city: team.city || '',
           registeredTournaments: []
         }));
@@ -1608,7 +1617,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           player2FirstName: team.player2?.first_name || '',
           player2LastName: team.player2?.last_name || '',
           phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
-          city: team.player1?.city || team.player2?.city || '',
+          player1_phone: team.player1?.phone_number || '',
+          player2_phone: team.player2?.phone_number || '',
+          city: team.city || '', // Use team's city field directly
           registeredTournaments: regTournaments,
           player1TournamentPayments,
           player2TournamentPayments,
@@ -1764,6 +1775,26 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // For disputed status, only allow the team that originally entered the score to re-enter
         if (g.status === 'disputed' && String(g.entered_by_team_id) !== String(teamId)) {
           return { ok: false, reason: 'conflict' as const };
+        }
+      }
+      
+      // Check if a teammate is already entering a score for this match
+      const { data: teammateEntry, error: teammateErr } = await supabase
+        .from('games')
+        .select('*')
+        .eq('matchId', matchId)
+        .eq('status', 'entering');
+      
+      if (teammateErr) {
+        console.error('beginScoreEntry teammate check error:', teammateErr);
+        return { ok: false, reason: 'error' as const };
+      }
+      
+      if (teammateEntry && teammateEntry.length > 0) {
+        const teammateGame = teammateEntry[0];
+        // Check if the entering team is the same team (different player)
+        if (String(teammateGame.entered_by_team_id) === String(teamId)) {
+          return { ok: false, reason: 'teammate_entering' as const };
         }
       }
       // Upsert entering record
@@ -1951,9 +1982,22 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const { supabase } = await import('../supabaseClient');
         
         try {
-          // For the new normalized structure, we can only update team registrations
-          // Player data is managed separately in the players table
-          const { id, registeredTournaments } = updatedTeam;
+          // Update team fields including city
+          const { id, registeredTournaments, city, phoneNumber, player1_phone, player2_phone } = updatedTeam;
+          
+          // Update team record with name and city (only fields that exist in DB)
+          const { error: teamUpdateError } = await supabase
+            .from('teams')
+            .update({ 
+              name: updatedTeam.name,
+              city: city || null
+            })
+            .eq('id', id);
+          
+          if (teamUpdateError) {
+            toast({ title: 'Error updating team', description: teamUpdateError.message, variant: 'destructive' });
+            return;
+          }
           
           // Update team_registrations join table if registeredTournaments is present
           if (Array.isArray(registeredTournaments)) {
@@ -1998,7 +2042,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 player2FirstName: team.player2?.first_name || '',
                 player2LastName: team.player2?.last_name || '',
                 phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
-                city: team.player1?.city || team.player2?.city || '',
+                player1_phone: team.player1?.phone_number || '',
+                player2_phone: team.player2?.phone_number || '',
+                city: team.city || '', // Use team's city field directly
                 registeredTournaments: regTournaments
               };
             });

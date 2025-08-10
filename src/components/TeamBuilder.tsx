@@ -995,6 +995,8 @@ const TeamBuilder: React.FC = () => {
           player2FirstName: player2.first_name,
           player2LastName: player2.last_name,
           phoneNumber: player1.phone_number || player2.phone_number,
+          player1_phone: player1.phone_number,
+          player2_phone: player2.phone_number,
           city: player1.city || player2.city,
           registeredTournaments: []
         };
@@ -2292,12 +2294,30 @@ const TeamBuilder: React.FC = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="edit_team_phone">Team Phone Number</Label>
+                <Label htmlFor="edit_team_phone">Team Phone Number (Read-only)</Label>
                 <Input
                   id="edit_team_phone"
                   value={editingTeam.phoneNumber || ''}
-                  onChange={(e) => setEditingTeam({...editingTeam, phoneNumber: e.target.value})}
-                  placeholder="Enter team phone number"
+                  disabled
+                  placeholder="Phone number derived from players"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_player1_phone">Player 1 Phone Number (Read-only)</Label>
+                <Input
+                  id="edit_player1_phone"
+                  value={editingTeam.player1_phone || ''}
+                  disabled
+                  placeholder="Phone number derived from player 1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_player2_phone">Player 2 Phone Number (Read-only)</Label>
+                <Input
+                  id="edit_player2_phone"
+                  value={editingTeam.player2_phone || ''}
+                  disabled
+                  placeholder="Phone number derived from player 2"
                 />
               </div>
               <div>

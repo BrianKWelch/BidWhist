@@ -33,6 +33,8 @@ export interface Team {
   player2FirstName?: string; // Legacy for backward compatibility
   player2LastName?: string; // Legacy for backward compatibility
   phoneNumber?: string; // Legacy for backward compatibility
+  player1_phone?: string; // New field for player1's phone number
+  player2_phone?: string; // New field for player2's phone number
   city?: string; // Legacy for backward compatibility
   registeredTournaments?: string[];
   bostonPotTournaments?: string[];
@@ -216,7 +218,7 @@ interface AppContextType {
   updateTournamentStatus: (tournament: Tournament) => Promise<void>;
   deleteTournament: (tournamentId: string) => Promise<void>;
   submitGame: (game: any) => void;
-  beginScoreEntry: (params: { matchId: string; teamId: string; teamA: string; teamB: string; round: number }) => Promise<{ ok: boolean; reason?: 'conflict' | 'error' }>;
+  beginScoreEntry: (params: { matchId: string; teamId: string; teamA: string; teamB: string; round: number }) => Promise<{ ok: boolean; reason?: 'conflict' | 'error' | 'teammate_entering' }>;
   releaseScoreEntryLock: (params: { matchId: string; teamId: string }) => Promise<{ ok: boolean }>;
   confirmGame: (gameId: string, confirmedBy: string) => void;
   updatePaymentStatus: (teamId: string, status: 'pending' | 'paid') => void;

@@ -298,7 +298,15 @@ const ScoreEntryCard = ({ team, onComplete }: ScoreEntryCardProps) => {
                               setSelectedMatch(match);
                               setCurrentStep(0);
                             } else {
-                              toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                              if (result.reason === 'teammate_entering') {
+                                toast({ 
+                                  title: 'Partner is entering score', 
+                                  description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.', 
+                                  variant: 'destructive' 
+                                });
+                              } else {
+                                toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                              }
                               await refreshGamesFromSupabase();
                             }
                           })();

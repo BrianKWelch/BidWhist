@@ -473,7 +473,12 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
     
     const foundTeam = teams.find(t => {
       const teamPhone = cleanPhoneNumber(t.phoneNumber);
-      return teamPhone === cleanPhone;
+      const player1Phone = cleanPhoneNumber(t.player1_phone || '');
+      const player2Phone = cleanPhoneNumber(t.player2_phone || '');
+      
+      return teamPhone === cleanPhone || 
+             player1Phone === cleanPhone || 
+             player2Phone === cleanPhone;
     });
     
     if (foundTeam) {
@@ -967,7 +972,15 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                                           setSelectedMatch(match);
                                                           // setCurrentStep(0); // Removed as per edit hint
                                                         } else {
-                                                          toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                          if (result.reason === 'teammate_entering') {
+                                                            toast({ 
+                                                              title: 'Partner is entering score', 
+                                                              description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.', 
+                                                              variant: 'destructive' 
+                                                            });
+                                                          } else {
+                                                            toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                          }
                                                           await refreshGamesFromSupabase();
                                                         }
                                                       })();
@@ -1020,7 +1033,15 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                                            setEnteringTeamId(team.id);
                                                            setSelectedMatch(match);
                                                          } else {
-                                                           toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                           if (result.reason === 'teammate_entering') {
+                                                             toast({ 
+                                                               title: 'Partner is entering score', 
+                                                               description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.', 
+                                                               variant: 'destructive' 
+                                                             });
+                                                           } else {
+                                                             toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                           }
                                                            await refreshGamesFromSupabase();
                                                          }
                                                        })();
