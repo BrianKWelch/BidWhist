@@ -11,7 +11,6 @@ import { Player, Team } from '@/contexts/AppContext';
 interface RegistrationForm {
   first_name: string;
   last_name: string;
-  city: string;
   phone_number: string;
   selectedTournaments: string[];
   bostonPotTournaments: string[]; // New field for Boston Pot selection
@@ -448,7 +447,7 @@ const PlayerRegistration: React.FC = () => {
 
     // Basic validation
     if (!formData.first_name.trim() || !formData.last_name.trim() || 
-        !formData.city.trim() || !formData.phone_number.trim()) {
+        !formData.phone_number.trim()) {
       alert('Please fill in all required fields');
       return;
     }
@@ -468,7 +467,6 @@ const PlayerRegistration: React.FC = () => {
         .insert([{
           first_name: formData.first_name.trim(),
           last_name: formData.last_name.trim(),
-          city: formData.city.trim(),
           phone_number: formData.phone_number.trim(),
         }])
         .select()
@@ -507,7 +505,6 @@ const PlayerRegistration: React.FC = () => {
       setFormData({
         first_name: '',
         last_name: '',
-        city: '',
         phone_number: '',
         selectedTournaments: [],
         bostonPotTournaments: [],
@@ -632,16 +629,7 @@ const PlayerRegistration: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="city">City *</Label>
-                <Input
-                  id="city"
-                  value={formData.city}
-                  onChange={(e) => handleInputChange('city', e.target.value)}
-                  placeholder="New York"
-                  required
-                />
-              </div>
+
 
               <div>
                 <Label htmlFor="phone_number">Phone Number *</Label>

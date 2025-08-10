@@ -61,6 +61,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // TEMP HOTFIX: Always clear localStorage caches so placeholders are not loaded
   // Remove after tournament when proper cache invalidation is implemented
   ['teams', 'schedules', 'games', 'scoreSubmissions'].forEach(key => localStorage.removeItem(key));
+  
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  
   // Debug: Confirm provider mount and test Supabase connection
   React.useEffect(() => {
     // ...removed debug log...
@@ -158,89 +161,131 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [players, setPlayers] = useState<Player[]>([]);
   useEffect(() => {
     import('../supabaseClient').then(async ({ supabase }) => {
-      // Fetch all teams with player data joined
-      const { data: teamsData, error: teamsError } = await supabase
-        .from('teams')
-        .select(`
-          *,
-          player1:players!player1_id(*),
-          player2:players!player2_id(*)
-        `);
-      
-      if (teamsError) {
-        console.error('Error fetching teams:', teamsError);
-        setTeams([]);
-        return;
-      }
-
-      // Fetch team_registrations join table
-      const { data: registrations, error: regError } = await supabase.from('team_registrations').select('*');
-      
-      // Fetch player tournament payments for all players
-      const { data: playerPayments, error: paymentError } = await supabase
-        .from('player_tournament')
-        .select('*');
-
-      if (regError) {
-        console.error('Error fetching team registrations:', regError);
-        // Map teams with player data and populate legacy fields
-        const teamsWithPlayers = (teamsData || []).map(team => ({
-          ...team,
-          id: String(team.id),
-          // Populate legacy fields from player data for backward compatibility
-          player1FirstName: team.player1?.first_name || '',
-          player1LastName: team.player1?.last_name || '',
-          player2FirstName: team.player2?.first_name || '',
-          player2LastName: team.player2?.last_name || '',
-          phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
-          city: team.player1?.city || team.player2?.city || '',
-          registeredTournaments: []
-        }));
-        setTeams(teamsWithPlayers);
-        return;
-      }
-
-      // Map registeredTournaments onto each team and populate legacy fields
-      const teamsWithTournaments = (teamsData || []).map(team => {
-        const regs = registrations.filter(r => String(r.team_id) === String(team.id));
-        const regTournaments = regs.map(r => r.tournament_id);
+      try {
+        console.log('Starting to load teams from Supabase...');
+        // Fetch all teams with player data joined
+        const { data: teamsData, error: teamsError } = await supabase
+          .from('teams')
+          .select(`
+            *,
+            player1:players!player1_id(*),
+            player2:players!player2_id(*)
+          `);
         
-        // Build payment data for this team's players
-        const player1TournamentPayments: { [tournamentId: string]: boolean } = {};
-        const player2TournamentPayments: { [tournamentId: string]: boolean } = {};
-        const player1BostonPotPayments: { [tournamentId: string]: boolean } = {};
-        const player2BostonPotPayments: { [tournamentId: string]: boolean } = {};
+        console.log('Teams fetch result:', { teamsData: teamsData?.length || 0, teamsError });
+        
+        if (teamsError) {
+          console.error('Error fetching teams:', teamsError);
+          const errorMessage = `Failed to load teams: ${teamsError.message} (Code: ${teamsError.code})`;
+          setFetchError(errorMessage);
+          toast({ 
+            title: 'Teams Loading Error', 
+            description: errorMessage, 
+            variant: 'destructive' 
+          });
+          setTeams([]);
+          return;
+        }
 
-        if (playerPayments && !paymentError) {
-          playerPayments.forEach(payment => {
-            if (payment.player_id === team.player1_id) {
-              player1TournamentPayments[payment.tournament_id] = payment.paid;
-              player1BostonPotPayments[payment.tournament_id] = payment.b_paid;
-            } else if (payment.player_id === team.player2_id) {
-              player2TournamentPayments[payment.tournament_id] = payment.paid;
-              player2BostonPotPayments[payment.tournament_id] = payment.b_paid;
-            }
+        // Fetch team_registrations join table
+        const { data: registrations, error: regError } = await supabase.from('team_registrations').select('*');
+        
+        // Fetch player tournament payments for all players
+        const { data: playerPayments, error: paymentError } = await supabase
+          .from('player_tournament')
+          .select('*');
+
+        if (regError) {
+          console.error('Error fetching team registrations:', regError);
+          const errorMessage = `Failed to load team registrations: ${regError.message} (Code: ${regError.code})`;
+          setFetchError(errorMessage);
+          toast({ 
+            title: 'Team Registrations Error', 
+            description: errorMessage, 
+            variant: 'destructive' 
+          });
+          // Map teams with player data and populate legacy fields
+          const teamsWithPlayers = (teamsData || []).map(team => ({
+            ...team,
+            id: String(team.id),
+            // Populate legacy fields from player data for backward compatibility
+            player1FirstName: team.player1?.first_name || '',
+            player1LastName: team.player1?.last_name || '',
+            player2FirstName: team.player2?.first_name || '',
+            player2LastName: team.player2?.last_name || '',
+            phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
+            city: team.player1?.city || team.player2?.city || '',
+            registeredTournaments: []
+          }));
+          setTeams(teamsWithPlayers);
+          return;
+        }
+
+        if (paymentError) {
+          console.error('Error fetching player payments:', paymentError);
+          const errorMessage = `Failed to load player payments: ${paymentError.message} (Code: ${paymentError.code})`;
+          setFetchError(errorMessage);
+          toast({ 
+            title: 'Player Payments Error', 
+            description: errorMessage, 
+            variant: 'destructive' 
           });
         }
-        
-        return {
-          ...team,
-          id: String(team.id),
-          // Populate legacy fields from player data for backward compatibility
-          player1FirstName: team.player1?.first_name || '',
-          player1LastName: team.player1?.last_name || '',
-          player2FirstName: team.player2?.first_name || '',
-          player2LastName: team.player2?.last_name || '',
-          phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
-          city: team.player1?.city || team.player2?.city || '',
-          registeredTournaments: regTournaments,
-          player1TournamentPayments,
-          player2TournamentPayments,
-          player1BostonPotPayments,
-          player2BostonPotPayments
-        };
-      });
-      setTeams(teamsWithTournaments);
+
+        // Map registeredTournaments onto each team and populate legacy fields
+        const teamsWithTournaments = (teamsData || []).map(team => {
+          const regs = registrations.filter(r => String(r.team_id) === String(team.id));
+          const regTournaments = regs.map(r => r.tournament_id);
+          
+          // Build payment data for this team's players
+          const player1TournamentPayments: { [tournamentId: string]: boolean } = {};
+          const player2TournamentPayments: { [tournamentId: string]: boolean } = {};
+          const player1BostonPotPayments: { [tournamentId: string]: boolean } = {};
+          const player2BostonPotPayments: { [tournamentId: string]: boolean } = {};
+
+          if (playerPayments && !paymentError) {
+            playerPayments.forEach(payment => {
+              if (payment.player_id === team.player1_id) {
+                player1TournamentPayments[payment.tournament_id] = payment.paid;
+                player1BostonPotPayments[payment.tournament_id] = payment.b_paid;
+              } else if (payment.player_id === team.player2_id) {
+                player2TournamentPayments[payment.tournament_id] = payment.paid;
+                player2BostonPotPayments[payment.tournament_id] = payment.b_paid;
+              }
+            });
+          }
+          
+          return {
+            ...team,
+            id: String(team.id),
+            // Populate legacy fields from player data for backward compatibility
+            player1FirstName: team.player1?.first_name || '',
+            player1LastName: team.player1?.last_name || '',
+            player2FirstName: team.player2?.first_name || '',
+            player2LastName: team.player2?.last_name || '',
+            phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
+            city: team.city || '',
+            registeredTournaments: regTournaments,
+            player1TournamentPayments,
+            player2TournamentPayments,
+            player1BostonPotPayments,
+            player2BostonPotPayments
+          };
+        });
+        console.log('Setting teams with tournaments:', teamsWithTournaments?.length || 0, 'teams');
+        setTeams(teamsWithTournaments);
+        setFetchError(null); // Clear any previous errors
+      } catch (error) {
+        const errorMessage = `Unexpected error loading teams: ${error instanceof Error ? error.message : String(error)}`;
+        console.error('Unexpected error in teams loading:', error);
+        setFetchError(errorMessage);
+        toast({ 
+          title: 'Teams Loading Error', 
+          description: errorMessage, 
+          variant: 'destructive' 
+        });
+        setTeams([]);
+      }
     });
   }, []);
 
@@ -635,7 +680,6 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           expiresAt: msg.expires_at ? new Date(msg.expires_at) : undefined,
           createdBy: msg.created_by
         }));
-        console.log('Fetched messages:', formattedMessages);
         setMessages(formattedMessages);
       }
     } catch (error) {
@@ -659,24 +703,18 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Real-time subscription for messages
   useEffect(() => {
-    console.log('Setting up real-time subscription for messages');
-    
     const setupSubscription = async () => {
       try {
         const channel = supabase
           .channel('messages-realtime')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
-            console.log('Message change detected:', payload);
             // Add a small delay to ensure the database change is committed
             setTimeout(() => {
               fetchMessagesFromSupabase();
             }, 100);
           })
           .subscribe((status) => {
-            console.log('Messages subscription status:', status);
-            if (status === 'SUBSCRIBED') {
-              console.log('Messages subscription successful');
-            } else if (status === 'CHANNEL_ERROR') {
+            if (status === 'CHANNEL_ERROR') {
               console.error('Messages subscription error');
             }
           });
@@ -694,7 +732,6 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
 
     return () => {
-      console.log('Cleaning up messages subscription');
       if (channel) {
         supabase.removeChannel(channel);
       }
@@ -1482,14 +1519,30 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       if (teamsError) {
         console.error('Error fetching teams:', teamsError);
+        const errorMessage = `Failed to refresh teams: ${teamsError.message} (Code: ${teamsError.code})`;
+        setFetchError(errorMessage);
+        toast({ 
+          title: 'Teams Refresh Error', 
+          description: errorMessage, 
+          variant: 'destructive' 
+        });
         return;
       }
+      
+      
 
       // Fetch team_registrations join table
       const { data: registrations, error: regError } = await supabase.from('team_registrations').select('*');
       
       if (regError) {
         console.error('Error fetching team registrations:', regError);
+        const errorMessage = `Failed to refresh team registrations: ${regError.message} (Code: ${regError.code})`;
+        setFetchError(errorMessage);
+        toast({ 
+          title: 'Team Registrations Refresh Error', 
+          description: errorMessage, 
+          variant: 'destructive' 
+        });
         // Map teams with player data and populate legacy fields
         const teamsWithPlayers = (teamsData || []).map(team => ({
           ...team,
@@ -1500,7 +1553,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           player2FirstName: team.player2?.first_name || '',
           player2LastName: team.player2?.last_name || '',
           phoneNumber: team.player1?.phone_number || team.player2?.phone_number || '',
-          city: team.player1?.city || team.player2?.city || '',
+          city: team.city || '',
           registeredTournaments: []
         }));
         setTeams(teamsWithPlayers);
@@ -1514,6 +1567,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       if (paymentError) {
         console.error('Error fetching player payments:', paymentError);
+        const errorMessage = `Failed to refresh player payments: ${paymentError.message} (Code: ${paymentError.code})`;
+        setFetchError(errorMessage);
+        toast({ 
+          title: 'Player Payments Refresh Error', 
+          description: errorMessage, 
+          variant: 'destructive' 
+        });
       }
 
       // Map registeredTournaments onto each team and populate legacy fields
@@ -1557,8 +1617,16 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         };
       });
       setTeams(teamsWithTournaments);
+      setFetchError(null); // Clear any previous errors
     } catch (error) {
+      const errorMessage = `Unexpected error refreshing teams: ${error instanceof Error ? error.message : String(error)}`;
       console.error('Error refreshing teams:', error);
+      setFetchError(errorMessage);
+      toast({ 
+        title: 'Teams Refresh Error', 
+        description: errorMessage, 
+        variant: 'destructive' 
+      });
     }
   };
 
@@ -1580,6 +1648,95 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setPlayers(playersData || []);
     } catch (error) {
       console.error('Error refreshing players:', error);
+    }
+  };
+
+  const refreshTournaments = async () => {
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { data: tournamentsData, error: tournamentsError } = await supabase
+        .from('tournaments')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (tournamentsError) {
+        console.error('Error fetching tournaments:', tournamentsError);
+        setTournaments([]);
+        return;
+      }
+
+      setTournaments(tournamentsData || []);
+    } catch (error) {
+      console.error('Error refreshing tournaments:', error);
+    }
+  };
+
+  const addPlayer = async (player: { first_name: string; last_name: string; phone_number: string }) => {
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      const { data, error } = await supabase
+        .from('players')
+        .insert([player])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding player:', error);
+        toast({ title: 'Error adding player', description: error.message, variant: 'destructive' });
+        return;
+      }
+
+      toast({ title: 'Player added successfully' });
+      await refreshPlayers();
+    } catch (error) {
+      console.error('Error adding player:', error);
+      toast({ title: 'Error adding player', description: String(error), variant: 'destructive' });
+    }
+  };
+
+  const addTeamToTournament = async (teamId: string, tournamentId: string) => {
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      // Check if team is already in tournament
+      const { data: existing, error: checkError } = await supabase
+        .from('team_registrations')
+        .select('*')
+        .eq('team_id', teamId)
+        .eq('tournament_id', tournamentId)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('Error checking team tournament:', checkError);
+        return;
+      }
+
+      if (existing) {
+        // Team already in tournament
+        return;
+      }
+
+      // Add team to tournament
+      const { error } = await supabase
+        .from('team_registrations')
+        .insert([{
+          team_id: teamId,
+          tournament_id: tournamentId
+        }]);
+
+      if (error) {
+        console.error('Error adding team to tournament:', error);
+        toast({ title: 'Error adding team to tournament', description: error.message, variant: 'destructive' });
+        return;
+      }
+
+      toast({ title: 'Team added to tournament successfully' });
+      await refreshTeams();
+    } catch (error) {
+      console.error('Error adding team to tournament:', error);
+      toast({ title: 'Error adding team to tournament', description: String(error), variant: 'destructive' });
     }
   };
 
@@ -1665,7 +1822,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   return (
     <AppContext.Provider value={{
-      sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, players, games, setGames, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, setTournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions, setScoreSubmissions, resetAllTournamentData,
+      sidebarOpen, toggleSidebar: () => setSidebarOpen(prev => !prev), teams, players, games, setGames, tournaments, setTournaments, schedules, scoreTexts, tournamentResults, setTournamentResults, brackets, cities, currentUser, setCurrentUser, scoreSubmissions, setScoreSubmissions, resetAllTournamentData, fetchError,
       updatePlaceholders,
       forceReplaceAllPlaceholders,
       refreshSchedules,
@@ -2101,6 +2258,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       createTeamFromPlayers,
       refreshTeams,
       refreshPlayers,
+      refreshTournaments,
+      addPlayer,
+      addTeamToTournament,
       messages,
       addMessage: async (message: Omit<Message, 'id' | 'createdAt'>) => {
         try {
@@ -2177,7 +2337,6 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       },
       getActiveMessages: () => {
         const activeMessages = messages.filter(msg => msg.active);
-        console.log('getActiveMessages called, returning:', activeMessages);
         return activeMessages;
       }
     }}>

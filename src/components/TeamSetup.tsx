@@ -19,7 +19,7 @@ const TeamSetup: React.FC = () => {
   const [player2First, setPlayer2First] = useState('');
   const [player2Last, setPlayer2Last] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [city, setCity] = useState('');
+
   const [selectedTournaments, setSelectedTournaments] = useState<string[]>([]);
   const [bostonPotTournaments, setBostonPotTournaments] = useState<string[]>([]);
   const [showPaymentFlow, setShowPaymentFlow] = useState(false);
@@ -68,7 +68,7 @@ const TeamSetup: React.FC = () => {
   };
 
   const handleRegisterTeam = () => {
-    if (!player1First.trim() || !player1Last.trim() || !player2First.trim() || !player2Last.trim() || !phoneNumber.trim() || !city.trim() || selectedTournaments.length === 0) return;
+    if (!player1First.trim() || !player1Last.trim() || !player2First.trim() || !player2Last.trim() || !phoneNumber.trim() || selectedTournaments.length === 0) return;
     
     const teamId = addTeam(player1First.trim(), player1Last.trim(), player2First.trim(), player2Last.trim(), phoneNumber.trim(), city.trim(), selectedTournaments, bostonPotTournaments);
     
@@ -84,7 +84,7 @@ const TeamSetup: React.FC = () => {
     setPlayer2First('');
     setPlayer2Last('');
     setPhoneNumber('');
-    setCity('');
+
     setSelectedTournaments([]);
     setBostonPotTournaments([]);
     setShowPaymentFlow(false);
@@ -186,21 +186,7 @@ const TeamSetup: React.FC = () => {
                           required
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="city">City/Location *</Label>
-                        <Select value={city} onValueChange={setCity}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a city" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {cities.map((cityOption) => (
-                              <SelectItem key={cityOption} value={cityOption}>
-                                {cityOption}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+
                     </div>
                   </div>
                   
@@ -222,7 +208,7 @@ const TeamSetup: React.FC = () => {
 
               <Button
                 onClick={handleRegisterTeam}
-                disabled={!player1First.trim() || !player1Last.trim() || !player2First.trim() || !player2Last.trim() || !phoneNumber.trim() || !city.trim() || selectedTournaments.length === 0}
+                disabled={!player1First.trim() || !player1Last.trim() || !player2First.trim() || !player2Last.trim() || !phoneNumber.trim() || selectedTournaments.length === 0}
                 className="w-full flex items-center gap-2"
                 size="lg"
               >

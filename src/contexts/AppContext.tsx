@@ -206,6 +206,7 @@ interface AppContextType {
   cities: string[];
   currentUser: string;
   setCurrentUser: (user: string) => void;
+  fetchError: string | null;
   addTeam: (player1First: string, player1Last: string, player2First: string, player2Last: string, phoneNumber: string, city: string, selectedTournaments: string[], bostonPotTournaments: string[]) => Promise<string>;
   createTeamFromPlayers: (player1: Player, player2: Player, tournamentId: string) => Promise<string>;
   updateTeam: (updatedTeam: Team) => void;
@@ -254,6 +255,9 @@ interface AppContextType {
   calculateTeamTotalOwed: (team: Team) => number;
   refreshTeams: () => Promise<void>;
   refreshPlayers: () => Promise<void>;
+  refreshTournaments: () => Promise<void>;
+  addPlayer: (player: { first_name: string; last_name: string; phone_number: string }) => Promise<void>;
+  addTeamToTournament: (teamId: string, tournamentId: string) => Promise<void>;
   messages: Message[];
   addMessage: (message: Omit<Message, 'id' | 'createdAt'>) => Promise<void>;
   updateMessage: (id: string, updates: Partial<Message>) => Promise<void>;

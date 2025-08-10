@@ -815,16 +815,18 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
         message={activeMessage?.text || ''} 
         type={activeMessage?.type} 
       />
-      {/* Clean Portal Header */}
-      <div className="relative w-full bg-white shadow-sm border-b-2 border-red-500 py-4 px-4 flex flex-col items-center justify-center mt-8">
+      {/* Clean Portal Header - Made sticky/fixed */}
+      <div className="sticky top-12 z-10 w-full bg-white shadow-sm border-b-2 border-red-500 py-4 px-4 flex flex-col items-center justify-center mt-8">
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4">
-            <span className="text-lg md:text-xl font-bold text-gray-700">Team {team.id}: {team.name}</span>
+            <span className="text-lg md:text-xl font-bold text-gray-700">{team.id}: {team.name}</span>
             <span className="text-sm text-gray-600">{team.player1FirstName} {team.player1LastName} & {team.player2FirstName} {team.player2LastName}</span>
-            <span className="text-xs text-gray-500">Phone: {team.phoneNumber}</span>
             {testMode && <Badge variant="secondary" className="mt-1 text-xs bg-yellow-100 text-yellow-800">Test Mode</Badge>}
             {adminMode && <Badge variant="default" className="mt-1 text-xs bg-red-100 text-red-800">Admin Mode</Badge>}
           </div>
+        </div>
+        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+          <img src={import.meta.env.BASE_URL + 'SetPlay_Logo.png'} alt="SetPlay Logo" className="w-14 h-14" />
         </div>
         <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
           <Button 
@@ -844,37 +846,17 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
       </div>
 
       <div className="max-w-4xl mx-auto p-4">
-        {/* Tournament Name and Record Boxes */}
+        {/* Tournament Name Only - Record boxes moved to bottom */}
         <div className="mb-6">
           <div className="text-center mb-4">
             <h2 className="text-xl font-bold text-gray-900 mb-1">{getActiveTournament()?.name}</h2>
             <p className="text-sm text-gray-600">Schedule</p>
           </div>
-          
-          {/* Horizontal Scrollable Record Boxes */}
-          <div className="flex overflow-x-auto gap-4 pb-2 scrollbar-hide">
-            <div className="flex-shrink-0 text-center p-4 bg-blue-50 rounded-lg min-w-[120px]">
-              <p className="text-2xl font-bold text-blue-600">{getTeamRecord.wins}</p>
-              <p className="text-sm text-gray-600">Wins</p>
-            </div>
-            <div className="flex-shrink-0 text-center p-4 bg-gray-50 rounded-lg min-w-[120px]">
-              <p className="text-2xl font-bold">{getTeamRecord.totalGames}</p>
-              <p className="text-sm text-gray-600">Games Played</p>
-            </div>
-            <div className="flex-shrink-0 text-center p-4 bg-green-50 rounded-lg min-w-[120px]">
-              <p className="text-2xl font-bold text-green-600">{getTeamRecord.avgPoints}</p>
-              <p className="text-sm text-gray-600">Avg Points/Game</p>
-            </div>
-            <div className="flex-shrink-0 text-center p-4 bg-purple-50 rounded-lg min-w-[120px]">
-              <p className="text-2xl font-bold text-purple-600">{getTeamRecord.totalPoints}</p>
-              <p className="text-sm text-gray-600">Total Points</p>
-            </div>
-          </div>
         </div>
 
-                 {/* Schedule Content */}
-         <Card>
-           <CardHeader><CardTitle></CardTitle></CardHeader>
+        {/* Schedule Content - Added red border around the main Card */}
+        <Card className="border-2 border-red-500">
+          <CardHeader><CardTitle></CardTitle></CardHeader>
           <CardContent>
             {teamSchedule.length === 0 ? (
               <div className="text-center text-gray-500 py-8">
@@ -1195,6 +1177,29 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
             )}
           </CardContent>
         </Card>
+
+        {/* Record Boxes moved to bottom of page */}
+        <div className="mt-8">
+          {/* Horizontal Scrollable Record Boxes */}
+          <div className="flex overflow-x-auto gap-4 pb-2 scrollbar-hide">
+            <div className="flex-shrink-0 text-center p-4 bg-blue-50 rounded-lg min-w-[120px]">
+              <p className="text-2xl font-bold text-blue-600">{getTeamRecord.wins}</p>
+              <p className="text-sm text-gray-600">Wins</p>
+            </div>
+            <div className="flex-shrink-0 text-center p-4 bg-gray-50 rounded-lg min-w-[120px]">
+              <p className="text-2xl font-bold">{getTeamRecord.totalGames}</p>
+              <p className="text-sm text-gray-600">Games Played</p>
+            </div>
+            <div className="flex-shrink-0 text-center p-4 bg-green-50 rounded-lg min-w-[120px]">
+              <p className="text-2xl font-bold text-green-600">{getTeamRecord.avgPoints}</p>
+              <p className="text-sm text-gray-600">Avg Points/Game</p>
+            </div>
+            <div className="flex-shrink-0 text-center p-4 bg-purple-50 rounded-lg min-w-[120px]">
+              <p className="text-2xl font-bold text-purple-600">{getTeamRecord.totalPoints}</p>
+              <p className="text-sm text-gray-600">Total Points</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

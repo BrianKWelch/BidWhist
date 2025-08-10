@@ -16,16 +16,14 @@ const PlayerEditor: React.FC<PlayerEditorProps> = ({ player, isOpen, onClose, on
   const [formData, setFormData] = useState({
     firstName: player.firstName || '',
     lastName: player.lastName || '',
-    phone: player.phone || '',
-    city: player.city || ''
+    phone: player.phone || ''
   });
 
   React.useEffect(() => {
     setFormData({
       firstName: player.firstName || '',
       lastName: player.lastName || '',
-      phone: player.phone || '',
-      city: player.city || ''
+      phone: player.phone || ''
     });
   }, [player]);
 
@@ -54,10 +52,7 @@ const PlayerEditor: React.FC<PlayerEditorProps> = ({ player, isOpen, onClose, on
             <Label>Phone</Label>
             <Input value={formData.phone} onChange={e => setFormData(f => ({ ...f, phone: e.target.value }))} />
           </div>
-          <div>
-            <Label>City</Label>
-            <Input value={formData.city} onChange={e => setFormData(f => ({ ...f, city: e.target.value }))} />
-          </div>
+
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button onClick={handleSave}>Save</Button>
