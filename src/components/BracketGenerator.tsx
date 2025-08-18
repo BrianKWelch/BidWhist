@@ -182,34 +182,26 @@ export const BracketGenerator: React.FC = () => {
     setShowRestartDialog(false);
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Target className="h-5 w-5" />
-          Tournament Bracket Generator
-        </CardTitle>
-      </CardHeader>
+     return (
+     <Card className="border-2" style={{ borderColor: '#a60002' }}>
+             <CardHeader>
+         <CardTitle className="flex items-center gap-2">
+           <img src={import.meta.env.BASE_URL + 'bracket.png'} alt="Bracket" className="h-5 w-5" style={{ filter: 'brightness(0)' }} />
+           Tournament Bracket Generator
+         </CardTitle>
+       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h3 className="font-semibold text-blue-800 mb-2">Universal Bracket Rule:</h3>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• Lowest table number always plays highest table number at lowest table</li>
-              <li>• 16 tables: 1v16@1, 2v15@2, 3v14@3, 4v13@4...</li>
-              <li>• 8 tables: 1v8@1, 2v7@2, 3v6@3, 4v5@4</li>
-              <li>• 4 tables: 1v4@1, 2v3@2</li>
-              <li>• Finals: Winner 1 vs Winner 2</li>
-            </ul>
-          </div>
+
           
           <div>
             <label className="text-sm font-medium">Select Tournament:</label>
-            <select 
-              className="w-full mt-1 p-2 border rounded"
-              value={selectedTournament}
-              onChange={(e) => setSelectedTournament(e.target.value)}
-            >
+                         <select 
+               className="w-full mt-1 p-2 border rounded"
+               value={selectedTournament}
+               onChange={(e) => setSelectedTournament(e.target.value)}
+               style={{ borderColor: '#a60002' }}
+             >
               {tournaments.map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -219,9 +211,9 @@ export const BracketGenerator: React.FC = () => {
           <div className="flex gap-2">
             {!bracket && (
               <Dialog open={showDialog} onOpenChange={setShowDialog}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => setShowDialog(true)}>Create Bracket</Button>
-                </DialogTrigger>
+                                 <DialogTrigger asChild>
+                   <Button onClick={() => setShowDialog(true)} style={{ backgroundColor: 'black', color: 'white' }}>Create Bracket</Button>
+                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Select Bracket Size</DialogTitle>
@@ -270,12 +262,12 @@ export const BracketGenerator: React.FC = () => {
             
             {bracket && (
               <Dialog open={showRestartDialog} onOpenChange={setShowRestartDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="destructive" className="flex items-center gap-2">
-                    <RotateCcw className="h-4 w-4" />
-                    Restart Bracket
-                  </Button>
-                </DialogTrigger>
+                                 <DialogTrigger asChild>
+                   <Button variant="destructive" className="flex items-center gap-2" style={{ backgroundColor: 'black', color: 'white' }}>
+                     <RotateCcw className="h-4 w-4" />
+                     Restart Bracket
+                   </Button>
+                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Restart Bracket?</DialogTitle>

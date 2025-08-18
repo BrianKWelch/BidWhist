@@ -192,7 +192,7 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
       <CardHeader>
         <div className="flex items-center gap-4 justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5" />
+            <img src={import.meta.env.BASE_URL + 'results.png'} alt="Results" className="h-5 w-5" style={{ filter: 'brightness(0)' }} />
             {(tournament?.name || 'Tournament') + ' - Results'}
           </CardTitle>
           <div className="flex gap-2">
@@ -294,19 +294,19 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead rowSpan={2} className="bg-yellow-200 border border-gray-400 text-center align-middle">TEAM<br />#</TableHead>
+                <TableHead rowSpan={2} className="border border-gray-400 text-center align-middle" style={{ backgroundColor: 'black', color: 'white' }}>TEAM<br />#</TableHead>
                 {Array.from({ length: numRounds }, (_, i) => (
-                  <TableHead key={i} colSpan={4} className={`text-center border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Round {i + 1}</TableHead>
+                  <TableHead key={i} colSpan={4} className={`text-center border border-gray-400 text-white`} style={{ backgroundColor: i % 2 === 0 ? '#a60002' : 'black' }}>Round {i + 1}</TableHead>
                 ))}
                 <TableHead colSpan={3} className="bg-blue-200 border border-gray-400 text-center align-middle">TOTALS</TableHead>
               </TableRow>
               <TableRow>
                 {Array.from({ length: numRounds }, (_, i) => (
                   <React.Fragment key={i}>
-                    <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Game<br />Win=W<br />Loss=L</TableHead>
-                    <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Points</TableHead>
-                    <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Hands Won</TableHead>
-                    <TableHead className={`text-center text-xs border border-gray-400 ${i % 2 === 0 ? 'bg-pink-200' : 'bg-green-200'}`}>Boston</TableHead>
+                    <TableHead className={`text-center text-xs border border-gray-400 text-white`} style={{ backgroundColor: i % 2 === 0 ? '#a60002' : 'black' }}>Game<br />Win=W<br />Loss=L</TableHead>
+                    <TableHead className={`text-center text-xs border border-gray-400 text-white`} style={{ backgroundColor: i % 2 === 0 ? '#a60002' : 'black' }}>Points</TableHead>
+                    <TableHead className={`text-center text-xs border border-gray-400 text-white`} style={{ backgroundColor: i % 2 === 0 ? '#a60002' : 'black' }}>Hands Won</TableHead>
+                    <TableHead className={`text-center text-xs border border-gray-400 text-white`} style={{ backgroundColor: i % 2 === 0 ? '#a60002' : 'black' }}>Boston</TableHead>
                   </React.Fragment>
                 ))}
                 <TableHead className="text-center text-xs border border-gray-400 bg-blue-200">Wins</TableHead>
@@ -326,13 +326,13 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
                 sortedTeams.map(team => {
                   const teamId = String(team.id);
                   // Defensive display: always use full team object, never show 'Team Unknown' or 'TBD'
-                  const teamNumber = team.teamNumber ? `Team # ${team.teamNumber}` : `Team # ${team.id}`;
+                  const teamNumber = team.teamNumber ? `${team.teamNumber}` : `${team.id}`;
                   const teamName = team.name || '';
                   return (
                     <TableRow key={team.id}>
-                      <TableCell className="font-medium border border-gray-400 bg-yellow-100">
+                      <TableCell className="font-medium border border-gray-400" style={{ backgroundColor: '#a60002', color: 'white' }}>
                         <div className="flex flex-col items-center">
-                          <Badge variant="outline" className="mb-1">{teamNumber}</Badge>
+                          <Badge variant="outline" className="mb-1" style={{ color: 'white', borderColor: 'white' }}>{teamNumber}</Badge>
                           <span className="text-sm">{teamName}</span>
                         </div>
                       </TableCell>

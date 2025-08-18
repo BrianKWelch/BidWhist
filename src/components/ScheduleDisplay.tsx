@@ -76,9 +76,9 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
 
   // REMOVE_ME: File name display for testing
   return (
-    <Card className="border-2 border-gray-300">
+         <Card className="border-2" style={{ borderColor: '#a60002' }}>
       <CardHeader>
-        <CardTitle className="text-center text-2xl font-bold text-red-600 mb-2 border-b-2 border-red-500 pb-2 shadow-sm">
+        <CardTitle className="text-center text-2xl font-bold mb-2 border-b-2 pb-2 shadow-sm" style={{ color: 'black', borderColor: '#a60002' }}>
           {tournamentName}
         </CardTitle>
       </CardHeader>
@@ -91,9 +91,9 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
           return (
             <div key={round} className="mb-6">
               <div className="flex justify-center mb-4">
-                <Badge variant="outline" className="font-bold text-lg px-4 py-2 bg-blue-100 border-blue-300 text-blue-800">
-                  Round {round}
-                </Badge>
+                                 <Badge variant="outline" className="font-bold text-lg px-4 py-2" style={{ backgroundColor: 'black', color: 'white', borderColor: 'black' }}>
+                   Round {round}
+                 </Badge>
               </div>
               <div className="space-y-3">
                                                   {roundMatches.map(match => {

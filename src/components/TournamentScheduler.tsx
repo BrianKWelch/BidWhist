@@ -251,10 +251,11 @@ export const TournamentScheduler: React.FC = () => {
         </div>
       )}
 
-      <Card className="border-2 border-gray-300">
-        <CardHeader className="border-b-2 border-red-500 pb-2">
-          <div className="flex justify-center items-center">
-                         <CardTitle className="text-red-600">
+             <Card className="border-2" style={{ borderColor: '#a60002' }}>
+        <CardHeader className="border-b-2 pb-2" style={{ borderColor: '#a60002' }}>
+          <div className="flex items-center gap-2">
+            <img src={import.meta.env.BASE_URL + 'sched.png'} alt="Schedule" className="h-5 w-5" style={{ filter: 'brightness(0)' }} />
+                         <CardTitle>
                Tournament Scheduler
              </CardTitle>
           </div>
@@ -289,14 +290,15 @@ export const TournamentScheduler: React.FC = () => {
               />
             </div>
             <div className="flex-1 flex flex-col items-center">
-              <Button 
-                onClick={generateSchedule}
-                disabled={!selectedTournament || !numberOfRounds}
-                size="sm"
-                className="h-20 w-20 p-0 text-lg font-bold"
-              >
-                Run
-              </Button>
+                             <Button 
+                 onClick={generateSchedule}
+                 disabled={!selectedTournament || !numberOfRounds}
+                 size="sm"
+                 className="h-20 w-20 p-0 text-lg font-bold"
+                 style={{ backgroundColor: 'black', color: 'white' }}
+               >
+                 Run
+               </Button>
               {selectedTournament && isOdd && (
                 <Badge variant="secondary" className="text-xs mt-2">
                   Odd - Byes Required

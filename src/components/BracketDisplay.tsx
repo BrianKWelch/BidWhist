@@ -46,23 +46,21 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
     return `Round ${round}`;
   };
 
-  // Table info logic remains, but all seeding is now based on the provided seed (row number from TournamentResults)
-  const getTableInfo = (round: number, table: number, size: number) => {
-    const tablesInRound = size / Math.pow(2, round);
-    const tablesInNextRound = size / Math.pow(2, round + 1);
-    let info = `Table ${table}`;
-    if (round === 1) {
-      info += ` (Seed ${table} home table)`;
-    } else if (round > 1 && tablesInRound > tablesInNextRound) {
-      if (table <= tablesInNextRound) {
-        info += ` (Winners stay)`;
-      } else {
-        const moveToTable = table - tablesInNextRound;
-        info += ` (Winner moves to Table ${moveToTable})`;
-      }
-    }
-    return info;
-  };
+     // Table info logic remains, but all seeding is now based on the provided seed (row number from TournamentResults)
+   const getTableInfo = (round: number, table: number, size: number) => {
+     const tablesInRound = size / Math.pow(2, round);
+     const tablesInNextRound = size / Math.pow(2, round + 1);
+     let info = `Table ${table}`;
+     if (round > 1 && tablesInRound > tablesInNextRound) {
+       if (table <= tablesInNextRound) {
+         info += ` (Winners stay)`;
+       } else {
+         const moveToTable = table - tablesInNextRound;
+         info += ` (Winner moves to Table ${moveToTable})`;
+       }
+     }
+     return info;
+   };
 
   const handleAdvanceWinner = (matchId: string) => {
     const match = matches.find(m => m.id === matchId);
@@ -71,22 +69,42 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
     onAdvanceWinner(matchId);
   };
 
-  return (
-    <div className="space-y-6">
-      <h3 className="text-xl font-bold text-center">
-        {size} Team Elimination Bracket
-      </h3>
+     return (
+     <div className="space-y-6">
+               <style>
+          {`
+            .score-input::-webkit-outer-spin-button,
+            .score-input::-webkit-inner-spin-button {
+              background: #a60002 !important;
+              color: white !important;
+              opacity: 1 !important;
+              border: none !important;
+              width: 20px !important;
+              height: 20px !important;
+            }
+            .score-input::-webkit-outer-spin-button:hover,
+            .score-input::-webkit-inner-spin-button:hover {
+              background: #a60002 !important;
+              color: white !important;
+              opacity: 1 !important;
+            }
+            .score-input::-webkit-outer-spin-button:active,
+            .score-input::-webkit-inner-spin-button:active {
+              background: #a60002 !important;
+              color: white !important;
+            }
+            .score-input::-webkit-outer-spin-button:focus,
+            .score-input::-webkit-inner-spin-button:focus {
+              background: #a60002 !important;
+              color: white !important;
+            }
+          `}
+        </style>
+             <h3 className="text-3xl font-bold text-center" style={{ color: '#a60002' }}>
+         {size} Team Elimination Bracket
+       </h3>
       
-      <div className="space-y-4">
-        <div className="text-sm text-gray-600 p-3 bg-blue-50 rounded-lg">
-          <strong>Table Assignment Rules:</strong>
-          <ul className="mt-2 space-y-1">
-            <li>• Round 1: Table number = Lower seed number (Seed #1 plays at Table #1)</li>
-            <li>• Later rounds: Winners from higher tables move to join winners at lower tables</li>
-            <li>• Example: Table 1 winner plays Table 8 winner at Table 1</li>
-          </ul>
-        </div>
-      </div>
+
       
       <div className="grid gap-6">
         {Array.from({ length: rounds }, (_, roundIndex) => {
@@ -106,42 +124,44 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                 }}>
                   {roundMatches.map(match => (
                     <div key={match.id} className="border rounded-lg p-4 space-y-3">
-                      <div className="text-center font-medium text-sm text-blue-600">
-                        {getTableInfo(match.round, match.table, size)}
-                      </div>
+                                             <div className="text-center font-medium text-sm" style={{ color: '#a60002' }}>
+                         {getTableInfo(match.round, match.table, size)}
+                       </div>
                       
                       {/* Team 1 */}
                       <div className="flex items-center justify-between p-2 border rounded">
-                        <div className="flex items-center gap-2">
-                          {match.team1 && (
-                            <>
-                              <Badge variant="outline">#{match.team1.seed}</Badge>
-                              <span className="text-sm font-medium">
-                                {match.team1.teamName}
-                                {(() => {
-                                  const teamNum = match.team1.teamNumber ?? match.team1.teamId;
-                                  return teamNum ? (
-                                    <span className="text-xs text-gray-500"> (Team # {teamNum})</span>
-                                  ) : null;
-                                })()}
-                              </span>
-                            </>
-                          )}
+                                                 <div className="flex items-center gap-2">
+                           {match.team1 && (
+                             <>
+                               <Badge variant="outline">#{match.team1.seed}</Badge>
+                                                               <div className="flex flex-col items-center">
+                                                                     {(() => {
+                                     const teamNum = match.team1.teamNumber ?? match.team1.teamId;
+                                     return teamNum ? (
+                                       <span className="text-xs font-bold" style={{ color: 'black' }}>{teamNum}</span>
+                                     ) : null;
+                                   })()}
+                                  <span className="text-sm font-medium">
+                                    {match.team1.teamName}
+                                  </span>
+                                </div>
+                             </>
+                           )}
                           {!match.team1 && (
                             <span className="text-sm text-gray-500">TBD</span>
                           )}
                         </div>
                         {match.team1 && (
-                          <Input
-                            type="number"
-                            className="w-16 h-8 text-center"
-                            value={match.team1Score || ''}
-                            onChange={(e) => {
-                              const score = parseInt(e.target.value) || 0;
-                              onScoreUpdate(match.id, score, match.team2Score || 0);
-                            }}
-                            min="0"
-                          />
+                                                     <Input
+                             type="number"
+                             className="w-16 h-8 text-center score-input"
+                             value={match.team1Score || ''}
+                             onChange={(e) => {
+                               const score = parseInt(e.target.value) || 0;
+                               onScoreUpdate(match.id, score, match.team2Score || 0);
+                             }}
+                             min="0"
+                           />
                         )}
                       </div>
                       
@@ -149,36 +169,38 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                       
                       {/* Team 2 */}
                       <div className="flex items-center justify-between p-2 border rounded">
-                        <div className="flex items-center gap-2">
-                          {match.team2 && (
-                            <>
-                              <Badge variant="outline">#{match.team2.seed}</Badge>
-                              <span className="text-sm font-medium">
-                                {match.team2.teamName}
-                                {(() => {
-                                  const teamNum = match.team2.teamNumber ?? match.team2.teamId;
-                                  return teamNum ? (
-                                    <span className="text-xs text-gray-500"> (Team # {teamNum})</span>
-                                  ) : null;
-                                })()}
-                              </span>
-                            </>
-                          )}
+                                                 <div className="flex items-center gap-2">
+                           {match.team2 && (
+                             <>
+                               <Badge variant="outline">#{match.team2.seed}</Badge>
+                                                               <div className="flex flex-col items-center">
+                                                                     {(() => {
+                                     const teamNum = match.team2.teamNumber ?? match.team2.teamId;
+                                     return teamNum ? (
+                                       <span className="text-xs font-bold" style={{ color: 'black' }}>{teamNum}</span>
+                                     ) : null;
+                                   })()}
+                                  <span className="text-sm font-medium">
+                                    {match.team2.teamName}
+                                  </span>
+                                </div>
+                             </>
+                           )}
                           {!match.team2 && (
                             <span className="text-sm text-gray-500">TBD</span>
                           )}
                         </div>
                         {match.team2 && (
-                          <Input
-                            type="number"
-                            className="w-16 h-8 text-center"
-                            value={match.team2Score || ''}
-                            onChange={(e) => {
-                              const score = parseInt(e.target.value) || 0;
-                              onScoreUpdate(match.id, match.team1Score || 0, score);
-                            }}
-                            min="0"
-                          />
+                                                     <Input
+                             type="number"
+                             className="w-16 h-8 text-center score-input"
+                             value={match.team2Score || ''}
+                             onChange={(e) => {
+                               const score = parseInt(e.target.value) || 0;
+                               onScoreUpdate(match.id, match.team1Score || 0, score);
+                             }}
+                             min="0"
+                           />
                         )}
                       </div>
                       
@@ -186,12 +208,13 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
                       {match.team1 && match.team2 && 
                        typeof match.team1Score === 'number' && 
                        typeof match.team2Score === 'number' && (
-                        <Button
-                          size="sm"
-                          className="w-full"
-                          onClick={() => handleAdvanceWinner(match.id)}
-                          disabled={match.winner !== undefined}
-                        >
+                                                 <Button
+                           size="sm"
+                           className="w-full"
+                           onClick={() => handleAdvanceWinner(match.id)}
+                           disabled={match.winner !== undefined}
+                           style={{ backgroundColor: '#a60002', color: 'white' }}
+                         >
                           {match.winner ? 
                             `Winner: ${match.winner.teamName}` : 
                             'Advance Winner'

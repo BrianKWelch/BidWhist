@@ -4,8 +4,12 @@ import TeamBuilder from './TeamBuilder';
 import PlayerRegistration from './PlayerRegistration';
 import TeamsByTournament from './TeamsByTournament';
 import TeamPayments from './TeamPayments';
+import TeamPaymentDetails from './TeamPaymentDetails';
+import IndividualPlayerPaymentsPage from './IndividualPlayerPaymentsPage';
 import GameHistory from './GameHistory';
 import TournamentManagement from './TournamentManagement';
+import CityManager from './CityManager';
+import MessageManager from './MessageManager';
 import { TournamentScheduler } from './TournamentScheduler';
 import CombinedResultsPage from './CombinedResultsPage';
 import { BracketGenerator } from './BracketGenerator';
@@ -15,9 +19,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppContext } from '@/contexts/AppContext';
 import {
   Users, History, RotateCcw, Settings, Calendar,
-  MessageSquare, Award, CalendarClock, Target, DollarSign, Search,
+  MessageSquare, Award, CalendarClock, DollarSign, Search,
   UserPlus, Trophy
 } from 'lucide-react';
+import { BracketIcon, CommandCenterIcon, ResultsIcon, CityIcon, GoIcon, RefreshIcon, MessageIcon, ScheduleIcon, DollarIcon } from './icons/CustomIcons';
 import { toast } from '@/hooks/use-toast';
 import PlayerTracking from './PlayerTracking';
 
@@ -54,6 +59,9 @@ const AppLayout = () => {
 
   const [showSetup, setShowSetup] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedTeamForPayments, setSelectedTeamForPayments] = useState<string | null>(null);
+  const [selectedPlayerForPayments, setSelectedPlayerForPayments] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("teams");
 
   const handleAdminRefresh = async () => {
     try {
@@ -151,7 +159,7 @@ const AppLayout = () => {
                 disabled={refreshing}
                 className="text-gray-600 hover:text-red-600"
               >
-                <RotateCcw className="w-5 h-5" />
+                <RefreshIcon />
               </Button>
               <Button
                 variant="ghost"
@@ -159,31 +167,27 @@ const AppLayout = () => {
                 onClick={() => window.open('#/portal?admin=1', '_blank')}
                 className="text-gray-600 hover:text-red-600"
               >
-                <MessageSquare className="w-5 h-5" />
+                <GoIcon />
               </Button>
             </div>
           </div>
         </div>
 
         {/* Main Layout */}
-        <Tabs defaultValue="teams" className="w-full h-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full">
           <div className="flex">
             {/* Sidebar */}
             <div className="w-20 flex-shrink-0 bg-white shadow-md pt-2 h-screen">
               <TabsList className="flex flex-col gap-1 w-full items-center p-2 mt-64">
-                {[
-                  ['teams', <Users size={20} />],
-                  ['teams-by-tournament', <Trophy size={20} />],
-                  ['team-payments', <DollarSign size={20} />],
-                  ['player-tracking', <Search size={20} />],
-                  ['registration', <UserPlus size={20} />],
-                  ['schedule', <CalendarClock size={20} />],
-                  ['results', <Award size={20} />],
-                  ['bracket', <Target size={20} />],
-                  ['finance', <DollarSign size={20} />],
-                  ['history', <History size={20} />],
-                  ['admin', <Settings size={20} />],
-                ].map(([val, icon]) => (
+                                 {[
+                   ['teams', <CommandCenterIcon />],
+                   ['schedule', <ScheduleIcon />],
+                   ['results', <ResultsIcon />],
+                   ['bracket', <BracketIcon />],
+                   ['finance', <DollarIcon />],
+                   ['cities', <CityIcon />],
+                   ['messaging', <MessageIcon />],
+                 ].map(([val, icon]) => (
                   <TabsTrigger
                     key={val as string}
                     value={val as string}
@@ -197,9 +201,21 @@ const AppLayout = () => {
 
             {/* Tabs Content */}
             <div className="flex-1 p-4">
-              <TabsContent value="teams"><TeamBuilder /></TabsContent>
+              <TabsContent value="teams"><TeamBuilder 
+                onTeamPaymentClick={(teamId) => {
+                  setSelectedTeamForPayments(teamId);
+                  setActiveTab("team-payment-details");
+                }}
+                onIndividualPlayerPaymentClick={(playerId) => {
+                  setSelectedPlayerForPayments(playerId);
+                  setActiveTab("individual-player-payments");
+                }}
+              /></TabsContent>
               <TabsContent value="teams-by-tournament"><TeamsByTournament /></TabsContent>
               <TabsContent value="team-payments"><TeamPayments /></TabsContent>
+              <TabsContent value="team-payment-details"><TeamPaymentDetails teamId={selectedTeamForPayments} onBackToCommandCenter={() => setActiveTab("teams")} /></TabsContent>
+              <TabsContent value="individual-player-payments"><IndividualPlayerPaymentsPage playerId={selectedPlayerForPayments} onBackToCommandCenter={() => setActiveTab("teams")} /></TabsContent>
+
               <TabsContent value="registration"><PlayerRegistration /></TabsContent>
               <TabsContent value="schedule"><TournamentScheduler /></TabsContent>
               <TabsContent value="results"><CombinedResultsPage /></TabsContent>
@@ -207,7 +223,8 @@ const AppLayout = () => {
               <TabsContent value="finance"><FinanceManager /></TabsContent>
               <TabsContent value="player-tracking"><PlayerTracking /></TabsContent>
               <TabsContent value="history"><GameHistory /></TabsContent>
-              <TabsContent value="admin"><TournamentManagement /></TabsContent>
+              <TabsContent value="cities"><CityManager /></TabsContent>
+              <TabsContent value="messaging"><MessageManager /></TabsContent>
             </div>
           </div>
         </Tabs>

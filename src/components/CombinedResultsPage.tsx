@@ -81,20 +81,14 @@ const CombinedResultsPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex items-center gap-4 mb-2">
-          <span className="text-2xl font-bold flex items-center gap-2">
-            <Trophy className="h-6 w-6 text-yellow-500" />
-            {tournament?.name || 'Tournament'}
-          </span>
-          {/* Export Button */}
-          <div>
-            {/* Dynamically import to avoid SSR issues if any */}
-            {activeTournament && (
-              <React.Suspense fallback={<span>Loading...</span>}>
-                <ExportResultsButton tournamentId={activeTournament.id} />
-              </React.Suspense>
-            )}
-          </div>
+        {/* Export Button */}
+        <div className="flex justify-end mb-2">
+          {/* Dynamically import to avoid SSR issues if any */}
+          {activeTournament && (
+            <React.Suspense fallback={<span>Loading...</span>}>
+              <ExportResultsButton tournamentId={activeTournament.id} />
+            </React.Suspense>
+          )}
         </div>
         <TournamentResults tournamentId={activeTournament.id} />
       </div>

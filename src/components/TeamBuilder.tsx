@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Users, Plus, X, Check, ArrowRight, Search, UserPlus, Trash2, Edit, Upload, Download } from 'lucide-react';
+import { Users, Plus, X, Check, ArrowRight, Search, UserPlus, Trash2, Edit, Upload, Download, DollarSign } from 'lucide-react';
 import { useAppContext } from '@/contexts/AppContext';
 import { Player, Team, Tournament } from '@/contexts/AppContext';
 import { toast } from '@/hooks/use-toast';
+
 
 interface NewPlayerForm {
   first_name: string;
@@ -79,7 +80,12 @@ interface CSVUploadStep {
   result?: PlayerUploadResult | TeamUploadResult | TournamentAssignmentResult;
 }
 
-const TeamBuilder: React.FC = () => {
+interface TeamBuilderProps {
+  onTeamPaymentClick?: (teamId: string) => void;
+  onIndividualPlayerPaymentClick?: (playerId: string) => void;
+}
+
+const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndividualPlayerPaymentClick }) => {
   const { teams, tournaments, players, createTeamFromPlayers, updateTeam, refreshPlayers, refreshTeams, createTournament, updateTournamentStatus, deleteTournament, addPlayer, addTeamToTournament, refreshTournaments, addTeam } = useAppContext();
   
   // Column 1 - Players
@@ -138,6 +144,8 @@ const TeamBuilder: React.FC = () => {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [deleteConfirmationType, setDeleteConfirmationType] = useState<'player' | 'team' | 'tournament' | null>(null);
   const [deleteConfirmationItem, setDeleteConfirmationItem] = useState<Player | Team | Tournament | null>(null);
+
+
 
   // Filter players based on tournament selection and search
   const filteredPlayers = players.filter(player => {
@@ -1443,13 +1451,13 @@ const TeamBuilder: React.FC = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Team Builder
+              <img src={import.meta.env.BASE_URL + 'cc.png'} alt="Command Center" className="h-5 w-5" style={{ filter: 'brightness(0)' }} />
+              Command Center
             </CardTitle>
             <div className="flex gap-2">
               <Dialog open={showCSVImportDialog} onOpenChange={setShowCSVImportDialog}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
+                  <Button size="sm" style={{ backgroundColor: 'black', color: 'white' }}>
                     <Upload className="h-4 w-4 mr-2" />
                     Import CSV
                   </Button>
@@ -1698,68 +1706,21 @@ const TeamBuilder: React.FC = () => {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Add New Player
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Player</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="first_name">First Name *</Label>
-                      <Input
-                        id="first_name"
-                        value={newPlayerForm.first_name}
-                        onChange={(e) => setNewPlayerForm({...newPlayerForm, first_name: e.target.value})}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="last_name">Last Name *</Label>
-                      <Input
-                        id="last_name"
-                        value={newPlayerForm.last_name}
-                        onChange={(e) => setNewPlayerForm({...newPlayerForm, last_name: e.target.value})}
-                      />
-                    </div>
 
-                    <div>
-                      <Label htmlFor="phone_number">Phone Number</Label>
-                      <Input
-                        id="phone_number"
-                        value={newPlayerForm.phone_number}
-                        onChange={(e) => setNewPlayerForm({...newPlayerForm, phone_number: e.target.value})}
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={handleAddPlayer} className="flex-1">
-                        Add Player
-                      </Button>
-                      <Button variant="outline" onClick={() => setShowAddPlayerDialog(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Column 1 - Players */}
-            <Card className="border-2 border-red-500">
+            <Card className="border-2" style={{ borderColor: '#a60002' }}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg text-center">Players</CardTitle>
                   <div className="flex gap-1">
                     <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
                       <DialogTrigger asChild>
-                        <Button size="sm">
+                        <Button size="sm" style={{ backgroundColor: 'black', color: 'white' }}>
                           <UserPlus className="h-4 w-4" />
                         </Button>
                       </DialogTrigger>
@@ -1794,7 +1755,7 @@ const TeamBuilder: React.FC = () => {
                             />
                           </div>
                           <div className="flex gap-2">
-                            <Button onClick={handleAddPlayer} className="flex-1">
+                            <Button onClick={handleAddPlayer} className="flex-1" style={{ backgroundColor: 'black', color: 'white' }}>
                               Add Player
                             </Button>
                             <Button variant="outline" onClick={() => setShowAddPlayerDialog(false)}>
@@ -1828,6 +1789,9 @@ const TeamBuilder: React.FC = () => {
                       value={playerSearchTerm}
                       onChange={(e) => setPlayerSearchTerm(e.target.value)}
                       className="pl-8"
+                      style={{ borderColor: '#a60002' }}
+                      onFocus={(e) => e.target.style.borderColor = '#a60002'}
+                      onBlur={(e) => e.target.style.borderColor = '#a60002'}
                     />
                   </div>
                 </div>
@@ -1870,9 +1834,25 @@ const TeamBuilder: React.FC = () => {
                             variant="ghost"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (onIndividualPlayerPaymentClick) {
+                                onIndividualPlayerPaymentClick(player.id);
+                              }
+                            }}
+                            className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                          >
+                            <DollarSign className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               handleDeletePlayerConfirmation(player);
                             }}
-                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                            className="h-6 w-6 p-0"
+                            style={{ color: '#a60002' }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = '#a60002'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = '#a60002'}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -1893,14 +1873,14 @@ const TeamBuilder: React.FC = () => {
             </Card>
 
             {/* Column 2 - Teams */}
-            <Card className="border-2 border-red-500">
+            <Card className="border-2" style={{ borderColor: '#a60002' }}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg text-center">Teams</CardTitle>
                   <div className="flex gap-1">
                     <Dialog open={showAddTeamDialog} onOpenChange={setShowAddTeamDialog}>
                       <DialogTrigger asChild>
-                        <Button size="sm">
+                        <Button size="sm" style={{ backgroundColor: 'black', color: 'white' }}>
                           <Plus className="h-4 w-4" />
                         </Button>
                       </DialogTrigger>
@@ -1956,7 +1936,7 @@ const TeamBuilder: React.FC = () => {
                             </Select>
                           </div>
                           <div className="flex gap-2">
-                            <Button onClick={handleAddTeam} className="flex-1">
+                            <Button onClick={handleAddTeam} className="flex-1" style={{ backgroundColor: 'black', color: 'white' }}>
                               Add Team
                             </Button>
                             <Button variant="outline" onClick={() => setShowAddTeamDialog(false)}>
@@ -1990,6 +1970,9 @@ const TeamBuilder: React.FC = () => {
                       value={teamSearchTerm}
                       onChange={(e) => setTeamSearchTerm(e.target.value)}
                       className="pl-8"
+                      style={{ borderColor: '#a60002' }}
+                      onFocus={(e) => e.target.style.borderColor = '#a60002'}
+                      onBlur={(e) => e.target.style.borderColor = '#a60002'}
                     />
                   </div>
                 </div>
@@ -1999,22 +1982,43 @@ const TeamBuilder: React.FC = () => {
                   {filteredTeams.length} team(s) found
                 </div>
                 <div className="space-y-1 max-h-96 overflow-y-auto">
-                  {filteredTeams.map(team => (
-                    <div
-                      key={team.id}
-                      className={`p-2 rounded border cursor-pointer transition-colors ${
-                        selectedTeams.find(t => t.id === team.id)
-                          ? 'bg-blue-50 border-blue-200'
-                          : 'hover:bg-gray-50'
-                      }`}
-                      onClick={() => {
-                        if (selectedTeams.find(t => t.id === team.id)) {
-                          setSelectedTeams(selectedTeams.filter(t => t.id !== team.id));
-                        } else {
-                          setSelectedTeams([...selectedTeams, team]);
-                        }
-                      }}
-                    >
+                  {filteredTeams.map(team => {
+                    let paymentStatus = null;
+                    if (selectedTeamTournament && selectedTeamTournament !== 'all' && selectedTeamTournament !== 'unassigned') {
+                      const player1Paid = team.player1TournamentPayments?.[selectedTeamTournament] || false;
+                      const player2Paid = team.player2TournamentPayments?.[selectedTeamTournament] || false;
+                      
+                      if (player1Paid && player2Paid) {
+                        paymentStatus = 'paid';
+                      } else if (player1Paid || player2Paid) {
+                        paymentStatus = 'partial';
+                      } else {
+                        paymentStatus = 'unpaid';
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={team.id}
+                        className={`p-2 rounded border cursor-pointer transition-colors ${
+                          selectedTeams.find(t => t.id === team.id)
+                            ? 'bg-blue-50 border-blue-200'
+                            : paymentStatus === 'paid'
+                            ? 'bg-green-50 border-green-200'
+                            : paymentStatus === 'partial'
+                            ? 'bg-yellow-50 border-yellow-200'
+                            : paymentStatus === 'unpaid'
+                            ? 'bg-red-50 border-red-200'
+                            : 'hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          if (selectedTeams.find(t => t.id === team.id)) {
+                            setSelectedTeams(selectedTeams.filter(t => t.id !== team.id));
+                          } else {
+                            setSelectedTeams([...selectedTeams, team]);
+                          }
+                        }}
+                      >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="font-medium">{team.name}</div>
@@ -2062,9 +2066,25 @@ const TeamBuilder: React.FC = () => {
                             variant="ghost"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (onTeamPaymentClick) {
+                                onTeamPaymentClick(team.id);
+                              }
+                            }}
+                            className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                          >
+                            <DollarSign className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               handleDeleteTeamConfirmation(team);
                             }}
-                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                            className="h-6 w-6 p-0"
+                            style={{ color: '#a60002' }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = '#a60002'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = '#a60002'}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -2074,20 +2094,21 @@ const TeamBuilder: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               </CardContent>
             </Card>
 
             {/* Column 3 - Tournaments */}
-            <Card className="border-2 border-red-500">
+            <Card className="border-2" style={{ borderColor: '#a60002' }}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg text-center">Tournaments</CardTitle>
                   <div className="flex gap-1">
                     <Dialog open={showAddTournamentDialog} onOpenChange={setShowAddTournamentDialog}>
                       <DialogTrigger asChild>
-                        <Button size="sm">
+                        <Button size="sm" style={{ backgroundColor: 'black', color: 'white' }}>
                           <Plus className="h-4 w-4" />
                         </Button>
                       </DialogTrigger>
@@ -2118,7 +2139,7 @@ const TeamBuilder: React.FC = () => {
                             </Select>
                           </div>
                           <div className="flex gap-2">
-                            <Button onClick={handleAddTournament} className="flex-1">
+                            <Button onClick={handleAddTournament} className="flex-1" style={{ backgroundColor: 'black', color: 'white' }}>
                               Add Tournament
                             </Button>
                             <Button variant="outline" onClick={() => setShowAddTournamentDialog(false)}>
@@ -2155,6 +2176,9 @@ const TeamBuilder: React.FC = () => {
                       value={tournamentSearchTerm}
                       onChange={(e) => setTournamentSearchTerm(e.target.value)}
                       className="pl-8"
+                      style={{ borderColor: '#a60002' }}
+                      onFocus={(e) => e.target.style.borderColor = '#a60002'}
+                      onBlur={(e) => e.target.style.borderColor = '#a60002'}
                     />
                   </div>
                 </div>
@@ -2176,6 +2200,7 @@ const TeamBuilder: React.FC = () => {
                             setSelectedTournaments(selectedTournaments.filter(t => t !== tournament.id));
                           }
                         }}
+                        className="border-[#a60002] data-[state=checked]:bg-[#a60002] data-[state=checked]:border-[#a60002]"
                       />
                       <Label 
                         htmlFor={tournament.id} 
@@ -2183,7 +2208,12 @@ const TeamBuilder: React.FC = () => {
                           tournament.status === 'active' ? 'text-red-600' : ''
                         }`}
                       >
-                        {tournament.name}
+                        <div className="flex items-center gap-2">
+                          <span>{tournament.name}</span>
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0.5" style={{ backgroundColor: 'black', color: 'white' }}>
+                            {teams.filter(team => team.registeredTournaments?.includes(tournament.id)).length}
+                          </Badge>
+                        </div>
                       </Label>
                       <Button
                         size="sm"
@@ -2204,7 +2234,10 @@ const TeamBuilder: React.FC = () => {
                           e.stopPropagation();
                           handleDeleteTournamentConfirmation(tournament);
                         }}
-                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                        className="h-6 w-6 p-0"
+                        style={{ color: '#a60002' }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = '#a60002'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = '#a60002'}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -2458,6 +2491,10 @@ const TeamBuilder: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+
+
+
     </div>
   );
 };
