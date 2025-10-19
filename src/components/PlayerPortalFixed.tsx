@@ -63,8 +63,13 @@ const DirectScoreEntry = ({ team, match, onComplete }: { team: Team; match: any;
     
     if (teamAScore === teamBScore && !tieWinner) return;
     
-    const bostonAValue = parseInt(bostonA) || 0;
-    const bostonBValue = parseInt(bostonB) || 0;
+    // Get Boston values from input fields
+    const myBostonValue = parseInt(bostonA) || 0;
+    const opponentBostonValue = parseInt(bostonB) || 0;
+    
+    // Assign Boston scores based on actual team positions in match
+    const bostonAValue = String(match.teamA) === String(team.id) ? myBostonValue : opponentBostonValue;
+    const bostonBValue = String(match.teamA) === String(team.id) ? opponentBostonValue : myBostonValue;
     
     const toNum = (v: string) => v.trim() === '' ? 0 : Number(v);
     const teamAHands = String(match.teamA) === String(team.id) ? toNum(handsA) : toNum(handsB);
@@ -548,10 +553,12 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
     
     const interval = setInterval(() => {
       refreshGamesFromSupabase();
-    }, 5000); // Refresh every 5 seconds
+    }, 2000); // Refresh every 2 seconds for more responsive updates
 
     return () => clearInterval(interval);
   }, [team, refreshGamesFromSupabase]);
+
+
 
   // Only show schedule for the active tournament
   const getTeamSchedule = () => {
@@ -821,16 +828,19 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
   const teamSchedule = getTeamSchedule();
 
   const activeMessage = getActiveMessages()[0];
-  console.log('Main portal - active message:', activeMessage);
   return (
     <div className="min-h-screen bg-gray-50">
-      <MessageBanner 
-        key={`portal-${activeMessage?.id || 'none'}`}
-        message={activeMessage?.text || ''} 
-        type={activeMessage?.type} 
-      />
-      {/* Fixed Portal Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 w-full bg-white shadow-sm">
+      {/* Message Banner - positioned above the fixed header */}
+      <div className="fixed top-0 left-0 right-0 z-60">
+        <MessageBanner 
+          key={`portal-${activeMessage?.id || 'none'}`}
+          message={activeMessage?.text || ''} 
+          type={activeMessage?.type} 
+        />
+      </div>
+      
+      {/* Fixed Portal Header - positioned below message banner */}
+      <div className="fixed top-0 left-0 right-0 z-50 w-full bg-white shadow-sm" style={{ marginTop: activeMessage ? '60px' : '0px' }}>
         {/* Top row: Logo and buttons */}
         <div className="py-4 px-4 flex items-center justify-between">
           {/* Left: Refresh Button */}
@@ -890,7 +900,8 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-4 pt-48">
+      {/* Adjust main content padding to account for message banner */}
+      <div className="max-w-4xl mx-auto p-4" style={{ paddingTop: activeMessage ? 'calc(12rem + 60px)' : '12rem' }}>
         {/* Tournament Name Only - Record boxes moved to bottom */}
         <div className="mb-6">
           <div className="text-center mb-4">
@@ -903,11 +914,38 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
         <Card>
           <CardHeader><CardTitle></CardTitle></CardHeader>
           <CardContent>
-            {teamSchedule.length === 0 ? (
-              <div className="text-center text-gray-500 py-8">
-                <p>No scheduled matches found</p>
-              </div>
-            ) : (
+            {(() => {
+              const activeTournament = getActiveTournament();
+              const isTeamRegistered = team?.registeredTournaments?.includes(activeTournament?.id || '');
+              
+              if (!activeTournament) {
+                return (
+                  <div className="text-center text-gray-500 py-8">
+                    <p>No active tournament found</p>
+                  </div>
+                );
+              }
+              
+              if (!isTeamRegistered) {
+                return (
+                  <div className="text-center text-gray-500 py-8">
+                    <p>Team is not registered for the active tournament</p>
+                    <p className="text-sm mt-2">Active tournament: {activeTournament.name}</p>
+                    <p className="text-sm">Team registered for: {team?.registeredTournaments?.join(', ') || 'None'}</p>
+                  </div>
+                );
+              }
+              
+              if (teamSchedule.length === 0) {
+                return (
+                  <div className="text-center text-gray-500 py-8">
+                    <p>No scheduled matches found</p>
+                    <p className="text-sm mt-2">This may be because no schedule has been generated yet.</p>
+                  </div>
+                );
+              }
+              
+              return (
               <div className="space-y-6">
                 {/* Show all rounds */}
                 {(() => {
@@ -990,6 +1028,10 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                                 <span className="text-xs text-gray-600">
                                                   {match.opponentTeam?.player1FirstName || ''}/{match.opponentTeam?.player2FirstName || ''}
                                                 </span>
+                                                {/* Table number */}
+                                                <Badge variant="secondary" className="text-xs mt-1">
+                                                  Table {match.table}
+                                                </Badge>
                                               </div>
                                             
                                               {/* Right side: Status pill or Enter Score button */}
@@ -1183,7 +1225,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                   });
                 })()}
               </div>
-            )}
+            )})()}
 
             {/* Score Entry Modal */}
             {selectedMatch && (

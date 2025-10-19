@@ -92,8 +92,8 @@ const PaymentTracker: React.FC = () => {
     if (!tournament) return { status: 'pending', amount: 0, details: '' };
     
     const team = teams.find(t => t.id === player.teamId);
-    const baseCost = tournament.cost / 2; // Split team cost between players
-    const bostonPotCost = tournament.bostonPotCost / 2;
+    const baseCost = tournament.cost / 2; // Cost per player (team cost / 2)
+    const bostonPotCost = tournament.bostonPotCost / 2; // Boston pot cost per player
     const isInBostonPot = team?.bostonPotTournaments?.includes(tournamentId);
     const totalCost = baseCost + (isInBostonPot ? bostonPotCost : 0);
     

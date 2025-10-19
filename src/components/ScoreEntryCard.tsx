@@ -115,9 +115,13 @@ const ScoreEntryCard = ({ team, onComplete }: ScoreEntryCardProps) => {
     
     if (teamAScore === teamBScore && !tieWinner) return;
     
-    // Ensure Boston values are valid numbers
-    const bostonAValue = parseInt(bostonA) || 0;
-    const bostonBValue = parseInt(bostonB) || 0;
+    // Get Boston values from input fields
+    const myBostonValue = parseInt(bostonA) || 0;
+    const opponentBostonValue = parseInt(bostonB) || 0;
+    
+    // Assign Boston scores based on actual team positions in match
+    const bostonAValue = String(selectedMatch.teamA) === String(team.id) ? myBostonValue : opponentBostonValue;
+    const bostonBValue = String(selectedMatch.teamA) === String(team.id) ? opponentBostonValue : myBostonValue;
     
     const toNum = (v: string) => v.trim() === '' ? 0 : Number(v);
     const teamAHands = String(selectedMatch.teamA) === String(team.id) ? toNum(handsA) : toNum(handsB);
@@ -134,8 +138,8 @@ const ScoreEntryCard = ({ team, onComplete }: ScoreEntryCardProps) => {
       scoreB: teamBScore,
       handsA: teamAHands,
       handsB: teamBHands,
-             boston_a: bostonAValue,
-       boston_b: bostonBValue,
+      boston_a: bostonAValue,
+      boston_b: bostonBValue,
       winner: (teamAScore > teamBScore ? 'teamA' : teamAScore < teamBScore ? 'teamB' : tieWinner!) as 'teamA' | 'teamB',
       matchId: selectedMatch.id,
       round: selectedMatch.round,

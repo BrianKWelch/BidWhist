@@ -45,15 +45,25 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
   const [rounds, setRounds] = useState<RoundData[]>([]);
   const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [round1Modified, setRound1Modified] = useState(false);
+  const [isManuallyEditing, setIsManuallyEditing] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Initialize or load existing schedule
   useEffect(() => {
+    console.log('useEffect triggered - isManuallyEditing:', isManuallyEditing, 'isRegenerating:', isRegenerating, 'teams:', teams.length, 'numberOfRounds:', numberOfRounds);
+    // Don't regenerate if user is manually editing or regenerating
+    if (isManuallyEditing || isRegenerating) {
+      console.log('Skipping regeneration because user is manually editing or regenerating');
+      return;
+    }
+    
     if (existingSchedule) {
       loadExistingSchedule(existingSchedule);
     } else {
       generateInitialSchedule();
     }
-  }, [teams, numberOfRounds]);
+  }, [teams, numberOfRounds, isManuallyEditing, isRegenerating]);
 
   const loadExistingSchedule = (schedule: TournamentSchedule) => {
     const roundData: RoundData[] = [];
@@ -91,6 +101,9 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
     }
 
     setRounds(roundData);
+    setRound1Modified(false);
+    setIsManuallyEditing(false);
+    setIsRegenerating(false);
   };
 
         const generateInitialSchedule = async () => {
@@ -190,8 +203,11 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
          });
        }
 
-       setRounds(allRounds);
-       setAvailableTeams([]); // All teams are assigned
+      setRounds(allRounds);
+      setRound1Modified(false);
+      setIsManuallyEditing(false);
+      setIsRegenerating(false);
+      setAvailableTeams([]); // All teams are assigned
       
     } catch (error) {
       console.error('Error generating schedule:', error);
@@ -349,10 +365,15 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
 
     setRounds(newRounds);
     
-    // Auto-generate subsequent rounds if Round 1 was modified
+    // Mark as manually editing to prevent useEffect from regenerating
+    setIsManuallyEditing(true);
+    
+    // Mark Round 1 as modified if it was changed
     if (roundIdx === 0) {
-      setTimeout(() => autoGenerateSubsequentRounds(0), 0);
+      setRound1Modified(true);
     }
+    
+    // Manual regeneration is now handled by a button - no auto-generation
   };
 
   const updateTableNumber = (roundIndex: number, matchIndex: number, newTable: number) => {
@@ -362,10 +383,12 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
   };
 
   const saveSchedule = () => {
+    console.log('Saving schedule with rounds:', rounds);
     const matches: ScheduleMatch[] = [];
     let matchId = 1;
 
     rounds.forEach((round, roundIndex) => {
+      console.log(`Processing round ${roundIndex + 1}:`, round);
       const roundNum = roundIndex + 1;
       const maxMatches = Math.max(round.leftSide.length, round.rightSide.length);
 
@@ -375,16 +398,34 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
         const table = round.tables[i] || i + 1;
 
         if (leftTeam && rightTeam) {
-          matches.push({
-            id: `${tournamentId}-r${roundNum}-m${matchId++}`,
-            teamA: leftTeam.id === 'BYE' ? null : leftTeam.id,
-            teamB: rightTeam.id === 'BYE' ? null : rightTeam.id,
-            round: roundNum,
-            table,
-            tournamentId,
-            isBye: leftTeam.id === 'BYE' || rightTeam.id === 'BYE',
-            isSameCity: leftTeam.city === rightTeam.city && leftTeam.city !== 'BYE'
-          });
+          // For bye matches, we need to handle them differently
+          if (leftTeam.id === 'BYE' || rightTeam.id === 'BYE') {
+            // This is a bye match - the non-BYE team gets the bye
+            const byeTeam = leftTeam.id === 'BYE' ? rightTeam : leftTeam;
+            console.log(`Creating bye match for team: ${byeTeam.name} (${byeTeam.id})`);
+            matches.push({
+              id: `${tournamentId}-r${roundNum}-m${matchId++}`,
+              teamA: byeTeam.id,
+              teamB: 'BYE',
+              round: roundNum,
+              table,
+              tournamentId,
+              isBye: true,
+              isSameCity: false
+            });
+          } else {
+            // Normal match
+            matches.push({
+              id: `${tournamentId}-r${roundNum}-m${matchId++}`,
+              teamA: leftTeam.id,
+              teamB: rightTeam.id,
+              round: roundNum,
+              table,
+              tournamentId,
+              isBye: false,
+              isSameCity: leftTeam.city === rightTeam.city
+            });
+          }
         }
       }
     });
@@ -395,55 +436,28 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
       matches
     };
 
+    console.log('Final schedule being saved:', schedule);
     onSave(schedule);
   };
 
-       const regenerateRound = (roundIndex: number) => {
-     try {
-       if (roundIndex === 0) {
-         generateInitialSchedule();
-       } else {
-         // Regenerate based on previous round rotation
-         const newRounds = [...rounds];
-         const prevRound = newRounds[roundIndex - 1];
-         
-         // Create new right side by rotating the previous right side
-         const newRightSide = [...prevRound.rightSide];
-         
-                 // Rotate right side: move all teams up one position (last becomes first)
-        if (newRightSide.length > 0) {
-          const last = newRightSide.pop()!;
-          newRightSide.unshift(last);
-        }
-         
-         // Keep left side the same, rotate right side
-         const tables = Array.from({ length: Math.max(prevRound.leftSide.length, prevRound.rightSide.length) }, (_, i) => i + 1);
-         const newTables = [...tables].sort(() => Math.random() - 0.5);
-         
-         newRounds[roundIndex] = {
-           leftSide: [...prevRound.leftSide],
-           rightSide: newRightSide,
-           tables: newTables,
-           bench: [],
-           tableBench: []
-         };
-         
-         setRounds(newRounds);
-       }
-     } catch (error) {
-       console.error('Error regenerating round:', error);
-       toast({ title: 'Error regenerating round', variant: 'destructive' });
-     }
-   };
 
-   // Auto-generate subsequent rounds when Round 1 changes
-     const autoGenerateSubsequentRounds = (roundIndex: number) => {
-    if (roundIndex === 0) {
-      // When Round 1 changes, regenerate all subsequent rounds
+   // Regenerate only rounds 2+ based on current Round 1
+     const regenerateRounds2Plus = () => {
+      console.log('Regenerating rounds 2+ based on current Round 1:', rounds[0]);
+      
+      // Set regenerating flag to prevent useEffect from interfering
+      setIsRegenerating(true);
+      
       const newRounds = [...rounds];
       
+      // Explicitly preserve Round 1 (index 0) - don't modify it
+      const preservedRound1 = { ...rounds[0] };
+      
+      // Only regenerate rounds 2 and beyond
       for (let i = 1; i < newRounds.length; i++) {
         const prevRound = newRounds[i - 1];
+        console.log(`Generating round ${i + 1} based on round ${i}:`, prevRound);
+        
         const newRightSide = [...prevRound.rightSide];
         
         // Rotate right side: move all teams up one position (last becomes first)
@@ -463,15 +477,17 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
           bench: [],
           tableBench: []
         };
+        
+        console.log(`Generated round ${i + 1}:`, newRounds[i]);
       }
       
-      // Now regenerate the catch-up round with the correct logic
-      const catchUpRoundIndex = newRounds.length - 1;
-      if (catchUpRoundIndex > 0) {
+      // Handle the final round (bye round) correctly
+      const finalRoundIndex = newRounds.length - 1;
+      if (finalRoundIndex > 0) {
         // Collect all teams that had BYE in the previous rounds
         const teamsWithBye: TeamAssignment[] = [];
         
-        for (let roundIdx = 0; roundIdx < catchUpRoundIndex; roundIdx++) {
+        for (let roundIdx = 0; roundIdx < finalRoundIndex; roundIdx++) {
           const round = newRounds[roundIdx];
           for (let matchIdx = 0; matchIdx < round.leftSide.length; matchIdx++) {
             const leftTeam = round.leftSide[matchIdx];
@@ -487,34 +503,51 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
           }
         }
         
-        // Create the catch-up round with only teams that had BYE
-        const catchUpLeftSide: TeamAssignment[] = [];
-        const catchUpRightSide: TeamAssignment[] = [];
-        const catchUpTables: number[] = [];
+        // Create the bye round with only teams that had BYE
+        const byeLeftSide: TeamAssignment[] = [];
+        const byeRightSide: TeamAssignment[] = [];
+        const byeTables: number[] = [];
         
+        // Pair up teams that had BYE for the bye round
         for (let i = 0; i < teamsWithBye.length; i += 2) {
           const teamA = teamsWithBye[i];
           const teamB = teamsWithBye[i + 1];
           
           if (teamA && teamB) {
-            catchUpLeftSide.push(teamA);
-            catchUpRightSide.push(teamB);
-            catchUpTables.push(Math.floor(i / 2) + 1);
+            byeLeftSide.push(teamA);
+            byeRightSide.push(teamB);
+            byeTables.push(Math.floor(i / 2) + 1);
+          } else if (teamA) {
+            // If there's an odd number of teams, the last team gets a BYE
+            byeLeftSide.push(teamA);
+            byeRightSide.push({ id: 'BYE', name: 'BYE', city: 'BYE' });
+            byeTables.push(Math.floor(i / 2) + 1);
           }
         }
         
-        newRounds[catchUpRoundIndex] = {
-          leftSide: catchUpLeftSide,
-          rightSide: catchUpRightSide,
-          tables: catchUpTables,
+        newRounds[finalRoundIndex] = {
+          leftSide: byeLeftSide,
+          rightSide: byeRightSide,
+          tables: byeTables,
           bench: [],
           tableBench: []
         };
+        
+        console.log(`Generated bye round:`, newRounds[finalRoundIndex]);
       }
       
+      // Explicitly preserve Round 1 to ensure manual changes are kept
+      newRounds[0] = preservedRound1;
+      
+      console.log('After regeneration, Round 1 is:', newRounds[0]);
+      console.log('Full newRounds array:', newRounds);
       setRounds(newRounds);
-    }
-  };
+      
+      // Reset regenerating flag after state is updated
+      setTimeout(() => {
+        setIsRegenerating(false);
+      }, 100);
+    };
 
   return (
     <div className="space-y-6">
@@ -545,26 +578,29 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
                 <Card key={roundIndex}>
                   <CardHeader>
                                          <div className="flex justify-between items-center">
-                       <CardTitle>Round {roundIndex + 1}</CardTitle>
+                       <CardTitle>
+                         Round {roundIndex + 1}
+                         {roundIndex === 0 && round1Modified && (
+                           <span className="ml-2 text-sm text-orange-600 font-normal">
+                             (Modified - Click "Regenerate" to update rounds 2+)
+                           </span>
+                         )}
+                       </CardTitle>
                        <div className="flex gap-2">
                          {roundIndex === 0 && (
                            <Button
-                             variant="outline"
+                             variant={round1Modified ? "default" : "outline"}
                              size="sm"
-                             onClick={() => autoGenerateSubsequentRounds(0)}
+                             onClick={() => {
+                               console.log('Regenerate Rounds 2+ button clicked, current Round 1:', rounds[0]);
+                               regenerateRounds2Plus();
+                               setRound1Modified(false);
+                             }}
                            >
                              <RotateCcw className="w-4 h-4 mr-2" />
-                             Auto-Generate Rounds 2-{numberOfRounds}
+                             {round1Modified ? "Regenerate Rounds 2-" + numberOfRounds : "Auto-Generate Rounds 2-" + numberOfRounds}
                            </Button>
                          )}
-                         <Button
-                           variant="outline"
-                           size="sm"
-                           onClick={() => regenerateRound(roundIndex)}
-                         >
-                           <RotateCcw className="w-4 h-4 mr-2" />
-                           Regenerate
-                         </Button>
                        </div>
                      </div>
                   </CardHeader>

@@ -11,6 +11,7 @@ import { Users, Plus, X, Check, ArrowRight, Search, UserPlus, Trash2, Edit, Uplo
 import { useAppContext } from '@/contexts/AppContext';
 import { Player, Team, Tournament } from '@/contexts/AppContext';
 import { toast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
 
 
 interface NewPlayerForm {
@@ -37,6 +38,10 @@ interface EditTeamForm extends NewTeamForm {
 interface NewTournamentForm {
   name: string;
   status: 'pending' | 'active' | 'finished';
+  cost: number;
+  bostonPotCost: number;
+  description?: string;
+  tracksHands?: boolean;
 }
 
 interface EditTournamentForm extends NewTournamentForm {
@@ -86,7 +91,7 @@ interface TeamBuilderProps {
 }
 
 const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndividualPlayerPaymentClick }) => {
-  const { teams, tournaments, players, createTeamFromPlayers, updateTeam, refreshPlayers, refreshTeams, createTournament, updateTournamentStatus, deleteTournament, addPlayer, addTeamToTournament, refreshTournaments, addTeam } = useAppContext();
+  const { teams, tournaments, players, createTeamFromPlayers, updateTeam, refreshPlayers, refreshTeams, createTournament, updateTournamentStatus, deleteTournament, addPlayer, addTeamToTournament, refreshTournaments, addTeam, addTournament, updateTournament } = useAppContext();
   
   // Column 1 - Players
   const [selectedPlayerTournament, setSelectedPlayerTournament] = useState<string>('all');
@@ -119,12 +124,17 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
   const [selectedTournaments, setSelectedTournaments] = useState<string[]>([]);
   const [selectedTournamentFilter, setSelectedTournamentFilter] = useState<string>('all');
   const [tournamentSearchTerm, setTournamentSearchTerm] = useState('');
+  const [bostonPotSelections, setBostonPotSelections] = useState<{[tournamentId: string]: boolean}>({});
   const [showAddTournamentDialog, setShowAddTournamentDialog] = useState(false);
   const [showEditTournamentDialog, setShowEditTournamentDialog] = useState(false);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [newTournamentForm, setNewTournamentForm] = useState<NewTournamentForm>({
     name: '',
-    status: 'pending'
+    status: 'pending',
+    cost: 40, // Cost per team (so $20 per player)
+    bostonPotCost: 20, // Boston pot cost per team (so $10 per player)
+    description: '',
+    tracksHands: true
   });
 
   // CSV Import
@@ -315,6 +325,23 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
   };
 
   // Add team to selected tournaments
+  // Handle tournament selection - automatically set Boston Pot = Yes
+  const handleTournamentSelection = (tournamentId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedTournaments(prev => [...prev, tournamentId]);
+      // Automatically set Boston Pot to Yes for all tournaments
+      setBostonPotSelections(prev => ({ ...prev, [tournamentId]: true }));
+    } else {
+      setSelectedTournaments(prev => prev.filter(id => id !== tournamentId));
+      // Remove Boston Pot selection when tournament is deselected
+      setBostonPotSelections(prev => {
+        const newSelections = { ...prev };
+        delete newSelections[tournamentId];
+        return newSelections;
+      });
+    }
+  };
+
   const handleAddTeamToTournaments = async () => {
     if (selectedTeams.length === 0) {
       toast({
@@ -367,14 +394,31 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
           ...selectedTournaments
         ];
         
+        // All selected tournaments are automatically in Boston Pot
+        const updatedBostonPotTournaments = [
+          ...(team.bostonPotTournaments || []),
+          ...selectedTournaments
+        ];
+        
+        console.log('Adding team to tournaments:', {
+          teamName: team.name,
+          teamId: team.id,
+          selectedTournaments,
+          updatedRegisteredTournaments,
+          updatedBostonPotTournaments,
+          existingBostonPotTournaments: team.bostonPotTournaments
+        });
+        
         await updateTeam({
           ...team,
-          registeredTournaments: updatedRegisteredTournaments
+          registeredTournaments: updatedRegisteredTournaments,
+          bostonPotTournaments: updatedBostonPotTournaments
         });
       }
 
       setSelectedTeams([]);
       setSelectedTournaments([]);
+      setBostonPotSelections({});
       
       // Refresh teams list
       await refreshTeams();
@@ -729,21 +773,31 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
 
   // Add new tournament
   const handleAddTournament = async () => {
-    if (!newTournamentForm.name) {
+    if (!newTournamentForm.name || newTournamentForm.cost <= 0 || newTournamentForm.bostonPotCost < 0) {
       toast({
         title: 'Missing information',
-        description: 'Please fill in all required fields.',
+        description: 'Please fill in all required fields with valid values.',
         variant: 'destructive'
       });
       return;
     }
 
     try {
-      await createTournament(newTournamentForm.name, newTournamentForm.status);
+      await addTournament(
+        newTournamentForm.name, 
+        newTournamentForm.cost, 
+        newTournamentForm.bostonPotCost, 
+        newTournamentForm.description,
+        newTournamentForm.tracksHands
+      );
 
       setNewTournamentForm({
         name: '',
-        status: 'pending'
+        status: 'pending',
+        cost: 40, // Cost per team (so $20 per player)
+        bostonPotCost: 20, // Boston pot cost per team (so $10 per player)
+        description: '',
+        tracksHands: true
       });
       setShowAddTournamentDialog(false);
 
@@ -763,17 +817,25 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
 
   // Edit tournament
   const handleEditTournament = async () => {
-    if (!editingTournament || !editingTournament.name) {
+    if (!editingTournament || !editingTournament.name || editingTournament.cost <= 0 || editingTournament.bostonPotCost < 0) {
       toast({
         title: 'Missing information',
-        description: 'Please fill in all required fields.',
+        description: 'Please fill in all required fields with valid values.',
         variant: 'destructive'
       });
       return;
     }
 
     try {
-      await updateTournamentStatus(editingTournament);
+      await updateTournament(
+        editingTournament.id,
+        editingTournament.name,
+        editingTournament.cost,
+        editingTournament.bostonPotCost,
+        editingTournament.description,
+        editingTournament.status,
+        editingTournament.tracksHands
+      );
 
       setEditingTournament(null);
       setShowEditTournamentDialog(false);
@@ -2138,6 +2200,63 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                               </SelectContent>
                             </Select>
                           </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="tournament_cost">Cost Per Team ($) *</Label>
+                              <Input
+                                id="tournament_cost"
+                                type="number"
+                                placeholder="40"
+                                value={newTournamentForm.cost}
+                                onChange={(e) => setNewTournamentForm({...newTournamentForm, cost: parseFloat(e.target.value) || 0})}
+                              />
+                              <div className="text-xs text-gray-500 mt-1">
+                                Cost Per Player: ${(newTournamentForm.cost / 2).toFixed(2)}
+                              </div>
+                            </div>
+                            <div>
+                              <Label htmlFor="boston_pot_cost">Boston Pot Cost Per Team ($) *</Label>
+                              <Input
+                                id="boston_pot_cost"
+                                type="number"
+                                placeholder="20"
+                                value={newTournamentForm.bostonPotCost}
+                                onChange={(e) => setNewTournamentForm({...newTournamentForm, bostonPotCost: parseFloat(e.target.value) || 0})}
+                              />
+                              <div className="text-xs text-gray-500 mt-1">
+                                Cost Per Player: ${(newTournamentForm.bostonPotCost / 2).toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="tournament_description">Description (Optional)</Label>
+                            <Textarea
+                              id="tournament_description"
+                              placeholder="Tournament details..."
+                              value={newTournamentForm.description || ''}
+                              onChange={(e) => setNewTournamentForm({...newTournamentForm, description: e.target.value})}
+                              rows={3}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="tracks_hands">Track Hands Won</Label>
+                            <div className="flex items-center space-x-2 mt-2">
+                              <Checkbox 
+                                id="tracks_hands"
+                                checked={newTournamentForm.tracksHands !== false}
+                                onCheckedChange={(checked) => setNewTournamentForm({
+                                  ...newTournamentForm, 
+                                  tracksHands: Boolean(checked)
+                                })}
+                              />
+                              <Label htmlFor="tracks_hands" className="text-sm">
+                                Track hands won during score entry
+                              </Label>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Uncheck to skip hands tracking for this tournament
+                            </div>
+                          </div>
                           <div className="flex gap-2">
                             <Button onClick={handleAddTournament} className="flex-1" style={{ backgroundColor: 'black', color: 'white' }}>
                               Add Tournament
@@ -2193,13 +2312,7 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                       <Checkbox
                         id={tournament.id}
                         checked={selectedTournaments.includes(tournament.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedTournaments([...selectedTournaments, tournament.id]);
-                          } else {
-                            setSelectedTournaments(selectedTournaments.filter(t => t !== tournament.id));
-                          }
-                        }}
+                        onCheckedChange={(checked) => handleTournamentSelection(tournament.id, checked as boolean)}
                         className="border-[#a60002] data-[state=checked]:bg-[#a60002] data-[state=checked]:border-[#a60002]"
                       />
                       <Label 
@@ -2244,6 +2357,7 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                     </div>
                   ))}
                 </div>
+                
                 {selectedTeams.length > 0 && selectedTournaments.length > 0 && (
                   <Button onClick={handleAddTeamToTournaments} className="w-full">
                     <ArrowRight className="h-4 w-4 mr-2" />
@@ -2424,6 +2538,60 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                     <SelectItem value="finished">Finished</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit_tournament_cost">Cost Per Team ($) *</Label>
+                  <Input
+                    id="edit_tournament_cost"
+                    type="number"
+                    value={editingTournament.cost}
+                    onChange={(e) => setEditingTournament({...editingTournament, cost: parseFloat(e.target.value) || 0})}
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Cost Per Player: ${(editingTournament.cost / 2).toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="edit_boston_pot_cost">Boston Pot Cost Per Team ($) *</Label>
+                  <Input
+                    id="edit_boston_pot_cost"
+                    type="number"
+                    value={editingTournament.bostonPotCost}
+                    onChange={(e) => setEditingTournament({...editingTournament, bostonPotCost: parseFloat(e.target.value) || 0})}
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Cost Per Player: ${(editingTournament.bostonPotCost / 2).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="edit_tournament_description">Description (Optional)</Label>
+                <Textarea
+                  id="edit_tournament_description"
+                  value={editingTournament.description || ''}
+                  onChange={(e) => setEditingTournament({...editingTournament, description: e.target.value})}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_tracks_hands">Track Hands Won</Label>
+                <div className="flex items-center space-x-2 mt-2">
+                  <Checkbox 
+                    id="edit_tracks_hands"
+                    checked={editingTournament.tracksHands !== false}
+                    onCheckedChange={(checked) => setEditingTournament({
+                      ...editingTournament, 
+                      tracksHands: Boolean(checked)
+                    })}
+                  />
+                  <Label htmlFor="edit_tracks_hands" className="text-sm">
+                    Track hands won during score entry
+                  </Label>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Uncheck to skip hands tracking for this tournament
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={handleEditTournament} className="flex-1">

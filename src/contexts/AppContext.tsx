@@ -212,9 +212,9 @@ interface AppContextType {
   addTeam: (player1First: string, player1Last: string, player2First: string, player2Last: string, phoneNumber: string, city: string, selectedTournaments: string[], bostonPotTournaments: string[]) => Promise<string>;
   createTeamFromPlayers: (player1: Player, player2: Player, tournamentId: string) => Promise<string>;
   updateTeam: (updatedTeam: Team) => void;
-  addTournament: (name: string, cost: number, bostonPotCost: number, description?: string) => void;
+  addTournament: (name: string, cost: number, bostonPotCost: number, description?: string, tracksHands?: boolean) => void;
   createTournament: (name: string, status: 'pending' | 'active' | 'finished') => Promise<void>;
-  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string) => void;
+  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean) => void;
   updateTournamentStatus: (tournament: Tournament) => Promise<void>;
   deleteTournament: (tournamentId: string) => Promise<void>;
   submitGame: (game: any) => void;

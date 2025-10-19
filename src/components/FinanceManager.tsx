@@ -38,17 +38,17 @@ const FinanceManager: React.FC = () => {
             // Check player 1 payment
             const player1Paid = team.player1TournamentPayments?.[selectedTournament] || false;
             if (player1Paid) {
-              totalCollected += totalCost / 2;
+              totalCollected += totalCost / 2; // Cost per player (team cost / 2)
             } else {
-              totalOwed += totalCost / 2;
+              totalOwed += totalCost / 2; // Cost per player (team cost / 2)
             }
 
             // Check player 2 payment
             const player2Paid = team.player2TournamentPayments?.[selectedTournament] || false;
             if (player2Paid) {
-              totalCollected += totalCost / 2;
+              totalCollected += totalCost / 2; // Cost per player (team cost / 2)
             } else {
-              totalOwed += totalCost / 2;
+              totalOwed += totalCost / 2; // Cost per player (team cost / 2)
             }
           }
         });

@@ -198,10 +198,10 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
           <div className="flex gap-2">
             <button
               className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-bold"
-              onClick={() => {
+              onClick={async () => {
                 if (window.confirm('Are you sure you want to reset ALL tournament data? This will clear all games, schedules, results, brackets, and start fresh with preloaded teams.')) {
                   if (typeof resetAllTournamentData === 'function') {
-                    resetAllTournamentData(effectiveTournamentId);
+                    await resetAllTournamentData(effectiveTournamentId);
                   }
                   window.alert('All tournament data except teams has been reset.');
                 }

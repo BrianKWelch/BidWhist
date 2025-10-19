@@ -82,8 +82,93 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
    * Reset all tournament data for a specific tournamentId (except teams).
    * If no tournamentId is provided, clears all tournaments' data.
    */
-  const resetAllTournamentData = (tournamentId?: string) => {
-    // Games
+  const resetAllTournamentData = async (tournamentId?: string) => {
+    try {
+      const { supabase } = await import('../supabaseClient');
+      
+      // Clear database data
+      if (tournamentId) {
+        // Find all matchIds for this tournament
+        const schedule = schedules.find(s => s.tournamentId === tournamentId);
+        const matchIds = schedule ? schedule.matches.map(m => m.id) : [];
+        
+        if (matchIds.length > 0) {
+          // Delete games from database
+          const { error: gamesError } = await supabase
+            .from('games')
+            .delete()
+            .in('matchId', matchIds);
+          
+          if (gamesError) {
+            console.error('Error deleting games from database:', gamesError);
+          } else {
+            console.log(`Deleted games for matchIds: ${matchIds.join(', ')}`);
+          }
+          
+          // Delete matches from database
+          const { error: matchesError } = await supabase
+            .from('matches')
+            .delete()
+            .in('id', matchIds);
+          
+          if (matchesError) {
+            console.error('Error deleting matches from database:', matchesError);
+          } else {
+            console.log(`Deleted matches for matchIds: ${matchIds.join(', ')}`);
+          }
+          
+          // Delete score submissions from database (if table exists)
+          const { error: submissionsError } = await supabase
+            .from('score_submissions')
+            .delete()
+            .in('matchId', matchIds);
+          
+          if (submissionsError) {
+            console.log('Score submissions table may not exist or have different structure:', submissionsError.message);
+          } else {
+            console.log(`Deleted score submissions for matchIds: ${matchIds.join(', ')}`);
+          }
+        }
+      } else {
+        // Clear all games, matches, and score submissions
+        const { error: gamesError } = await supabase
+          .from('games')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all games
+        
+        if (gamesError) {
+          console.error('Error deleting all games from database:', gamesError);
+        } else {
+          console.log('Deleted all games from database');
+        }
+        
+        const { error: matchesError } = await supabase
+          .from('matches')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all matches
+        
+        if (matchesError) {
+          console.error('Error deleting all matches from database:', matchesError);
+        } else {
+          console.log('Deleted all matches from database');
+        }
+        
+        const { error: submissionsError } = await supabase
+          .from('score_submissions')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all score submissions
+        
+        if (submissionsError) {
+          console.log('Score submissions table may not exist or have different structure:', submissionsError.message);
+        } else {
+          console.log('Deleted all score submissions from database');
+        }
+      }
+    } catch (error) {
+      console.error('Error clearing database data:', error);
+    }
+
+    // Clear local state and localStorage
     if (tournamentId) {
       // Find all matchIds for this tournament
       const schedule = schedules.find(s => s.tournamentId === tournamentId);
@@ -598,10 +683,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (result.error) {
           // ...removed debug log...
         } else {
-          // Map boston_pot_cost to bostonPotCost for frontend use
+          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
           const tournaments = (result.data || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
+            tracksHands: t.tracks_hands !== false
           }));
           setTournaments(tournaments);
         }
@@ -800,6 +886,43 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     })();
     return () => { channel && channel.unsubscribe && channel.unsubscribe(); };
   }, [scoreSubmissions, currentUser]);
+
+  // Real-time subscription for games table to update score entry status immediately
+  useEffect(() => {
+    const setupGamesSubscription = async () => {
+      try {
+        const channel = supabase
+          .channel('games-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, (payload) => {
+            // Add a small delay to ensure the database change is committed
+            setTimeout(() => {
+              refreshGamesFromSupabase();
+            }, 100);
+          })
+          .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR') {
+              console.error('Games subscription error');
+            }
+          });
+
+        return channel;
+      } catch (error) {
+        console.error('Error setting up games subscription:', error);
+        return null;
+      }
+    };
+
+    let channel: any = null;
+    setupGamesSubscription().then((ch) => {
+      channel = ch;
+    });
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [refreshGamesFromSupabase]);
 
   // Automatically update tournamentResults when a new confirmed game is added
   useEffect(() => {
@@ -1354,22 +1477,32 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const calculateTeamTotalOwed = (team: Team): number => {
     let total = 0;
     
+    console.log(`Calculating total for team ${team.name}:`, {
+      registeredTournaments: team.registeredTournaments,
+      bostonPotTournaments: team.bostonPotTournaments
+    });
+    
     if (team.registeredTournaments) {
       team.registeredTournaments.forEach(tournamentId => {
         const tournament = tournaments.find(t => t.id === tournamentId);
         if (tournament) {
-          // Add tournament cost for both players
-          total += tournament.cost * 2;
+          // Add tournament cost (already per team)
+          total += tournament.cost;
+          console.log(`Added tournament cost: ${tournament.cost}, total now: ${total}`);
           
-          // Add Boston Pot cost if both players are in Boston Pot
-          const { bostonPotPaid } = getTeamPaymentStatus(team, tournamentId);
-          if (bostonPotPaid) {
-            total += tournament.bostonPotCost * 2;
+          // Add Boston Pot cost if team is in Boston Pot (already per team)
+          const isInBostonPot = team.bostonPotTournaments?.includes(tournamentId);
+          console.log(`Tournament ${tournamentId} - isInBostonPot: ${isInBostonPot}, bostonPotCost: ${tournament.bostonPotCost}`);
+          
+          if (isInBostonPot) {
+            total += tournament.bostonPotCost;
+            console.log(`Added Boston Pot cost: ${tournament.bostonPotCost}, total now: ${total}`);
           }
         }
       });
     }
     
+    console.log(`Final total for team ${team.name}: ${total}`);
     return total;
   };
 
@@ -1607,6 +1740,50 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
           });
         }
+
+        // Determine Boston Pot tournaments for this team
+        const bostonPotTournaments: string[] = [];
+        console.log(`Refreshing team ${team.name}:`, {
+          teamId: team.id,
+          player1_id: team.player1_id,
+          player2_id: team.player2_id,
+          regTournaments,
+          playerPaymentsCount: playerPayments?.length || 0
+        });
+        
+        if (regTournaments.length > 0 && playerPayments) {
+          const player1BostonPotTournaments = new Set<string>();
+          const player2BostonPotTournaments = new Set<string>();
+          
+          playerPayments.forEach(payment => {
+            console.log(`Payment: player_id=${payment.player_id}, tournament_id=${payment.tournament_id}, entered_boston_pot=${payment.entered_boston_pot}`);
+            
+            if (payment.player_id === team.player1_id && payment.entered_boston_pot) {
+              player1BostonPotTournaments.add(payment.tournament_id);
+              console.log(`Added player1 Boston Pot tournament: ${payment.tournament_id}`);
+            } else if (payment.player_id === team.player2_id && payment.entered_boston_pot) {
+              player2BostonPotTournaments.add(payment.tournament_id);
+              console.log(`Added player2 Boston Pot tournament: ${payment.tournament_id}`);
+            }
+          });
+          
+          console.log(`Player1 Boston Pot tournaments: ${Array.from(player1BostonPotTournaments)}`);
+          console.log(`Player2 Boston Pot tournaments: ${Array.from(player2BostonPotTournaments)}`);
+          
+          // Team is in Boston Pot if both players are in Boston Pot for the same tournament
+          regTournaments.forEach(tournamentId => {
+            const player1InBostonPot = player1BostonPotTournaments.has(tournamentId);
+            const player2InBostonPot = player2BostonPotTournaments.has(tournamentId);
+            console.log(`Tournament ${tournamentId}: player1=${player1InBostonPot}, player2=${player2InBostonPot}`);
+            
+            if (player1InBostonPot && player2InBostonPot) {
+              bostonPotTournaments.push(tournamentId);
+              console.log(`Added tournament ${tournamentId} to team Boston Pot tournaments`);
+            }
+          });
+        }
+        
+        console.log(`Final bostonPotTournaments for team ${team.name}: ${bostonPotTournaments}`);
         
         return {
           ...team,
@@ -1621,6 +1798,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           player2_phone: team.player2?.phone_number || '',
           city: team.city || '', // Use team's city field directly
           registeredTournaments: regTournaments,
+          bostonPotTournaments: bostonPotTournaments,
           player1TournamentPayments,
           player2TournamentPayments,
           player1BostonPotPayments,
@@ -1677,7 +1855,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
 
-      setTournaments(tournamentsData || []);
+      // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+      const mappedTournaments = (tournamentsData || []).map(t => ({
+        ...t,
+        bostonPotCost: t.boston_pot_cost,
+        tracksHands: t.tracks_hands !== false
+      }));
+      setTournaments(mappedTournaments);
     } catch (error) {
       console.error('Error refreshing tournaments:', error);
     }
@@ -1983,7 +2167,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         try {
           // Update team fields including city
-          const { id, registeredTournaments, city, phoneNumber, player1_phone, player2_phone } = updatedTeam;
+          const { id, registeredTournaments, bostonPotTournaments, city, phoneNumber, player1_phone, player2_phone } = updatedTeam;
           
           // Update team record with name and city (only fields that exist in DB)
           const { error: teamUpdateError } = await supabase
@@ -2010,6 +2194,104 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
           }
 
+          // Update Boston Pot registrations if bostonPotTournaments is present
+          if (Array.isArray(bostonPotTournaments)) {
+            console.log('Updating Boston Pot registrations:', {
+              teamId: id,
+              bostonPotTournaments,
+              registeredTournaments
+            });
+            
+            // Update player_tournament records to set entered_boston_pot
+            const { data: teamData } = await supabase
+              .from('teams')
+              .select('player1_id, player2_id')
+              .eq('id', id)
+              .single();
+
+            if (teamData) {
+              // Create or update player_tournament records for all tournaments
+              for (const tournamentId of registeredTournaments || []) {
+                const isInBostonPot = bostonPotTournaments.includes(tournamentId);
+                console.log(`Setting player1 (${teamData.player1_id}) Boston Pot for tournament ${tournamentId}: ${isInBostonPot}`);
+                
+                // Check if player1 record exists
+                const { data: existingPlayer1 } = await supabase
+                  .from('player_tournament')
+                  .select('id')
+                  .eq('player_id', teamData.player1_id)
+                  .eq('tournament_id', tournamentId)
+                  .single();
+
+                if (existingPlayer1) {
+                  // Update existing record
+                  const { error: player1Error } = await supabase
+                    .from('player_tournament')
+                    .update({ entered_boston_pot: isInBostonPot })
+                    .eq('player_id', teamData.player1_id)
+                    .eq('tournament_id', tournamentId);
+                  
+                  if (player1Error) {
+                    console.error('Error updating player1 Boston Pot:', player1Error);
+                  }
+                } else {
+                  // Create new record
+                  const { error: player1Error } = await supabase
+                    .from('player_tournament')
+                    .insert({
+                      player_id: teamData.player1_id,
+                      tournament_id: tournamentId,
+                      paid: false,
+                      b_paid: false,
+                      entered_boston_pot: isInBostonPot
+                    });
+                  
+                  if (player1Error) {
+                    console.error('Error creating player1 record:', player1Error);
+                  }
+                }
+
+                console.log(`Setting player2 (${teamData.player2_id}) Boston Pot for tournament ${tournamentId}: ${isInBostonPot}`);
+                
+                // Check if player2 record exists
+                const { data: existingPlayer2 } = await supabase
+                  .from('player_tournament')
+                  .select('id')
+                  .eq('player_id', teamData.player2_id)
+                  .eq('tournament_id', tournamentId)
+                  .single();
+
+                if (existingPlayer2) {
+                  // Update existing record
+                  const { error: player2Error } = await supabase
+                    .from('player_tournament')
+                    .update({ entered_boston_pot: isInBostonPot })
+                    .eq('player_id', teamData.player2_id)
+                    .eq('tournament_id', tournamentId);
+                  
+                  if (player2Error) {
+                    console.error('Error updating player2 Boston Pot:', player2Error);
+                  }
+                } else {
+                  // Create new record
+                  const { error: player2Error } = await supabase
+                    .from('player_tournament')
+                    .insert({
+                      player_id: teamData.player2_id,
+                      tournament_id: tournamentId,
+                      paid: false,
+                      b_paid: false,
+                      entered_boston_pot: isInBostonPot
+                    });
+                  
+                  if (player2Error) {
+                    console.error('Error creating player2 record:', player2Error);
+                  }
+                }
+              }
+            }
+          }
+
           // Refetch teams with player data
           const { data: teamsData, error: teamsError } = await supabase
             .from('teams')
@@ -2028,10 +2310,45 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const { data: registrations, error: regError } = await supabase.from('team_registrations').select('*');
 
           if (!teamsError && !regError) {
+            // Fetch player_tournament data to determine Boston Pot status
+            const { data: playerTournamentData, error: playerTournamentError } = await supabase
+              .from('player_tournament')
+              .select('player_id, tournament_id, entered_boston_pot')
+              .in('player_id', teamsData.map(t => [t.player1_id, t.player2_id]).flat())
+              .in('tournament_id', registrations.map(r => r.tournament_id));
+
+            if (playerTournamentError) {
+              console.error('Error fetching player tournament data:', playerTournamentError);
+            }
+
             // Map registeredTournaments onto each team and populate legacy fields
             const teamsWithTournaments = (teamsData || []).map(team => {
               const regs = registrations.filter(r => String(r.team_id) === String(team.id));
               const regTournaments = regs.map(r => r.tournament_id);
+              
+              // Determine Boston Pot tournaments for this team
+              const bostonPotTournaments: string[] = [];
+              if (regTournaments.length > 0 && playerTournamentData) {
+                const player1BostonPotTournaments = new Set<string>();
+                const player2BostonPotTournaments = new Set<string>();
+                
+                playerTournamentData.forEach(pt => {
+                  if (pt.player_id === team.player1_id && pt.entered_boston_pot) {
+                    player1BostonPotTournaments.add(pt.tournament_id);
+                  } else if (pt.player_id === team.player2_id && pt.entered_boston_pot) {
+                    player2BostonPotTournaments.add(pt.tournament_id);
+                  }
+                });
+                
+                // Team is in Boston Pot if both players are in Boston Pot for the same tournament
+                regTournaments.forEach(tournamentId => {
+                  if (player1BostonPotTournaments.has(tournamentId) && player2BostonPotTournaments.has(tournamentId)) {
+                    bostonPotTournaments.push(tournamentId);
+                  }
+                });
+                
+                console.log(`Team ${team.id} Boston Pot tournaments: ${bostonPotTournaments.join(', ')}`);
+              }
               
               return {
                 ...team,
@@ -2045,7 +2362,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 player1_phone: team.player1?.phone_number || '',
                 player2_phone: team.player2?.phone_number || '',
                 city: team.city || '', // Use team's city field directly
-                registeredTournaments: regTournaments
+                registeredTournaments: regTournaments,
+                bostonPotTournaments: bostonPotTournaments
               };
             });
             setTeams(teamsWithTournaments);
@@ -2095,7 +2413,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       getPendingGames: () => games.filter(game => !game.confirmed),
       getTeamStats: () => ({ wins: 0, losses: 0, totalPoints: 0, bostons: 0 }),
       updateTournamentResult, getTournamentResults,
-      addTournament: (name: string, cost: number, bostonPotCost: number, description?: string) => {
+      addTournament: (name: string, cost: number, bostonPotCost: number, description?: string, tracksHands: boolean = true) => {
         if (!name || typeof name !== 'string' || name.trim() === '') {
           toast({ title: 'Tournament name is required.', variant: 'destructive' });
           return;
@@ -2115,7 +2433,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           cost: Number(cost),
           bostonPotCost: Number(bostonPotCost),
           description: typeof description === 'string' ? description : '',
-          status: 'active' as Tournament['status']
+          status: 'active' as Tournament['status'],
+          tracksHands: tracksHands
         };
         setTournaments(prev => {
           // Only keep tournaments with correct structure
@@ -2145,18 +2464,22 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       finishTournament,
       getActiveTournament,
       setActiveTournament,
-      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string) => {
+      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean) => {
         const { supabase } = await import('../supabaseClient');
         // Update in Supabase
+        const updateData: any = {
+          name,
+          cost,
+          boston_pot_cost: bostonPotCost,
+          status,
+          description
+        };
+        if (tracksHands !== undefined) {
+          updateData.tracks_hands = tracksHands;
+        }
         const { error } = await supabase
           .from('tournaments')
-          .update({
-            name,
-            cost,
-            boston_pot_cost: bostonPotCost,
-            status,
-            description
-          })
+          .update(updateData)
           .eq('id', id);
         if (error) {
           toast({ title: 'Failed to update tournament in database.', description: error.message, variant: 'destructive' });
@@ -2177,7 +2500,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             name,
             status,
             cost: 0,
-            boston_pot_cost: 0
+            boston_pot_cost: 0,
+            tracks_hands: true
           }])
           .select()
           .single();

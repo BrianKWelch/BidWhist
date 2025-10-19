@@ -29,7 +29,7 @@ const TournamentSelector: React.FC<TournamentSelectorProps> = ({
     return sum + cost;
   }, 0);
 
-  const costPerPlayer = totalCost / 2;
+  const costPerPlayer = totalCost / 2; // Cost per player (team cost / 2)
 
   return (
     <Card className="shadow-lg">
