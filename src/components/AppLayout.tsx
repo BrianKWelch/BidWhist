@@ -74,7 +74,13 @@ const AppLayout = () => {
           const { supabase } = await import('../supabaseClient');
           const { data: tournamentsData, error } = await supabase.from('tournaments').select('*');
           if (!error && tournamentsData) {
-            setTournaments(tournamentsData);
+            // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+            const mappedTournaments = tournamentsData.map(t => ({
+              ...t,
+              bostonPotCost: t.boston_pot_cost,
+              tracksHands: t.tracks_hands !== false
+            }));
+            setTournaments(mappedTournaments);
           }
         })()
       ]);
