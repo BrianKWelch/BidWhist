@@ -724,7 +724,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Refresh tournaments from DB
     const { data, error } = await supabase.from('tournaments').select('*');
     if (!error) {
-      setTournaments(data || []);
+      // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+      const mappedTournaments = (data || []).map(t => ({
+        ...t,
+        bostonPotCost: t.boston_pot_cost,
+        tracksHands: t.tracks_hands !== false
+      }));
+      setTournaments(mappedTournaments);
     } else {
       console.error('[setActiveTournament] Error refreshing tournaments:', error);
     }
@@ -2488,7 +2494,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refetch tournaments from Supabase to update local state
         const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
         if (!fetchError) {
-          setTournaments(tournamentsData || []);
+          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          const mappedTournaments = (tournamentsData || []).map(t => ({
+            ...t,
+            bostonPotCost: t.boston_pot_cost,
+            tracksHands: t.tracks_hands !== false
+          }));
+          setTournaments(mappedTournaments);
         }
         toast({ title: `Tournament "${name}" updated successfully!` });
       },
@@ -2514,7 +2526,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refetch tournaments from Supabase to update local state
         const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
         if (!fetchError) {
-          setTournaments(tournamentsData || []);
+          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          const mappedTournaments = (tournamentsData || []).map(t => ({
+            ...t,
+            bostonPotCost: t.boston_pot_cost,
+            tracksHands: t.tracks_hands !== false
+          }));
+          setTournaments(mappedTournaments);
         }
         toast({ title: `Tournament "${name}" created successfully!` });
       },
@@ -2536,7 +2554,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refetch tournaments from Supabase to update local state
         const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
         if (!fetchError) {
-          setTournaments(tournamentsData || []);
+          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          const mappedTournaments = (tournamentsData || []).map(t => ({
+            ...t,
+            bostonPotCost: t.boston_pot_cost,
+            tracksHands: t.tracks_hands !== false
+          }));
+          setTournaments(mappedTournaments);
         }
         toast({ title: `Tournament "${tournament.name}" updated successfully!` });
       },
@@ -2555,7 +2579,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refetch tournaments from Supabase to update local state
         const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
         if (!fetchError) {
-          setTournaments(tournamentsData || []);
+          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          const mappedTournaments = (tournamentsData || []).map(t => ({
+            ...t,
+            bostonPotCost: t.boston_pot_cost,
+            tracksHands: t.tracks_hands !== false
+          }));
+          setTournaments(mappedTournaments);
         }
         toast({ title: 'Tournament deleted successfully!' });
       },

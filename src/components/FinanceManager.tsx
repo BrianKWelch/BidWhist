@@ -11,7 +11,7 @@ const FinanceManager: React.FC = () => {
   const [bostonPotCollected, setBostonPotCollected] = useState(0);
   const [bostonWinners, setBostonWinners] = useState(1);
   const bostonSplit = bostonWinners > 0 ? bostonPotCollected / bostonWinners : 0;
-  const { tournaments, teams } = useAppContext();
+  const { tournaments, teams, getActiveTournament } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState('');
   const [collected, setCollected] = useState(0);
   const [owed, setOwed] = useState(0);
@@ -20,6 +20,14 @@ const FinanceManager: React.FC = () => {
   const [secondPlace, setSecondPlace] = useState(25);
   const [thirdPlace, setThirdPlace] = useState(15);
   const [fourthPlace, setFourthPlace] = useState(10);
+
+  // Set default tournament to active tournament when component mounts
+  useEffect(() => {
+    const activeTournament = getActiveTournament();
+    if (activeTournament && !selectedTournament) {
+      setSelectedTournament(activeTournament.id);
+    }
+  }, [getActiveTournament, selectedTournament]);
 
   // Calculate collected and owed amounts based on selected tournament
   useEffect(() => {
@@ -32,31 +40,38 @@ const FinanceManager: React.FC = () => {
         teams.forEach(team => {
           if (team.registeredTournaments?.includes(selectedTournament)) {
             const tournamentCost = tournament.cost;
-            const bostonCost = team.bostonPotTournaments?.includes(selectedTournament) ? tournament.bostonPotCost : 0;
-            const totalCost = tournamentCost + bostonCost;
+            // Only use tournament cost for collected/owed calculation, not Boston pot cost
+            const entryCostPerPlayer = tournamentCost / 2;
 
             // Check player 1 payment
             const player1Paid = team.player1TournamentPayments?.[selectedTournament] || false;
             if (player1Paid) {
-              totalCollected += totalCost / 2; // Cost per player (team cost / 2)
+              totalCollected += entryCostPerPlayer; // Only tournament entry fee per player
             } else {
-              totalOwed += totalCost / 2; // Cost per player (team cost / 2)
+              totalOwed += entryCostPerPlayer; // Only tournament entry fee per player
             }
 
             // Check player 2 payment
             const player2Paid = team.player2TournamentPayments?.[selectedTournament] || false;
             if (player2Paid) {
-              totalCollected += totalCost / 2; // Cost per player (team cost / 2)
+              totalCollected += entryCostPerPlayer; // Only tournament entry fee per player
             } else {
-              totalOwed += totalCost / 2; // Cost per player (team cost / 2)
+              totalOwed += entryCostPerPlayer; // Only tournament entry fee per player
             }
           }
         });
 
-        // Boston pot: sum for all teams registered for Boston pot in this tournament
+        // Boston pot: sum for all teams registered for Boston pot in this tournament AND have paid
         const bostonPotTotal = teams.reduce((sum, team) => {
           if (team.bostonPotTournaments?.includes(selectedTournament)) {
-            return sum + (tournament.bostonPotCost || 0);
+            // Check if both players have paid their Boston pot fees
+            const player1Paid = team.player1TournamentPayments?.[selectedTournament] || false;
+            const player2Paid = team.player2TournamentPayments?.[selectedTournament] || false;
+            
+            // Only count if both players have paid
+            if (player1Paid && player2Paid) {
+              return sum + (tournament.bostonPotCost || 0);
+            }
           }
           return sum;
         }, 0);
