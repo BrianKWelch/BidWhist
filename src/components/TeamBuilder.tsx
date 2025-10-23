@@ -834,7 +834,8 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
         editingTournament.bostonPotCost,
         editingTournament.description,
         editingTournament.status,
-        editingTournament.tracksHands
+        editingTournament.tracksHands,
+        editingTournament.scoringMode
       );
 
       setEditingTournament(null);
@@ -2591,6 +2592,30 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
                   Uncheck to skip hands tracking for this tournament
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="edit_scoring_mode">Scoring Mode</Label>
+                <Select 
+                  value={editingTournament.scoringMode || 'team'} 
+                  onValueChange={(value: 'team' | 'admin') => setEditingTournament({
+                    ...editingTournament, 
+                    scoringMode: value
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select scoring mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="team">Teams Enter Scores</SelectItem>
+                    <SelectItem value="admin">Admin Only Scoring</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-gray-500 mt-1">
+                  {editingTournament.scoringMode === 'team' 
+                    ? 'Teams will enter their own scores after each game'
+                    : 'Only administrators can enter scores for all teams'
+                  }
                 </div>
               </div>
               <div className="flex gap-2">

@@ -1037,39 +1037,47 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                               {/* Right side: Status pill or Enter Score button */}
                                               <div className="flex items-center justify-center">
                                                 {match.status === 'Ready to Score' ? (
-                                                  <Button 
-                                                    size="sm" 
-                                                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1 text-xs rounded-md shadow-sm animate-pulse"
-                                                    onClick={() => {
-                                                      (async () => {
-                                                        const result = await beginScoreEntry({
-                                                          matchId: match.id,
-                                                          teamId: String(team.id),
-                                                          teamA: String(match.teamA),
-                                                          teamB: String(match.teamB),
-                                                          round: match.round,
-                                                        });
-                                                        if (result.ok) {
-                                                          setEnteringTeamId(team.id);
-                                                          setSelectedMatch(match);
-                                                          // setCurrentStep(0); // Removed as per edit hint
-                                                        } else {
-                                                          if (result.reason === 'teammate_entering') {
-                                                            toast({ 
-                                                              title: 'Partner is entering score', 
-                                                              description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.', 
-                                                              variant: 'destructive' 
-                                                            });
+                                                  // Check if tournament is in admin scoring mode
+                                                  activeTournament?.scoringMode === 'admin' ? (
+                                                    <div className="text-center">
+                                                      <div className="text-sm text-gray-600 mb-1">Score Entry</div>
+                                                      <div className="text-xs text-gray-500">Admin Managed</div>
+                                                    </div>
+                                                  ) : (
+                                                    <Button 
+                                                      size="sm" 
+                                                      className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1 text-xs rounded-md shadow-sm animate-pulse"
+                                                      onClick={() => {
+                                                        (async () => {
+                                                          const result = await beginScoreEntry({
+                                                            matchId: match.id,
+                                                            teamId: String(team.id),
+                                                            teamA: String(match.teamA),
+                                                            teamB: String(match.teamB),
+                                                            round: match.round,
+                                                          });
+                                                          if (result.ok) {
+                                                            setEnteringTeamId(team.id);
+                                                            setSelectedMatch(match);
+                                                            // setCurrentStep(0); // Removed as per edit hint
                                                           } else {
-                                                            toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                            if (result.reason === 'teammate_entering') {
+                                                              toast({ 
+                                                                title: 'Partner is entering score', 
+                                                                description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.', 
+                                                                variant: 'destructive' 
+                                                              });
+                                                            } else {
+                                                              toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                            }
+                                                            await refreshGamesFromSupabase();
                                                           }
-                                                          await refreshGamesFromSupabase();
-                                                        }
-                                                      })();
-                                                    }}
-                                                  >
-                                                    Score
-                                                  </Button>
+                                                        })();
+                                                      }}
+                                                    >
+                                                      Score
+                                                    </Button>
+                                                  )
                                                                                                  ) : match.status === 'Opponent entering score' ? (
                                                    <Badge 
                                                      variant="secondary"

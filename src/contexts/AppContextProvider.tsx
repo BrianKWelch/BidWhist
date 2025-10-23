@@ -683,11 +683,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (result.error) {
           // ...removed debug log...
         } else {
-          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          // Map boston_pot_cost to bostonPotCost, tracks_hands to tracksHands, and scoring_mode to scoringMode for frontend use
           const tournaments = (result.data || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
-            tracksHands: t.tracks_hands !== false
+            tracksHands: t.tracks_hands !== false,
+            scoringMode: t.scoring_mode || 'team'
           }));
           setTournaments(tournaments);
         }
@@ -724,11 +725,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Refresh tournaments from DB
     const { data, error } = await supabase.from('tournaments').select('*');
     if (!error) {
-      // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+      // Map boston_pot_cost to bostonPotCost, tracks_hands to tracksHands, and scoring_mode to scoringMode for frontend use
       const mappedTournaments = (data || []).map(t => ({
         ...t,
         bostonPotCost: t.boston_pot_cost,
-        tracksHands: t.tracks_hands !== false
+        tracksHands: t.tracks_hands !== false,
+        scoringMode: t.scoring_mode || 'team'
       }));
       setTournaments(mappedTournaments);
     } else {
@@ -1861,11 +1863,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
 
-      // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+      // Map boston_pot_cost to bostonPotCost, tracks_hands to tracksHands, and scoring_mode to scoringMode for frontend use
       const mappedTournaments = (tournamentsData || []).map(t => ({
         ...t,
         bostonPotCost: t.boston_pot_cost,
-        tracksHands: t.tracks_hands !== false
+        tracksHands: t.tracks_hands !== false,
+        scoringMode: t.scoring_mode || 'team'
       }));
       setTournaments(mappedTournaments);
     } catch (error) {
@@ -2470,7 +2473,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       finishTournament,
       getActiveTournament,
       setActiveTournament,
-      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean) => {
+      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin') => {
         const { supabase } = await import('../supabaseClient');
         // Update in Supabase
         const updateData: any = {
@@ -2483,6 +2486,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (tracksHands !== undefined) {
           updateData.tracks_hands = tracksHands;
         }
+        if (scoringMode !== undefined) {
+          updateData.scoring_mode = scoringMode;
+        }
         const { error } = await supabase
           .from('tournaments')
           .update(updateData)
@@ -2494,11 +2500,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refetch tournaments from Supabase to update local state
         const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
         if (!fetchError) {
-          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          // Map boston_pot_cost to bostonPotCost, tracks_hands to tracksHands, and scoring_mode to scoringMode for frontend use
           const mappedTournaments = (tournamentsData || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
-            tracksHands: t.tracks_hands !== false
+            tracksHands: t.tracks_hands !== false,
+            scoringMode: t.scoring_mode || 'team'
           }));
           setTournaments(mappedTournaments);
         }
@@ -2526,11 +2533,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refetch tournaments from Supabase to update local state
         const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
         if (!fetchError) {
-          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          // Map boston_pot_cost to bostonPotCost, tracks_hands to tracksHands, and scoring_mode to scoringMode for frontend use
           const mappedTournaments = (tournamentsData || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
-            tracksHands: t.tracks_hands !== false
+            tracksHands: t.tracks_hands !== false,
+            scoringMode: t.scoring_mode || 'team'
           }));
           setTournaments(mappedTournaments);
         }
@@ -2554,11 +2562,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refetch tournaments from Supabase to update local state
         const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
         if (!fetchError) {
-          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          // Map boston_pot_cost to bostonPotCost, tracks_hands to tracksHands, and scoring_mode to scoringMode for frontend use
           const mappedTournaments = (tournamentsData || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
-            tracksHands: t.tracks_hands !== false
+            tracksHands: t.tracks_hands !== false,
+            scoringMode: t.scoring_mode || 'team'
           }));
           setTournaments(mappedTournaments);
         }
@@ -2579,11 +2588,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refetch tournaments from Supabase to update local state
         const { data: tournamentsData, error: fetchError } = await supabase.from('tournaments').select('*');
         if (!fetchError) {
-          // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+          // Map boston_pot_cost to bostonPotCost, tracks_hands to tracksHands, and scoring_mode to scoringMode for frontend use
           const mappedTournaments = (tournamentsData || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
-            tracksHands: t.tracks_hands !== false
+            tracksHands: t.tracks_hands !== false,
+            scoringMode: t.scoring_mode || 'team'
           }));
           setTournaments(mappedTournaments);
         }

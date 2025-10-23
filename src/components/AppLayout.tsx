@@ -14,6 +14,7 @@ import { TournamentScheduler } from './TournamentScheduler';
 import CombinedResultsPage from './CombinedResultsPage';
 import { BracketGenerator } from './BracketGenerator';
 import FinanceManager from './FinanceManager';
+import AdminScoreEntry from './AdminScoreEntry';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppContext } from '@/contexts/AppContext';
@@ -74,11 +75,12 @@ const AppLayout = () => {
           const { supabase } = await import('../supabaseClient');
           const { data: tournamentsData, error } = await supabase.from('tournaments').select('*');
           if (!error && tournamentsData) {
-            // Map boston_pot_cost to bostonPotCost and tracks_hands to tracksHands for frontend use
+            // Map boston_pot_cost to bostonPotCost, tracks_hands to tracksHands, and scoring_mode to scoringMode for frontend use
             const mappedTournaments = tournamentsData.map(t => ({
               ...t,
               bostonPotCost: t.boston_pot_cost,
-              tracksHands: t.tracks_hands !== false
+              tracksHands: t.tracks_hands !== false,
+              scoringMode: t.scoring_mode || 'team'
             }));
             setTournaments(mappedTournaments);
           }
@@ -185,15 +187,25 @@ const AppLayout = () => {
             {/* Sidebar */}
             <div className="w-20 flex-shrink-0 bg-white shadow-md pt-2 h-screen">
               <TabsList className="flex flex-col gap-1 w-full items-center p-2 mt-64">
-                                 {[
-                   ['teams', <CommandCenterIcon />],
-                   ['schedule', <ScheduleIcon />],
-                   ['results', <ResultsIcon />],
-                   ['bracket', <BracketIcon />],
-                   ['finance', <DollarIcon />],
-                   ['cities', <CityIcon />],
-                   ['messaging', <MessageIcon />],
-                 ].map(([val, icon]) => (
+                {(() => {
+                  const activeTournament = getActiveTournament();
+                  const navigationItems = [
+                    ['teams', <CommandCenterIcon />],
+                    ['schedule', <ScheduleIcon />],
+                    ['results', <ResultsIcon />],
+                    ['bracket', <BracketIcon />],
+                    ['finance', <DollarIcon />],
+                    ['cities', <CityIcon />],
+                    ['messaging', <MessageIcon />],
+                  ];
+                  
+                  // Add admin scoring tab if tournament is in admin mode
+                  if (activeTournament?.scoringMode === 'admin') {
+                    navigationItems.splice(2, 0, ['admin-scoring', <Trophy />]);
+                  }
+                  
+                  return navigationItems;
+                })().map(([val, icon]) => (
                   <TabsTrigger
                     key={val as string}
                     value={val as string}
@@ -231,6 +243,7 @@ const AppLayout = () => {
               <TabsContent value="history"><GameHistory /></TabsContent>
               <TabsContent value="cities"><CityManager /></TabsContent>
               <TabsContent value="messaging"><MessageManager /></TabsContent>
+              <TabsContent value="admin-scoring"><AdminScoreEntry /></TabsContent>
             </div>
           </div>
         </Tabs>
