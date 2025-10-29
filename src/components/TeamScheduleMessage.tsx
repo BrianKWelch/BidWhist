@@ -69,7 +69,7 @@ export const generateScheduleMessage = (teamName: string, matches: ScheduleMatch
 
   const formatMatch = (match: ScheduleMatch, teamId: string) => {
     const opponent = match.teamA === teamId ? match.teamB : match.teamA;
-    const tableNum = Math.floor(Math.random() * 10) + 1;
+    const tableNum = match.table || 1;
     
     if (opponent === 'BYE') {
       return `Round ${match.round}: BYE (no game)`;

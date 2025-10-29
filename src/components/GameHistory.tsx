@@ -26,11 +26,12 @@ const GameHistory = () => {
     const teamA = teams.find(t => t.id === game.teamA) || { id: game.teamA };
     const teamB = teams.find(t => t.id === game.teamB) || { id: game.teamB };
     
-    // Use the winner field from the game data, which handles tied scores correctly
-    const winner = game.winner === 'teamA' ? teamA : teamB;
-    const loser = game.winner === 'teamA' ? teamB : teamA;
-    const winnerScore = game.winner === 'teamA' ? game.scoreA : game.scoreB;
-    const loserScore = game.winner === 'teamA' ? game.scoreB : game.scoreA;
+    // Calculate winner based on scores as a fallback if winner field is incorrect
+    const scoreBasedWinner = game.scoreA > game.scoreB ? 'teamA' : 'teamB';
+    const winner = scoreBasedWinner === 'teamA' ? teamA : teamB;
+    const loser = scoreBasedWinner === 'teamA' ? teamB : teamA;
+    const winnerScore = scoreBasedWinner === 'teamA' ? game.scoreA : game.scoreB;
+    const loserScore = scoreBasedWinner === 'teamA' ? game.scoreB : game.scoreA;
     
     return {
       winner,

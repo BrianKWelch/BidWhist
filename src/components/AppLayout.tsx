@@ -15,6 +15,7 @@ import CombinedResultsPage from './CombinedResultsPage';
 import { BracketGenerator } from './BracketGenerator';
 import FinanceManager from './FinanceManager';
 import AdminScoreEntry from './AdminScoreEntry';
+import QuickScoreEntry from './QuickScoreEntry';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppContext } from '@/contexts/AppContext';
@@ -199,17 +200,18 @@ const AppLayout = () => {
                     ['messaging', <MessageIcon />],
                   ];
                   
-                  // Add admin scoring tab if tournament is in admin mode
-                  if (activeTournament?.scoringMode === 'admin') {
-                    navigationItems.splice(2, 0, ['admin-scoring', <Trophy />]);
-                  }
+      // Add admin scoring tabs if tournament is in admin mode
+      if (activeTournament?.scoringMode === 'admin') {
+        // navigationItems.splice(2, 0, ['admin-scoring', <Trophy />]);
+        navigationItems.splice(2, 0, ['quick-scoring', <img src={import.meta.env.BASE_URL + 'score.png'} alt="Score" className="w-10 h-10" style={{ filter: 'none', boxShadow: 'none', textShadow: 'none' }} />]);
+      }
                   
                   return navigationItems;
                 })().map(([val, icon]) => (
                   <TabsTrigger
                     key={val as string}
                     value={val as string}
-                    className="text-red-600 hover:text-red-600 hover:bg-gray-200 data-[state=active]:bg-gray-100 data-[state=active]:text-black w-full p-3 flex justify-center"
+                    className="text-red-600 hover:text-red-600 hover:bg-gray-200 data-[state=active]:bg-transparent data-[state=active]:text-red-600 w-full p-3 flex justify-center"
                   >
                     {icon}
                   </TabsTrigger>
@@ -244,6 +246,7 @@ const AppLayout = () => {
               <TabsContent value="cities"><CityManager /></TabsContent>
               <TabsContent value="messaging"><MessageManager /></TabsContent>
               <TabsContent value="admin-scoring"><AdminScoreEntry /></TabsContent>
+        <TabsContent value="quick-scoring"><QuickScoreEntry /></TabsContent>
             </div>
           </div>
         </Tabs>

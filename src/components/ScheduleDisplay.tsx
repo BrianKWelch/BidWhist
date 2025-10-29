@@ -25,12 +25,15 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
   const getMatchStatus = (match: any) => {
     const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
     if (completedGame) {
-      // Use the winner field from the game data, which handles tied scores correctly
-      const winner = completedGame.winner === 'teamA' ? 
-        teams.find(t => t.id === match.teamA) : teams.find(t => t.id === match.teamB);
+      // Use the actual teams from the game record, not the schedule
+      const gameTeamA = teams.find(t => t.id === completedGame.teamA);
+      const gameTeamB = teams.find(t => t.id === completedGame.teamB);
+      
+      const winner = completedGame.winner === 'teamA' ? gameTeamA : gameTeamB;
       const winnerScore = completedGame.winner === 'teamA' ? completedGame.scoreA : completedGame.scoreB;
       const loserScore = completedGame.winner === 'teamA' ? completedGame.scoreB : completedGame.scoreA;
-      return `Completed - Team ${winner?.teamNumber || 'Unknown'} won ${winnerScore}-${loserScore}`;
+      
+      return `Completed - Team ${winner?.teamNumber || winner?.id || 'Unknown'} won ${winnerScore}-${loserScore}`;
     }
 
     const submissions = scoreSubmissions.filter(s => s.matchId === match.id);
@@ -130,9 +133,14 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
                   const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
                   let gameResult = null;
                   if (completedGame) {
-                    const winner = completedGame.winner === 'teamA' ? teamA : teamB;
+                    // Use the actual teams from the game record, not the schedule
+                    const gameTeamA = teams.find(t => t.id === completedGame.teamA);
+                    const gameTeamB = teams.find(t => t.id === completedGame.teamB);
+                    
+                    const winner = completedGame.winner === 'teamA' ? gameTeamA : gameTeamB;
                     const winnerScore = completedGame.winner === 'teamA' ? completedGame.scoreA : completedGame.scoreB;
                     const loserScore = completedGame.winner === 'teamA' ? completedGame.scoreB : completedGame.scoreA;
+                    
                     gameResult = {
                       winner,
                       winnerScore,

@@ -1003,7 +1003,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       .from('games')
       .select('*')
       .eq('matchId', matchId)
-      .eq('entered_by_team_id', teamId)
+      .eq('entered_by_team_id', String(teamId))
       .in('status', ['entering', 'disputed'])
       .single();
     

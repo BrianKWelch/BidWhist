@@ -9,13 +9,15 @@ import { Trophy, Users, Target } from 'lucide-react';
 
 const AdminScoreEntry: React.FC = () => {
   const { schedules, games, teams, tournaments, submitGame, getActiveTournament } = useAppContext();
-  const [selectedMatch, setSelectedMatch] = useState<any>(null);
-  const [scoreA, setScoreA] = useState('');
-  const [scoreB, setScoreB] = useState('');
-  const [handsA, setHandsA] = useState('');
-  const [handsB, setHandsB] = useState('');
-  const [bostonA, setBostonA] = useState('0');
-  const [bostonB, setBostonB] = useState('0');
+  const [matchScores, setMatchScores] = useState<{[key: string]: {
+    scoreA: string;
+    scoreB: string;
+    handsA: string;
+    handsB: string;
+    bostonA: string;
+    bostonB: string;
+  }}>({});
+  const [submittedMatches, setSubmittedMatches] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const activeTournament = getActiveTournament();
@@ -27,51 +29,141 @@ const AdminScoreEntry: React.FC = () => {
     .flatMap(s => s.matches)
     .filter(match => match.teamA !== 'TBD' && match.teamB !== 'TBD');
 
-  const handleSubmitScore = async () => {
-    if (!selectedMatch || !scoreA || !scoreB) return;
+  const handleSubmitScore = async (matchId: string) => {
+    const scores = matchScores[matchId];
+    if (!scores || !scores.scoreA || !scores.scoreB) return;
     
-    if (tracksHands && (!handsA || !handsB)) return;
+    if (tracksHands && (!scores.handsA || !scores.handsB)) return;
     
-    const teamA = teams.find(t => t.id === selectedMatch.teamA);
-    const teamB = teams.find(t => t.id === selectedMatch.teamB);
+    const match = tournamentMatches.find(m => m.id === matchId);
+    if (!match) return;
+    
+    const teamA = teams.find(t => t.id === match.teamA);
+    const teamB = teams.find(t => t.id === match.teamB);
     
     if (!teamA || !teamB) return;
 
     setIsSubmitting(true);
     try {
-      const gameData = {
+      // Import supabase client
+      const { supabase } = await import('../supabaseClient');
+      
+      // Create game record directly for admin scoring
+      const gameRecord = {
+        id: Date.now().toString(),
+        matchId: matchId,
         teamA: teamA.id,
         teamB: teamB.id,
-        scoreA: parseInt(scoreA),
-        scoreB: parseInt(scoreB),
-        handsA: parseInt(handsA) || 0,
-        handsB: parseInt(handsB) || 0,
-        boston_a: parseInt(bostonA) || 0,
-        boston_b: parseInt(bostonB) || 0,
-        winner: parseInt(scoreA) > parseInt(scoreB) ? 'teamA' : 'teamB',
-        matchId: selectedMatch.id,
-        round: selectedMatch.round,
-        submittedBy: 'admin', // Mark as admin-submitted
-        status: 'confirmed', // Auto-confirm admin scores
-        entered_by_team_id: null
+        scoreA: parseInt(scores.scoreA),
+        scoreB: parseInt(scores.scoreB),
+        handsA: parseInt(scores.handsA) || 0,
+        handsB: parseInt(scores.handsB) || 0,
+        boston_a: parseInt(scores.bostonA) || 0,
+        boston_b: parseInt(scores.bostonB) || 0,
+        winner: parseInt(scores.scoreA) > parseInt(scores.scoreB) ? 'teamA' : 'teamB',
+        submittedBy: 'admin',
+        status: 'confirmed',
+        entered_by_team_id: null,
+        confirmed: true,
+        confirmedBy: 'admin',
+        round: match.round,
+        timestamp: new Date().toISOString()
       };
 
-      await submitGame(gameData);
+      const { error } = await supabase
+        .from('games')
+        .insert([gameRecord]);
+
+      if (error) {
+        console.error('Error inserting admin score:', error);
+        throw error;
+      }
       
-      // Reset form
-      setScoreA(''); 
-      setScoreB(''); 
-      setHandsA(''); 
-      setHandsB('');
-      setBostonA('0'); 
-      setBostonB('0');
-      setSelectedMatch(null);
+      // Mark as submitted and clear the form
+      const newSubmittedMatches = new Set([...submittedMatches, matchId]);
+      setSubmittedMatches(newSubmittedMatches);
+      
+      // Save to localStorage with tournament-specific key
+      if (activeTournament) {
+        const storageKey = `adminSubmittedMatches_${activeTournament.id}`;
+        const dataToStore = [...newSubmittedMatches];
+        console.log('Saving submitted matches for tournament:', activeTournament.id, 'matches:', dataToStore);
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+      }
+      
+      setMatchScores(prev => {
+        const updated = { ...prev };
+        delete updated[matchId];
+        return updated;
+      });
     } catch (error) {
       console.error('Error submitting score:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleUndo = async (matchId: string) => {
+    try {
+      // Delete the score from the database
+      const { supabase } = await import('../supabaseClient');
+      const { error } = await supabase
+        .from('games')
+        .delete()
+        .eq('matchId', matchId)
+        .eq('submittedBy', 'admin');
+
+      if (error) {
+        console.error('Error deleting score from database:', error);
+        return;
+      }
+
+      // Remove from submitted matches
+      const updated = new Set(submittedMatches);
+      updated.delete(matchId);
+      setSubmittedMatches(updated);
+      
+      // Save to localStorage with tournament-specific key
+      if (activeTournament) {
+        const storageKey = `adminSubmittedMatches_${activeTournament.id}`;
+        localStorage.setItem(storageKey, JSON.stringify([...updated]));
+      }
+    } catch (error) {
+      console.error('Error undoing score:', error);
+    }
+  };
+
+  const updateMatchScore = (matchId: string, field: string, value: string) => {
+    setMatchScores(prev => ({
+      ...prev,
+      [matchId]: {
+        ...prev[matchId],
+        [field]: value
+      }
+    }));
+  };
+
+  // Load submitted matches when tournament changes
+  React.useEffect(() => {
+    if (activeTournament) {
+      try {
+        const storageKey = `adminSubmittedMatches_${activeTournament.id}`;
+        const stored = localStorage.getItem(storageKey);
+        console.log('Loading submitted matches for tournament:', activeTournament.id, 'stored:', stored);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          console.log('Parsed submitted matches:', parsed);
+          setSubmittedMatches(new Set(parsed));
+        } else {
+          console.log('No stored submitted matches found');
+          setSubmittedMatches(new Set());
+        }
+      } catch (error) {
+        console.error('Error loading submitted matches:', error);
+        setSubmittedMatches(new Set());
+      }
+    }
+  }, [activeTournament?.id]);
 
   if (!activeTournament) {
     return (
@@ -83,163 +175,155 @@ const AdminScoreEntry: React.FC = () => {
     );
   }
 
+  // Group matches by round
+  const matchesByRound = tournamentMatches.reduce((acc, match) => {
+    const round = match.round;
+    if (!acc[round]) {
+      acc[round] = [];
+    }
+    acc[round].push(match);
+    return acc;
+  }, {} as {[key: number]: any[]});
+
+  // Sort rounds
+  const sortedRounds = Object.keys(matchesByRound).map(Number).sort((a, b) => a - b);
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5" />
-            Admin Score Entry - {activeTournament.name}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <Label>Select Match</Label>
-            <Select onValueChange={(value) => {
-              const match = tournamentMatches.find(m => m.id === value);
-              setSelectedMatch(match);
-              // Reset form when selecting new match
-              setScoreA(''); setScoreB(''); setHandsA(''); setHandsB('');
-              setBostonA('0'); setBostonB('0');
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a match to score" />
-              </SelectTrigger>
-              <SelectContent>
-                {tournamentMatches.map(match => {
-                  const teamA = teams.find(t => t.id === match.teamA);
-                  const teamB = teams.find(t => t.id === match.teamB);
+      <div className="text-center">
+        <Trophy className="h-8 w-8 mx-auto text-blue-600 mb-2" />
+        <h2 className="text-xl font-bold text-gray-800 mb-1">Admin Score Entry</h2>
+        <p className="text-sm text-gray-600">{activeTournament.name}</p>
+      </div>
+
+      <div className="space-y-6">
+        {sortedRounds.map((round) => (
+          <div key={round} className="space-y-3">
+            <div className="bg-blue-100 text-blue-800 px-3 py-2 rounded-md font-semibold text-sm">
+              Round {round}
+            </div>
+            
+            <div className="grid gap-3">
+              {matchesByRound[round].map((match) => {
+                const teamA = teams.find(t => t.id === match.teamA);
+                const teamB = teams.find(t => t.id === match.teamB);
+                const isSubmitted = submittedMatches.has(match.id);
+                const scores = matchScores[match.id] || {
+                  scoreA: '',
+                  scoreB: '',
+                  handsA: '',
+                  handsB: '',
+                  bostonA: '0',
+                  bostonB: '0'
+                };
+
+                if (isSubmitted) {
                   return (
-                    <SelectItem key={match.id} value={match.id}>
-                      {teamA?.name} vs {teamB?.name} (Round {match.round})
-                    </SelectItem>
+                    <div key={match.id} className="bg-green-50 border border-green-200 rounded-md p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Trophy className="h-4 w-4 text-green-600" />
+                          <div className="text-sm">
+                            <span className="font-medium text-green-800 text-sm">
+                              Team {teamA?.id} <span className="text-xs">{teamA?.player1FirstName}/{teamA?.player2FirstName}</span> vs Team {teamB?.id} <span className="text-xs">{teamB?.player1FirstName}/{teamB?.player2FirstName}</span>
+                            </span>
+                            <span className="text-green-600 ml-2">✓ Submitted</span>
+                          </div>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleUndo(match.id)}
+                          className="text-red-600 border-red-300 hover:bg-red-50 text-xs px-2 py-1"
+                        >
+                          Undo
+                        </Button>
+                      </div>
+                    </div>
                   );
-                })}
-              </SelectContent>
-            </Select>
+                }
+
+                return (
+                  <div key={match.id} className="border border-gray-200 rounded-md p-3 bg-white">
+                    <div className="flex items-center gap-4">
+                      {/* Team A */}
+                      <div className="flex items-center gap-2 flex-1">
+                        <div className="text-sm font-medium min-w-0">
+                          Team {teamA?.id} <span className="text-xs">{teamA?.player1FirstName}/{teamA?.player2FirstName}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">Score</span>
+                          <Input
+                            type="number"
+                            value={scores.scoreA}
+                            onChange={(e) => updateMatchScore(match.id, 'scoreA', e.target.value)}
+                            placeholder="0"
+                            className="h-8 w-20 text-sm"
+                            min="0"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">Boston</span>
+                          <Input
+                            type="number"
+                            value={scores.bostonA}
+                            onChange={(e) => updateMatchScore(match.id, 'bostonA', e.target.value)}
+                            placeholder="0"
+                            className="h-8 w-20 text-sm"
+                            min="0"
+                          />
+                        </div>
+                      </div>
+
+                      {/* VS */}
+                      <div className="text-gray-500 font-medium">vs</div>
+
+                      {/* Team B */}
+                      <div className="flex items-center gap-2 flex-1">
+                        <div className="text-sm font-medium min-w-0">
+                          Team {teamB?.id} <span className="text-xs">{teamB?.player1FirstName}/{teamB?.player2FirstName}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">Score</span>
+                          <Input
+                            type="number"
+                            value={scores.scoreB}
+                            onChange={(e) => updateMatchScore(match.id, 'scoreB', e.target.value)}
+                            placeholder="0"
+                            className="h-8 w-20 text-sm"
+                            min="0"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">Boston</span>
+                          <Input
+                            type="number"
+                            value={scores.bostonB}
+                            onChange={(e) => updateMatchScore(match.id, 'bostonB', e.target.value)}
+                            placeholder="0"
+                            className="h-8 w-20 text-sm"
+                            min="0"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Submit button */}
+                      <Button 
+                        onClick={() => handleSubmitScore(match.id)}
+                        disabled={isSubmitting || !scores.scoreA || !scores.scoreB}
+                        size="sm"
+                        className="h-8 px-4 text-xs"
+                      >
+                        {isSubmitting ? '...' : 'Submit'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-
-          {selectedMatch && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Team A Score</Label>
-                  <Input
-                    type="number"
-                    value={scoreA}
-                    onChange={(e) => setScoreA(e.target.value)}
-                    placeholder="Enter score"
-                  />
-                </div>
-                <div>
-                  <Label>Team B Score</Label>
-                  <Input
-                    type="number"
-                    value={scoreB}
-                    onChange={(e) => setScoreB(e.target.value)}
-                    placeholder="Enter score"
-                  />
-                </div>
-              </div>
-
-              {tracksHands && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Team A Hands</Label>
-                    <Input
-                      type="number"
-                      value={handsA}
-                      onChange={(e) => setHandsA(e.target.value)}
-                      placeholder="Enter hands won"
-                    />
-                  </div>
-                  <div>
-                    <Label>Team B Hands</Label>
-                    <Input
-                      type="number"
-                      value={handsB}
-                      onChange={(e) => setHandsB(e.target.value)}
-                      placeholder="Enter hands won"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Team A Boston</Label>
-                  <Input
-                    type="number"
-                    value={bostonA}
-                    onChange={(e) => setBostonA(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label>Team B Boston</Label>
-                  <Input
-                    type="number"
-                    value={bostonB}
-                    onChange={(e) => setBostonB(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleSubmitScore} 
-                  disabled={!selectedMatch || !scoreA || !scoreB || isSubmitting}
-                  className="flex-1"
-                >
-                  {isSubmitting ? 'Submitting...' : 'Submit Score'}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setSelectedMatch(null);
-                    setScoreA(''); setScoreB(''); setHandsA(''); setHandsB('');
-                    setBostonA('0'); setBostonB('0');
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Match Summary */}
-      {selectedMatch && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Match Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-semibold text-blue-800">
-                  {teams.find(t => t.id === selectedMatch.teamA)?.name}
-                </h4>
-                <p className="text-sm text-blue-600">Team A</p>
-              </div>
-              <div className="text-center p-4 bg-red-50 rounded-lg">
-                <h4 className="font-semibold text-red-800">
-                  {teams.find(t => t.id === selectedMatch.teamB)?.name}
-                </h4>
-                <p className="text-sm text-red-600">Team B</p>
-              </div>
-            </div>
-            <div className="text-center mt-4">
-              <p className="text-sm text-gray-600">Round {selectedMatch.round}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        ))}
+      </div>
     </div>
   );
 };

@@ -648,11 +648,32 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
       // For completed games, calculate result
       let gameResult = null;
       if (cardType === 'completed' && existingGame) {
-        const isTeamA = match.teamA === team.id;
-        const myScore = isTeamA ? existingGame.scoreA : existingGame.scoreB;
-        const opponentScore = isTeamA ? existingGame.scoreB : existingGame.scoreA;
+        // Determine which team the current team is in the GAME data (not schedule data)
+        const isTeamAInGame = String(existingGame.teamA) === String(team.id);
+        const myScore = isTeamAInGame ? existingGame.scoreA : existingGame.scoreB;
+        const opponentScore = isTeamAInGame ? existingGame.scoreB : existingGame.scoreA;
+        
         // Use the winner field from the game data, which handles tied scores correctly
-        const isWin = (isTeamA && existingGame.winner === 'teamA') || (!isTeamA && existingGame.winner === 'teamB');
+        const isWin = (isTeamAInGame && existingGame.winner === 'teamA') || (!isTeamAInGame && existingGame.winner === 'teamB');
+        
+        // Debug logging to see what's happening
+        console.log('Game result debug:', {
+          matchId: match.id,
+          teamId: team.id,
+          isTeamAInGame,
+          myScore,
+          opponentScore,
+          winner: existingGame.winner,
+          isWin,
+          scoreA: existingGame.scoreA,
+          scoreB: existingGame.scoreB,
+          gameTeamA: existingGame.teamA,
+          gameTeamB: existingGame.teamB,
+          scheduleTeamA: match.teamA,
+          scheduleTeamB: match.teamB,
+          winnerCheck: `isTeamAInGame=${isTeamAInGame}, winner=${existingGame.winner}, isWin=${isWin}`,
+          shouldBeWin: existingGame.scoreA > existingGame.scoreB ? 'teamA should win' : 'teamB should win'
+        });
         
         gameResult = {
           myScore,
@@ -687,14 +708,17 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
       (game.confirmed || game.status === 'confirmed') &&
       game.matchId && matchIds.has(game.matchId)
     ).map(game => {
-      const isTeamA = game.teamA === team.id;
-      const opponentId = isTeamA ? game.teamB : game.teamA;
+      const isTeamAInGame = String(game.teamA) === String(team.id);
+      const opponentId = isTeamAInGame ? game.teamB : game.teamA;
       const opponent = teams.find(t => t.id === opponentId) || null;
+      
+      const isWin = (isTeamAInGame && game.winner === 'teamA') || (!isTeamAInGame && game.winner === 'teamB');
+      
       return {
         ...game,
-        isWin: (isTeamA && game.winner === 'teamA') || (!isTeamA && game.winner === 'teamB'),
-        teamScore: isTeamA ? game.scoreA : game.scoreB,
-        opponentScore: isTeamA ? game.scoreB : game.scoreA,
+        isWin,
+        teamScore: isTeamAInGame ? game.scoreA : game.scoreB,
+        opponentScore: isTeamAInGame ? game.scoreB : game.scoreA,
         opponent
       };
     });

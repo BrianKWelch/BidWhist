@@ -197,7 +197,7 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
          allRounds.push({
            leftSide,
            rightSide,
-           tables: [...tables].sort(() => Math.random() - 0.5), // Randomize table order
+           tables: [...tables].sort((a, b) => a - b), // Ascending table order
            bench: [],
            tableBench: []
          });
