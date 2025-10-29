@@ -202,6 +202,7 @@ const AppLayout = () => {
                   
       // Add admin scoring tabs if tournament is in admin mode
       if (activeTournament?.scoringMode === 'admin') {
+        // Admin scoring is hidden - only quick scoring is available
         // navigationItems.splice(2, 0, ['admin-scoring', <Trophy />]);
         navigationItems.splice(2, 0, ['quick-scoring', <img src={import.meta.env.BASE_URL + 'score.png'} alt="Score" className="w-10 h-10" style={{ filter: 'none', boxShadow: 'none', textShadow: 'none' }} />]);
       }
