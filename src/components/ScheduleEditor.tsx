@@ -453,8 +453,36 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
       // Explicitly preserve Round 1 (index 0) - don't modify it
       const preservedRound1 = { ...rounds[0] };
       
-      // Only regenerate rounds 2 and beyond
-      for (let i = 1; i < newRounds.length; i++) {
+      // First, check if there are teams with BYEs to determine if final round should be a bye round
+      const teamsWithBye: TeamAssignment[] = [];
+      const finalRoundIndex = newRounds.length - 1;
+      
+      // Collect teams that had BYE in rounds 1 through (finalRoundIndex - 1)
+      for (let roundIdx = 0; roundIdx < finalRoundIndex; roundIdx++) {
+        const round = newRounds[roundIdx];
+        for (let matchIdx = 0; matchIdx < round.leftSide.length; matchIdx++) {
+          const leftTeam = round.leftSide[matchIdx];
+          const rightTeam = round.rightSide[matchIdx];
+          
+          if (leftTeam && rightTeam) {
+            if (leftTeam.id === 'BYE' && rightTeam.id !== 'BYE') {
+              teamsWithBye.push(rightTeam);
+            } else if (rightTeam.id === 'BYE' && leftTeam.id !== 'BYE') {
+              teamsWithBye.push(leftTeam);
+            }
+          }
+        }
+      }
+      
+      // Determine if we should have a bye round
+      const shouldHaveByeRound = teamsWithBye.length > 0;
+      
+      // Only regenerate rounds 2 through (numberOfRounds - 1) if there's a bye round,
+      // or rounds 2 through numberOfRounds if there's no bye round
+      const lastRegularRoundIndex = shouldHaveByeRound ? finalRoundIndex - 1 : finalRoundIndex;
+      
+      // Only regenerate rounds 2 and beyond up to the last regular round
+      for (let i = 1; i <= lastRegularRoundIndex; i++) {
         const prevRound = newRounds[i - 1];
         console.log(`Generating round ${i + 1} based on round ${i}:`, prevRound);
         
@@ -467,8 +495,10 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
         }
         
         // Keep left side the same, rotate right side
-        const tables = Array.from({ length: Math.max(prevRound.leftSide.length, prevRound.rightSide.length) }, (_, i) => i + 1);
-        const newTables = [...tables].sort(() => Math.random() - 0.5);
+        // Preserve table numbers from previous round to maintain order
+        const newTables = prevRound.tables.length > 0 
+          ? [...prevRound.tables] 
+          : Array.from({ length: Math.max(prevRound.leftSide.length, prevRound.rightSide.length) }, (_, i) => i + 1);
         
         newRounds[i] = {
           leftSide: [...prevRound.leftSide],
@@ -481,28 +511,8 @@ export const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
         console.log(`Generated round ${i + 1}:`, newRounds[i]);
       }
       
-      // Handle the final round (bye round) correctly
-      const finalRoundIndex = newRounds.length - 1;
-      if (finalRoundIndex > 0) {
-        // Collect all teams that had BYE in the previous rounds
-        const teamsWithBye: TeamAssignment[] = [];
-        
-        for (let roundIdx = 0; roundIdx < finalRoundIndex; roundIdx++) {
-          const round = newRounds[roundIdx];
-          for (let matchIdx = 0; matchIdx < round.leftSide.length; matchIdx++) {
-            const leftTeam = round.leftSide[matchIdx];
-            const rightTeam = round.rightSide[matchIdx];
-            
-            if (leftTeam && rightTeam) {
-              if (leftTeam.id === 'BYE' && rightTeam.id !== 'BYE') {
-                teamsWithBye.push(rightTeam);
-              } else if (rightTeam.id === 'BYE' && leftTeam.id !== 'BYE') {
-                teamsWithBye.push(leftTeam);
-              }
-            }
-          }
-        }
-        
+      // Handle the final round (bye round) correctly - only if there are teams with BYEs
+      if (shouldHaveByeRound && finalRoundIndex > 0) {
         // Create the bye round with only teams that had BYE
         const byeLeftSide: TeamAssignment[] = [];
         const byeRightSide: TeamAssignment[] = [];

@@ -2,26 +2,79 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../contexts/AppContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Trophy, Clock, CheckCircle } from 'lucide-react';
+import { Trophy, Clock, CheckCircle, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 const QuickScoreEntry: React.FC = () => {
   const { schedules, games, teams, tournaments, getActiveTournament } = useAppContext();
   const [teamNumber, setTeamNumber] = useState('');
-  const [score, setScore] = useState('');
-  const [boston, setBoston] = useState('0');
+  const [teamScore, setTeamScore] = useState('');
+  const [teamBoston, setTeamBoston] = useState('');
+  const [opponentScore, setOpponentScore] = useState('');
+  const [opponentBoston, setOpponentBoston] = useState('');
   const [currentRound, setCurrentRound] = useState(1);
   const [pendingScores, setPendingScores] = useState<{[teamId: string]: {score: number, boston: number}}>({});
   const [completedMatches, setCompletedMatches] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const teamInputRef = useRef<HTMLInputElement>(null);
-  const scoreInputRef = useRef<HTMLInputElement>(null);
-  const bostonInputRef = useRef<HTMLInputElement>(null);
+  // Verification state
+  const [verificationRound, setVerificationRound] = useState(1);
+  const [verificationTeamNumber, setVerificationTeamNumber] = useState('');
+  
+  const teamNumberRef = useRef<HTMLInputElement>(null);
+  const teamScoreRef = useRef<HTMLInputElement>(null);
+  const teamBostonRef = useRef<HTMLInputElement>(null);
+  const opponentScoreRef = useRef<HTMLInputElement>(null);
+  const opponentBostonRef = useRef<HTMLInputElement>(null);
+  const verificationTeamRef = useRef<HTMLInputElement>(null);
 
   const activeTournament = getActiveTournament();
   const tracksHands = activeTournament?.tracksHands;
+
+  // Calculate the current round based on incomplete matches
+  const calculateCurrentRound = React.useMemo(() => {
+    if (!activeTournament || !schedules || !games) return 1;
+
+    const activeSchedule = schedules.find(s => s.tournamentId === activeTournament.id);
+    if (!activeSchedule || !activeSchedule.matches || activeSchedule.matches.length === 0) return 1;
+
+    // Get all unique rounds from the schedule
+    const allRounds = [...new Set(activeSchedule.matches.map(m => m.round))].sort((a, b) => a - b);
+    if (allRounds.length === 0) return 1;
+
+    // Find the lowest round with incomplete matches (the current round to work on)
+    let currentRoundNum = null;
+    for (const round of allRounds) {
+      const roundMatches = activeSchedule.matches.filter(m => m.round === round && !m.isBye);
+      
+      if (roundMatches.length === 0) continue;
+      
+      // Check if any matches in this round are incomplete
+      const hasIncomplete = roundMatches.some(match => {
+        const completed = games.some(g => 
+          g.matchId === match.id && g.confirmed
+        );
+        return !completed;
+      });
+
+      if (hasIncomplete) {
+        currentRoundNum = round;
+        break;
+      }
+    }
+
+    // If all rounds are complete, default to the highest round
+    // Otherwise, default to the first incomplete round (current round)
+    return currentRoundNum ?? (allRounds.length > 0 ? Math.max(...allRounds) : 1);
+  }, [activeTournament?.id, schedules, games]);
+
+  // Set current round when tournament, schedule, or games change
+  useEffect(() => {
+    setCurrentRound(calculateCurrentRound);
+    setVerificationRound(calculateCurrentRound);
+  }, [calculateCurrentRound]);
 
   // Load completed matches when tournament changes
   useEffect(() => {
@@ -52,6 +105,14 @@ const QuickScoreEntry: React.FC = () => {
       .sort((a, b) => a.matchNumber - b.matchNumber);
   }, [activeTournament, schedules, currentRound]);
 
+  // Get matches for verification round
+  const verificationRoundMatches = React.useMemo(() => {
+    if (!activeTournament || !schedules) return [];
+    const activeSchedule = schedules.find(s => s.tournamentId === activeTournament.id);
+    if (!activeSchedule) return [];
+    return activeSchedule.matches.filter(m => m.round === verificationRound);
+  }, [activeTournament, schedules, verificationRound]);
+
   const getTeamByNumber = (teamNum: string) => {
     return teams.find(team => team.id === teamNum);
   };
@@ -62,26 +123,10 @@ const QuickScoreEntry: React.FC = () => {
     );
   };
 
-  const handleTeamNumberChange = (value: string) => {
-    setTeamNumber(value);
-    if (value && getTeamByNumber(value)) {
-      // Auto-focus score input when valid team is entered
-      setTimeout(() => scoreInputRef.current?.focus(), 100);
-    }
-  };
-
-  const handleScoreChange = (value: string) => {
-    setScore(value);
-    // Remove auto-focus - let user control tab navigation
-  };
-
-  const handleBostonChange = (value: string) => {
-    setBoston(value);
-  };
-
-  const handleSubmit = async () => {
-    if (!teamNumber || !score) {
-      toast.error('Please enter team number and score');
+  // Handle quick entry submission with both teams' scores
+  const handleQuickEntrySubmit = async () => {
+    if (!teamNumber || !teamScore || !opponentScore) {
+      toast.error('Please enter team number, team points, and opponent points');
       return;
     }
 
@@ -97,30 +142,75 @@ const QuickScoreEntry: React.FC = () => {
       return;
     }
 
-    const scoreNum = parseInt(score);
-    const bostonNum = parseInt(boston) || 0;
+    const teamScoreNum = parseInt(teamScore);
+    const teamBostonNum = parseInt(teamBoston) || 0;
+    const opponentScoreNum = parseInt(opponentScore);
+    const opponentBostonNum = parseInt(opponentBoston) || 0;
 
-    // Check if this is the second team in the match
-    const opponentId = match.teamA === team.id ? match.teamB : match.teamA;
-    const opponentScore = pendingScores[opponentId];
+    // Determine which team is the entered team and which is the opponent
+    const isTeamA = match.teamA === team.id;
+    const opponentId = isTeamA ? match.teamB : match.teamA;
 
-    if (opponentScore) {
-      // Both teams have scores - complete the match
-      await completeMatch(match, team.id, scoreNum, bostonNum, opponentId, opponentScore.score, opponentScore.boston);
-    } else {
-      // First team - store pending score
-      setPendingScores(prev => ({
-        ...prev,
-        [team.id]: { score: scoreNum, boston: bostonNum }
-      }));
-      toast.success(`Score recorded for Team ${team.id}. Waiting for opponent...`);
-    }
+    // Complete the match immediately with both scores
+    await completeMatch(
+      match,
+      isTeamA ? team.id : opponentId,
+      isTeamA ? teamScoreNum : opponentScoreNum,
+      isTeamA ? teamBostonNum : opponentBostonNum,
+      isTeamA ? opponentId : team.id,
+      isTeamA ? opponentScoreNum : teamScoreNum,
+      isTeamA ? opponentBostonNum : teamBostonNum
+    );
 
-    // Clear form and focus team input
+    // Clear form and focus team number for next entry
     setTeamNumber('');
-    setScore('');
-    setBoston('0');
-    teamInputRef.current?.focus();
+    setTeamScore('');
+    setTeamBoston('');
+    setOpponentScore('');
+    setOpponentBoston('');
+    teamNumberRef.current?.focus();
+  };
+
+  // Handle enter key navigation (Enter moves to next field, last field submits)
+  const handleTeamNumberKeyDown = async (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (teamNumber) {
+        teamScoreRef.current?.focus();
+      }
+    }
+  };
+
+  const handleTeamScoreKeyDown = async (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (teamScore) {
+        teamBostonRef.current?.focus();
+      }
+    }
+  };
+
+  const handleTeamBostonKeyDown = async (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      opponentScoreRef.current?.focus();
+    }
+  };
+
+  const handleOpponentScoreKeyDown = async (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (opponentScore) {
+        opponentBostonRef.current?.focus();
+      }
+    }
+  };
+
+  const handleOpponentBostonKeyDown = async (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      await handleQuickEntrySubmit();
+    }
   };
 
   const completeMatch = async (match: any, teamAId: string, scoreA: number, bostonA: number, teamBId: string, scoreB: number, bostonB: number) => {
@@ -276,47 +366,73 @@ const QuickScoreEntry: React.FC = () => {
         </div>
       </div>
 
-      {/* Entry Form */}
-      <Card className="mb-6">
+      {/* Quick Entry Form */}
+      <Card className="mb-6 bg-blue-50 border-blue-200">
         <CardHeader>
-          <CardTitle className="text-center">Enter Score</CardTitle>
+          <CardTitle className="text-center">Quick Entry</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-5 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Team Number</label>
+              <label className="block text-sm font-medium mb-2">Team #</label>
               <Input
-                ref={teamInputRef}
+                ref={teamNumberRef}
                 type="text"
                 value={teamNumber}
-                onChange={(e) => handleTeamNumberChange(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Enter team number"
-                className="text-center"
+                onChange={(e) => setTeamNumber(e.target.value)}
+                onKeyDown={handleTeamNumberKeyDown}
+                placeholder=""
+                className="text-center font-semibold"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Score</label>
+              <label className="block text-sm font-medium mb-2">Team Points</label>
               <Input
-                ref={scoreInputRef}
+                ref={teamScoreRef}
                 type="number"
-                value={score}
-                onChange={(e) => handleScoreChange(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="0"
+                value={teamScore}
+                onChange={(e) => setTeamScore(e.target.value)}
+                onKeyDown={handleTeamScoreKeyDown}
+                placeholder=""
                 className="text-center"
                 min="0"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Boston</label>
+              <label className="block text-sm font-medium mb-2">Team Bostons</label>
               <Input
-                ref={bostonInputRef}
+                ref={teamBostonRef}
                 type="number"
-                value={boston}
-                onChange={(e) => handleBostonChange(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="0"
+                value={teamBoston}
+                onChange={(e) => setTeamBoston(e.target.value)}
+                onKeyDown={handleTeamBostonKeyDown}
+                placeholder=""
+                className="text-center"
+                min="0"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Opponent Points</label>
+              <Input
+                ref={opponentScoreRef}
+                type="number"
+                value={opponentScore}
+                onChange={(e) => setOpponentScore(e.target.value)}
+                onKeyDown={handleOpponentScoreKeyDown}
+                placeholder=""
+                className="text-center"
+                min="0"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Opponent Bostons</label>
+              <Input
+                ref={opponentBostonRef}
+                type="number"
+                value={opponentBoston}
+                onChange={(e) => setOpponentBoston(e.target.value)}
+                onKeyDown={handleOpponentBostonKeyDown}
+                placeholder=""
                 className="text-center"
                 min="0"
               />
@@ -324,16 +440,15 @@ const QuickScoreEntry: React.FC = () => {
           </div>
           <div className="text-center mt-4">
             <Button
-              onClick={handleSubmit}
-              disabled={isSubmitting || !teamNumber || !score}
-              className="w-full"
+              onClick={handleQuickEntrySubmit}
+              disabled={isSubmitting || !teamNumber || !teamScore || !opponentScore}
+              className="w-full max-w-md"
             >
-              {isSubmitting ? 'Submitting...' : 'Enter Score'}
+              {isSubmitting ? 'Submitting...' : 'Submit Score'}
             </Button>
           </div>
         </CardContent>
       </Card>
-
 
       {/* All Matches - Color Coded by Status */}
       <Card>
@@ -353,6 +468,11 @@ const QuickScoreEntry: React.FC = () => {
               const teamBPending = pendingScores[match.teamB];
               const hasPending = teamAPending || teamBPending;
               
+              // Find the completed game for this match
+              const completedGame = games.find(g => 
+                g.matchId === match.id && g.confirmed
+              );
+              
               let bgColor = 'bg-white border-gray-200'; // Default white
               let statusText = '';
               
@@ -367,14 +487,34 @@ const QuickScoreEntry: React.FC = () => {
                 statusText = '⏸️ Not started';
               }
               
+              // Determine winner if game is completed
+              const isTeamAWinner = completedGame && completedGame.scoreA > completedGame.scoreB;
+              const isTeamBWinner = completedGame && completedGame.scoreB > completedGame.scoreA;
+              const isTie = completedGame && completedGame.scoreA === completedGame.scoreB;
+
               return (
                 <div key={match.id} className={`flex items-center justify-between p-3 rounded border ${bgColor}`}>
                   <div className="flex items-center gap-3">
-                    <span className="font-medium text-sm">
+                    {match.table && (
+                      <span className="font-semibold text-sm text-blue-600 min-w-[60px]">
+                        Table {match.table}
+                      </span>
+                    )}
+                    <span className={`text-sm ${isTeamAWinner ? 'font-bold text-green-700' : isTeamBWinner ? 'font-medium text-gray-600' : 'font-medium'}`}>
                       Team {match.teamA} {teamA?.player1FirstName}/{teamA?.player2FirstName}
                     </span>
+                    {completedGame && (
+                      <span className={`font-bold text-sm ${isTeamAWinner ? 'text-green-700' : isTeamBWinner ? 'text-red-600' : 'text-green-700'}`}>
+                        {completedGame.scoreA}
+                      </span>
+                    )}
                     <span className="text-gray-500">vs</span>
-                    <span className="font-medium text-sm">
+                    {completedGame && (
+                      <span className={`font-bold text-sm ${isTeamBWinner ? 'text-green-700' : isTeamAWinner ? 'text-red-600' : 'text-green-700'}`}>
+                        {completedGame.scoreB}
+                      </span>
+                    )}
+                    <span className={`text-sm ${isTeamBWinner ? 'font-bold text-green-700' : isTeamAWinner ? 'font-medium text-gray-600' : 'font-medium'}`}>
                       Team {match.teamB} {teamB?.player1FirstName}/{teamB?.player2FirstName}
                     </span>
                     <span className="text-xs text-gray-600 ml-2">{statusText}</span>
@@ -399,6 +539,130 @@ const QuickScoreEntry: React.FC = () => {
               );
             })}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Score Verification Card */}
+      <Card className="mb-6 bg-green-50 border-green-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5 text-green-600" />
+            Score Verification
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="verify-round">Round</Label>
+              <Input
+                id="verify-round"
+                type="number"
+                value={verificationRound}
+                onChange={(e) => setVerificationRound(parseInt(e.target.value) || 1)}
+                min="1"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="verify-team">Team #</Label>
+              <Input
+                ref={verificationTeamRef}
+                id="verify-team"
+                type="text"
+                value={verificationTeamNumber}
+                onChange={(e) => setVerificationTeamNumber(e.target.value)}
+                placeholder="Enter team number"
+                className="mt-1"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    // Keep focus on input to allow quick entry of next team
+                    setTimeout(() => {
+                      setVerificationTeamNumber('');
+                      verificationTeamRef.current?.focus();
+                    }, 500);
+                  }
+                }}
+              />
+            </div>
+          </div>
+          
+          {verificationTeamNumber && (() => {
+            const verifyTeam = getTeamByNumber(verificationTeamNumber);
+            if (!verifyTeam) {
+              return (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-700">
+                  Team {verificationTeamNumber} not found
+                </div>
+              );
+            }
+
+            // Find match for this team in the verification round
+            const verifyMatch = verificationRoundMatches.find(m => 
+              m.teamA === verifyTeam.id || m.teamB === verifyTeam.id
+            );
+
+            if (!verifyMatch) {
+              return (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-700">
+                  Team {verificationTeamNumber} ({verifyTeam.player1FirstName}/{verifyTeam.player2FirstName}) has no match in Round {verificationRound}
+                </div>
+              );
+            }
+
+            // Find the completed game
+            const verifyGame = games.find(g => 
+              g.matchId === verifyMatch.id && g.confirmed
+            );
+
+            if (!verifyGame) {
+              return (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-700">
+                  No score recorded for Team {verificationTeamNumber} in Round {verificationRound}
+                </div>
+              );
+            }
+
+            const isTeamA = verifyMatch.teamA === verifyTeam.id;
+            const opponent = teams.find(t => t.id === (isTeamA ? verifyMatch.teamB : verifyMatch.teamA));
+            const teamScore = isTeamA ? verifyGame.scoreA : verifyGame.scoreB;
+            const teamBostons = isTeamA ? verifyGame.boston_a : verifyGame.boston_b;
+            const opponentScore = isTeamA ? verifyGame.scoreB : verifyGame.scoreA;
+            const opponentBostons = isTeamA ? verifyGame.boston_b : verifyGame.boston_a;
+
+            return (
+              <div className="mt-4 p-4 bg-white border border-green-300 rounded-lg">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="font-semibold text-sm text-gray-700 mb-2">
+                      Team {verificationTeamNumber} ({verifyTeam.player1FirstName}/{verifyTeam.player2FirstName})
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-lg">
+                        <span className="font-bold text-green-700">{teamScore}</span> points
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-semibold">{teamBostons}</span> bostons
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm text-gray-700 mb-2">
+                      Opponent: Team {opponent?.id} ({opponent?.player1FirstName}/{opponent?.player2FirstName})
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-lg">
+                        <span className="font-bold text-red-700">{opponentScore}</span> points
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-semibold">{opponentBostons}</span> bostons
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>

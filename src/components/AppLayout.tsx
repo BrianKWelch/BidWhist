@@ -22,11 +22,12 @@ import { useAppContext } from '@/contexts/AppContext';
 import {
   Users, History, RotateCcw, Settings, Calendar,
   MessageSquare, Award, CalendarClock, DollarSign, Search,
-  UserPlus, Trophy
+  UserPlus, Trophy, FileSpreadsheet
 } from 'lucide-react';
 import { BracketIcon, CommandCenterIcon, ResultsIcon, CityIcon, GoIcon, RefreshIcon, MessageIcon, ScheduleIcon, DollarIcon } from './icons/CustomIcons';
 import { toast } from '@/hooks/use-toast';
 import PlayerTracking from './PlayerTracking';
+import TournamentTeamReport from './TournamentTeamReport';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
   constructor(props: { children: React.ReactNode }) {
@@ -194,6 +195,7 @@ const AppLayout = () => {
                     ['teams', <CommandCenterIcon />],
                     ['schedule', <ScheduleIcon />],
                     ['results', <ResultsIcon />],
+                    ['team-report', <FileSpreadsheet />],
                     ['bracket', <BracketIcon />],
                     ['finance', <DollarIcon />],
                     ['cities', <CityIcon />],
@@ -240,6 +242,7 @@ const AppLayout = () => {
               <TabsContent value="registration"><PlayerRegistration /></TabsContent>
               <TabsContent value="schedule"><TournamentScheduler /></TabsContent>
               <TabsContent value="results"><CombinedResultsPage /></TabsContent>
+              <TabsContent value="team-report"><TournamentTeamReport /></TabsContent>
               <TabsContent value="bracket"><BracketGenerator /></TabsContent>
               <TabsContent value="finance"><FinanceManager /></TabsContent>
               <TabsContent value="player-tracking"><PlayerTracking /></TabsContent>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,129 @@ const AdminScoreEntry: React.FC = () => {
   }}>({});
   const [submittedMatches, setSubmittedMatches] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Quick entry state
+  const [teamNumber, setTeamNumber] = useState('');
+  const [teamScore, setTeamScore] = useState('');
+  const [teamBoston, setTeamBoston] = useState('0');
+  const [opponentScore, setOpponentScore] = useState('');
+  const [opponentBoston, setOpponentBoston] = useState('0');
+  
+  const teamNumberRef = useRef<HTMLInputElement>(null);
+  const teamScoreRef = useRef<HTMLInputElement>(null);
+  const teamBostonRef = useRef<HTMLInputElement>(null);
+  const opponentScoreRef = useRef<HTMLInputElement>(null);
+  const opponentBostonRef = useRef<HTMLInputElement>(null);
+
+  // Handle quick entry submission
+  const handleQuickEntrySubmit = async () => {
+    if (!teamNumber || !teamScore || !opponentScore) {
+      return;
+    }
+
+    // Find match for this team number
+    const match = tournamentMatches.find(m => {
+      const teamA = teams.find(t => String(t.id) === String(m.teamA));
+      const teamB = teams.find(t => String(t.id) === String(m.teamB));
+      
+      // Check if entered team number matches teamA or teamB
+      const teamAMatches = teamA && (
+        String(teamA.id) === String(teamNumber) || 
+        String(teamA.teamNumber) === String(teamNumber)
+      );
+      const teamBMatches = teamB && (
+        String(teamB.id) === String(teamNumber) || 
+        String(teamB.teamNumber) === String(teamNumber)
+      );
+      
+      return teamAMatches || teamBMatches;
+    });
+
+    if (!match) {
+      // Reset form and focus on team number
+      setTeamNumber('');
+      setTeamScore('');
+      setTeamBoston('0');
+      setOpponentScore('');
+      setOpponentBoston('0');
+      teamNumberRef.current?.focus();
+      return;
+    }
+
+    const teamA = teams.find(t => String(t.id) === String(match.teamA));
+    const teamB = teams.find(t => String(t.id) === String(match.teamB));
+    
+    // Determine which team is the entered team and which is the opponent
+    const isTeamA = teamA && (
+      String(teamA.id) === String(teamNumber) || 
+      String(teamA.teamNumber) === String(teamNumber)
+    );
+    
+    const matchId = match.id;
+    const scoreData = {
+      scoreA: isTeamA ? teamScore : opponentScore,
+      scoreB: isTeamA ? opponentScore : teamScore,
+      bostonA: isTeamA ? teamBoston : opponentBoston,
+      bostonB: isTeamA ? opponentBoston : teamBoston,
+      handsA: '',
+      handsB: ''
+    };
+
+    // Update match scores
+    updateMatchScore(matchId, 'scoreA', scoreData.scoreA);
+    updateMatchScore(matchId, 'scoreB', scoreData.scoreB);
+    updateMatchScore(matchId, 'bostonA', scoreData.bostonA);
+    updateMatchScore(matchId, 'bostonB', scoreData.bostonB);
+
+    // Submit the score
+    await handleSubmitScore(matchId);
+
+    // Reset form and focus on team number for next entry
+    setTeamNumber('');
+    setTeamScore('');
+    setTeamBoston('0');
+    setOpponentScore('');
+    setOpponentBoston('0');
+    teamNumberRef.current?.focus();
+  };
+
+  // Handle tab navigation and enter key
+  const handleTeamNumberKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      if (teamNumber) {
+        teamScoreRef.current?.focus();
+      }
+    }
+  };
+
+  const handleTeamScoreKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      teamBostonRef.current?.focus();
+    }
+  };
+
+  const handleTeamBostonKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      opponentScoreRef.current?.focus();
+    }
+  };
+
+  const handleOpponentScoreKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      opponentBostonRef.current?.focus();
+    }
+  };
+
+  const handleOpponentBostonKeyDown = async (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      await handleQuickEntrySubmit();
+    }
+  };
 
   const activeTournament = getActiveTournament();
   const tracksHands = activeTournament?.tracksHands !== false;
@@ -195,6 +318,95 @@ const AdminScoreEntry: React.FC = () => {
         <h2 className="text-xl font-bold text-gray-800 mb-1">Admin Score Entry</h2>
         <p className="text-sm text-gray-600">{activeTournament.name}</p>
       </div>
+
+      {/* Quick Entry Form */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardHeader>
+          <CardTitle className="text-lg">Quick Entry</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-5 gap-4">
+            <div>
+              <Label htmlFor="quick-team-number">Team #</Label>
+              <Input
+                ref={teamNumberRef}
+                id="quick-team-number"
+                type="text"
+                value={teamNumber}
+                onChange={(e) => setTeamNumber(e.target.value)}
+                onKeyDown={handleTeamNumberKeyDown}
+                placeholder="101"
+                className="text-center font-semibold"
+              />
+            </div>
+            <div>
+              <Label htmlFor="quick-team-score">Team Points</Label>
+              <Input
+                ref={teamScoreRef}
+                id="quick-team-score"
+                type="number"
+                value={teamScore}
+                onChange={(e) => setTeamScore(e.target.value)}
+                onKeyDown={handleTeamScoreKeyDown}
+                placeholder="20"
+                className="text-center"
+                min="0"
+              />
+            </div>
+            <div>
+              <Label htmlFor="quick-team-boston">Team Bostons</Label>
+              <Input
+                ref={teamBostonRef}
+                id="quick-team-boston"
+                type="number"
+                value={teamBoston}
+                onChange={(e) => setTeamBoston(e.target.value)}
+                onKeyDown={handleTeamBostonKeyDown}
+                placeholder="0"
+                className="text-center"
+                min="0"
+              />
+            </div>
+            <div>
+              <Label htmlFor="quick-opponent-score">Opponent Points</Label>
+              <Input
+                ref={opponentScoreRef}
+                id="quick-opponent-score"
+                type="number"
+                value={opponentScore}
+                onChange={(e) => setOpponentScore(e.target.value)}
+                onKeyDown={handleOpponentScoreKeyDown}
+                placeholder="10"
+                className="text-center"
+                min="0"
+              />
+            </div>
+            <div>
+              <Label htmlFor="quick-opponent-boston">Opponent Bostons</Label>
+              <Input
+                ref={opponentBostonRef}
+                id="quick-opponent-boston"
+                type="number"
+                value={opponentBoston}
+                onChange={(e) => setOpponentBoston(e.target.value)}
+                onKeyDown={handleOpponentBostonKeyDown}
+                placeholder="0"
+                className="text-center"
+                min="0"
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-center">
+            <Button
+              onClick={handleQuickEntrySubmit}
+              disabled={!teamNumber || !teamScore || !opponentScore || isSubmitting}
+              className="w-full max-w-md"
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Score'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="space-y-6">
         {sortedRounds.map((round) => (

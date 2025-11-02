@@ -379,36 +379,33 @@ const TeamPaymentDetails: React.FC<TeamPaymentDetailsProps> = ({ teamId, onBackT
   
   return (
     <div className="space-y-6">
-      <Card className="shadow-lg">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Payment Details for {team.name}
-            </CardTitle>
-            <div className="flex gap-2">
-              {onBackToCommandCenter && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={onBackToCommandCenter}
-                  className="text-red-600 border-red-600 hover:bg-red-600 hover:text-white"
-                >
-                  ← Back to Command Center
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => refreshTeamPaymentData(team.id)}
-                disabled={isUpdating}
-              >
-                Refresh Data
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <DollarSign className="w-5 h-5" />
+          <h2 className="text-xl font-bold">Payment Details for {team.name}</h2>
+        </div>
+        <div className="flex gap-2">
+          {onBackToCommandCenter && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onBackToCommandCenter}
+              className="text-red-600 border-red-600 hover:bg-red-600 hover:text-white"
+            >
+              Close
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refreshTeamPaymentData(team.id)}
+            disabled={isUpdating}
+          >
+            Refresh Data
+          </Button>
+        </div>
+      </div>
+      <div className="space-y-4">
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="text-sm text-gray-600 mb-2">Team Details:</div>
             <div className="font-semibold">{team.name}</div>
@@ -529,8 +526,7 @@ const TeamPaymentDetails: React.FC<TeamPaymentDetailsProps> = ({ teamId, onBackT
               );
             })}
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 };

@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { TournamentSchedule } from '@/contexts/AppContext';
 
 interface ScheduleDisplayProps {
@@ -12,15 +14,64 @@ interface ScheduleDisplayProps {
 
 export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tournamentName }) => {
   const { teams, games, scoreSubmissions, refreshGamesFromSupabase } = useAppContext();
+  const [expandedRounds, setExpandedRounds] = useState<Set<number>>(new Set());
+
+  // Calculate the current round (lowest round with incomplete matches)
+  const currentRound = useMemo(() => {
+    if (!schedule || !games || !schedule.matches || schedule.matches.length === 0) return 1;
+
+    // Get all unique rounds from the schedule
+    const allRounds = [...new Set(schedule.matches.map(m => m.round))].sort((a, b) => a - b);
+    if (allRounds.length === 0) return 1;
+
+    // Find the lowest round with incomplete matches
+    for (const round of allRounds) {
+      const roundMatches = schedule.matches.filter(m => m.round === round && !m.isBye);
+      
+      if (roundMatches.length === 0) continue;
+      
+      // Check if any matches in this round are incomplete
+      const hasIncomplete = roundMatches.some(match => {
+        const completed = games.some(g => 
+          g.matchId === match.id && g.confirmed
+        );
+        return !completed;
+      });
+
+      if (hasIncomplete) {
+        return round;
+      }
+    }
+
+    // If all rounds are complete, default to the highest round
+    return allRounds.length > 0 ? Math.max(...allRounds) : 1;
+  }, [schedule, games]);
+
+  // Set current round as expanded on mount
+  useEffect(() => {
+    setExpandedRounds(new Set([currentRound]));
+  }, [currentRound]);
 
   // Real-time updates for admin portal schedule
-  React.useEffect(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       refreshGamesFromSupabase();
     }, 2000); // Refresh every 2 seconds for faster admin updates
 
     return () => clearInterval(interval);
   }, [refreshGamesFromSupabase]);
+
+  const toggleRound = (round: number) => {
+    setExpandedRounds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(round)) {
+        newSet.delete(round);
+      } else {
+        newSet.add(round);
+      }
+      return newSet;
+    });
+  };
 
   const getMatchStatus = (match: any) => {
     const completedGame = games.find(g => g.matchId === match.id && g.confirmed);
@@ -91,14 +142,20 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
         </div>
         {Array.from({ length: Math.max(schedule.rounds, Math.max(...schedule.matches.map(m => m.round))) }, (_, i) => i + 1).map(round => {
           const roundMatches = schedule.matches.filter(m => m.round === round);
+          const isExpanded = expandedRounds.has(round);
           return (
             <div key={round} className="mb-6">
-              <div className="flex justify-center mb-4">
-                                 <Badge variant="outline" className="font-bold text-lg px-4 py-2" style={{ backgroundColor: 'black', color: 'white', borderColor: 'black' }}>
-                   Round {round}
-                 </Badge>
-              </div>
-              <div className="space-y-3">
+              <Collapsible open={isExpanded} onOpenChange={() => toggleRound(round)}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex justify-center mb-4 cursor-pointer hover:opacity-80">
+                    <Badge variant="outline" className="font-bold text-lg px-4 py-2 flex items-center gap-2" style={{ backgroundColor: 'black', color: 'white', borderColor: 'black' }}>
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      Round {round}
+                    </Badge>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="space-y-3">
                                                   {roundMatches.map(match => {
                    if (match.isBye) {
                      // Find the real team (not BYE) - one of teamA or teamB will be "null" for BYE matches
@@ -197,7 +254,9 @@ export const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, tour
                     </div>
                   );
                 })}
-              </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
               {round < schedule.rounds && <Separator className="mt-4" />}
             </div>
           );

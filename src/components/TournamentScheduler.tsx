@@ -289,22 +289,6 @@ export const TournamentScheduler: React.FC = () => {
                 max="10"
               />
             </div>
-            <div className="flex-1 flex flex-col items-center">
-                             <Button 
-                 onClick={generateSchedule}
-                 disabled={!selectedTournament || !numberOfRounds}
-                 size="sm"
-                 className="h-20 w-20 p-0 text-lg font-bold"
-                 style={{ backgroundColor: 'black', color: 'white' }}
-               >
-                 Run
-               </Button>
-              {selectedTournament && isOdd && (
-                <Badge variant="secondary" className="text-xs mt-2">
-                  Odd - Byes Required
-                </Badge>
-              )}
-            </div>
             {selectedTournament && (
               <div className="w-48">
                 <Label>Teams</Label>
@@ -321,6 +305,30 @@ export const TournamentScheduler: React.FC = () => {
                 </div>
               </div>
             )}
+            {selectedTournament && tournament && (
+              <div className="w-48">
+                <Label>Scoring</Label>
+                <div className="text-sm font-medium">
+                  {tournament.scoringMode === 'admin' ? 'Admin Only' : 'Teams Enter Scores'}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col items-center">
+              <Button 
+                onClick={generateSchedule}
+                disabled={!selectedTournament || !numberOfRounds}
+                size="sm"
+                className="h-20 w-20 p-0 text-lg font-bold"
+                style={{ backgroundColor: 'black', color: 'white' }}
+              >
+                Run
+              </Button>
+              {selectedTournament && isOdd && (
+                <Badge variant="secondary" className="text-xs mt-2">
+                  Odd - Byes Required
+                </Badge>
+              )}
+            </div>
           </div>
           
 

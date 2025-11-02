@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import TeamPaymentDetails from './TeamPaymentDetails';
 import { Users, Plus, X, Check, ArrowRight, Search, UserPlus, Trash2, Edit, Upload, Download, DollarSign } from 'lucide-react';
 import { useAppContext } from '@/contexts/AppContext';
 import { Player, Team, Tournament } from '@/contexts/AppContext';
@@ -91,7 +92,11 @@ interface TeamBuilderProps {
 }
 
 const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndividualPlayerPaymentClick }) => {
-  const { teams, tournaments, players, createTeamFromPlayers, updateTeam, refreshPlayers, refreshTeams, createTournament, updateTournamentStatus, deleteTournament, addPlayer, addTeamToTournament, refreshTournaments, addTeam, addTournament, updateTournament } = useAppContext();
+  const { teams, tournaments, players, createTeamFromPlayers, updateTeam, refreshPlayers, refreshTeams, createTournament, updateTournamentStatus, deleteTournament, addPlayer, addTeamToTournament, refreshTournaments, addTeam, addTournament, updateTournament, getActiveTournament } = useAppContext();
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedTeamForPayment, setSelectedTeamForPayment] = useState<string | null>(null);
+  const teamsScrollRef = useRef<HTMLDivElement>(null);
+  const savedScrollPosition = useRef<number>(0);
   
   // Column 1 - Players
   const [selectedPlayerTournament, setSelectedPlayerTournament] = useState<string>('all');
@@ -210,9 +215,13 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
     // Filter by search term
     if (teamSearchTerm) {
       const searchLower = teamSearchTerm.toLowerCase();
+      const teamNumberStr = team.teamNumber?.toString() || '';
+      const teamIdStr = team.id?.toString() || '';
       return (
         team.name.toLowerCase().includes(searchLower) ||
-        team.city.toLowerCase().includes(searchLower)
+        team.city.toLowerCase().includes(searchLower) ||
+        teamNumberStr.includes(searchLower) ||
+        teamIdStr.includes(searchLower)
       );
     }
 
@@ -220,6 +229,7 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
   });
 
   // Filter tournaments based on selection and search
+  const activeTournament = getActiveTournament && getActiveTournament();
   const filteredTournaments = tournaments.filter(tournament => {
     // Filter by selection
     if (selectedTournamentFilter === 'all') {
@@ -248,6 +258,13 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
     }
 
     return true;
+  }).sort((a, b) => {
+    // Sort so active tournament appears first
+    if (activeTournament) {
+      if (a.id === activeTournament.id) return -1;
+      if (b.id === activeTournament.id) return 1;
+    }
+    return 0;
   });
 
   // Get player names for display
@@ -539,11 +556,42 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
 
       if (error) throw error;
 
+      // Find all teams that include this player and update their names
+      const { data: affectedTeams, error: teamsError } = await supabase
+        .from('teams')
+        .select(`
+          *,
+          player1:players!player1_id(*),
+          player2:players!player2_id(*)
+        `)
+        .or(`player1_id.eq.${editingPlayer.id},player2_id.eq.${editingPlayer.id}`);
+
+      if (teamsError) {
+        console.error('Error fetching affected teams:', teamsError);
+      } else if (affectedTeams) {
+        // Update team names for all affected teams
+        for (const team of affectedTeams) {
+          const player1First = team.player1?.first_name || '';
+          const player2First = team.player2?.first_name || '';
+          const newTeamName = `${player1First}/${player2First}`;
+          
+          const { error: updateError } = await supabase
+            .from('teams')
+            .update({ name: newTeamName })
+            .eq('id', team.id);
+          
+          if (updateError) {
+            console.error(`Error updating team ${team.id} name:`, updateError);
+          }
+        }
+      }
+
       setEditingPlayer(null);
       setShowEditPlayerDialog(false);
 
-      // Refresh players list
+      // Refresh players and teams lists
       await refreshPlayers();
+      await refreshTeams();
 
       toast({
         title: 'Player updated successfully',
@@ -2044,7 +2092,7 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                 <div className="text-sm text-muted-foreground">
                   {filteredTeams.length} team(s) found
                 </div>
-                <div className="space-y-1 max-h-96 overflow-y-auto">
+                <div ref={teamsScrollRef} className="space-y-1 max-h-96 overflow-y-auto">
                   {filteredTeams.map(team => {
                     let paymentStatus = null;
                     if (selectedTeamTournament && selectedTeamTournament !== 'all' && selectedTeamTournament !== 'unassigned') {
@@ -2084,7 +2132,9 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                       >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <div className="font-medium">{team.name}</div>
+                          <div className="font-medium">
+                            Team #{team.teamNumber || team.id} - {team.name}
+                          </div>
                           <div className="text-sm text-muted-foreground">
                             {getPlayerDisplayName(team.player1_id)} & {getPlayerDisplayName(team.player2_id)}
                           </div>
@@ -2129,6 +2179,12 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                             variant="ghost"
                             onClick={(e) => {
                               e.stopPropagation();
+                              // Save scroll position before opening modal
+                              if (teamsScrollRef.current) {
+                                savedScrollPosition.current = teamsScrollRef.current.scrollTop;
+                              }
+                              setSelectedTeamForPayment(team.id);
+                              setShowPaymentModal(true);
                               if (onTeamPaymentClick) {
                                 onTeamPaymentClick(team.id);
                               }
@@ -2685,8 +2741,26 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
         </DialogContent>
       </Dialog>
 
-
-
+      {/* Team Payment Modal */}
+      <Dialog open={showPaymentModal} onOpenChange={(open) => {
+        setShowPaymentModal(open);
+        if (!open) {
+          setSelectedTeamForPayment(null);
+          // Restore scroll position after modal closes
+          setTimeout(() => {
+            if (teamsScrollRef.current) {
+              teamsScrollRef.current.scrollTop = savedScrollPosition.current;
+            }
+          }, 100);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <TeamPaymentDetails 
+            teamId={selectedTeamForPayment || undefined} 
+            onBackToCommandCenter={() => setShowPaymentModal(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
