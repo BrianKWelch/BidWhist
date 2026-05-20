@@ -14,10 +14,9 @@ interface TournamentResultsProps {
 
 
 export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournamentId }) => {
-  const { tournaments, teams, schedules, games, clearTournamentResults, submitGame, scoreSubmissions, resetAllTournamentData, setGames, setScoreSubmissions, tournamentResults, setTournamentResults, refreshGamesFromSupabase } = useAppContext();
+  const { tournaments, teams, schedules, games, clearTournamentResults, scoreSubmissions, resetAllTournamentData, setGames, setScoreSubmissions, tournamentResults, setTournamentResults, refreshGamesFromSupabase } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState(tournamentId || '1');
   const effectiveTournamentId = tournamentId || selectedTournament;
-  const [sortByWins, setSortByWins] = useState(true);
 
   // Editable overrides: { [key]: value }
   const [overrides, setOverrides] = useState<{ [key: string]: string }>({});
@@ -120,7 +119,11 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
   }, [games, schedule, registeredTeams, numRounds]);
 
   // Build a matrix of results: { [teamId]: { [round]: { wl, points, boston } } }
-  const { sortedTeams, resultsMatrix } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
+  const sortOrder = tournament?.sortOrder || 'wins,hands,points';
+  const sortLabels: Record<string, string> = { wins: 'Wins', hands: 'Hands', points: 'Points' };
+  const sortOrderLabel = sortOrder.split(',').map((c, i) => `${i + 1}. ${sortLabels[c] ?? c}`).join('  ');
+
+  const { sortedTeams, resultsMatrix } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds, sortOrder);
 
   // Helper to reset all overrides to 0s/blanks for the current tournament
   const handleResetTableDisplay = () => {
@@ -195,7 +198,10 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
             <img src={import.meta.env.BASE_URL + 'results.png'} alt="Results" className="h-5 w-5" style={{ filter: 'brightness(0)' }} />
             {(tournament?.name || 'Tournament') + ' - Results'}
           </CardTitle>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 bg-gray-100 rounded px-2 py-1">
+              Sorted by: {sortOrderLabel}
+            </span>
             <button
               className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-bold"
               onClick={async () => {
@@ -214,61 +220,6 @@ export const TournamentResults: React.FC<TournamentResultsProps> = ({ tournament
               onClick={handleResetTableDisplay}
             >
               Reset Table Display Only
-            </button>
-            <button
-              className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs font-bold"
-              onClick={() => {
-                setSortByWins(s => !s);
-              }}
-            >
-              Sort
-            </button>
-            <button
-              className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 text-xs font-bold"
-              onClick={() => {
-                if (!schedule || registeredTeams.length < 2) return;
-                const match = schedule.matches.find(m => m.round === 1 && m.teamA !== 'BYE' && m.teamB !== 'BYE');
-                if (!match) return;
-                const teamA = teams.find(t => t.id === match.teamA);
-                const teamB = teams.find(t => t.id === match.teamB);
-                if (!teamA || !teamB) return;
-                setOverrides(prev => {
-                  const keysToRemove = [
-                    getOverrideKey(teamA.id, 1, 'wl'),
-                    getOverrideKey(teamA.id, 1, 'points'),
-                    getOverrideKey(teamA.id, 1, 'boston'),
-                    getOverrideKey(teamB.id, 1, 'wl'),
-                    getOverrideKey(teamB.id, 1, 'points'),
-                    getOverrideKey(teamB.id, 1, 'boston')
-                  ];
-                  const newOverrides = { ...prev };
-                  keysToRemove.forEach(key => { delete newOverrides[key]; });
-                  return newOverrides;
-                });
-                submitGame({
-                  matchId: match.id,
-                  teamA: teamA,
-                  teamB: teamB,
-                  scoreA: 50,
-                  scoreB: 40,
-                  boston: '',
-                  submittedBy: teamA.id,
-                  round: 1
-                });
-                submitGame({
-                  matchId: match.id,
-                  teamA: teamA,
-                  teamB: teamB,
-                  scoreA: 50,
-                  scoreB: 40,
-                  boston: '',
-                  submittedBy: teamB.id,
-                  round: 1
-                });
-                window.alert(`Simulated: ${teamA.name} (Team #${teamA.teamNumber}) vs ${teamB.name} (Team #${teamB.teamNumber}) in Round 1. Score: 50-40`);
-              }}
-            >
-              Simulate Confirm Round 1 (2 Teams)
             </button>
           </div>
         </div>

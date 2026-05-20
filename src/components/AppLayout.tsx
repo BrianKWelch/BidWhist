@@ -82,7 +82,9 @@ const AppLayout = () => {
               ...t,
               bostonPotCost: t.boston_pot_cost,
               tracksHands: t.tracks_hands !== false,
-              scoringMode: t.scoring_mode || 'team'
+              scoringMode: t.scoring_mode || 'team',
+              paymentModel: t.payment_model || 'four_way',
+              sortOrder: t.sort_order || 'wins,hands,points'
             }));
             setTournaments(mappedTournaments);
           }

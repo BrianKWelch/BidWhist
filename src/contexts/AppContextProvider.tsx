@@ -689,7 +689,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             bostonPotCost: t.boston_pot_cost,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
-            paymentModel: t.payment_model || 'four_way'
+            paymentModel: t.payment_model || 'four_way',
+            sortOrder: t.sort_order || 'wins,hands,points'
           }));
           setTournaments(tournaments);
         }
@@ -2474,7 +2475,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       finishTournament,
       getActiveTournament,
       setActiveTournament,
-      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way') => {
+      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string) => {
         const { supabase } = await import('../supabaseClient');
         // Update in Supabase
         const updateData: any = {
@@ -2493,6 +2494,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (paymentModel !== undefined) {
           updateData.payment_model = paymentModel;
         }
+        if (sortOrder !== undefined) {
+          updateData.sort_order = sortOrder;
+        }
         const { error } = await supabase
           .from('tournaments')
           .update(updateData)
@@ -2510,7 +2514,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             bostonPotCost: t.boston_pot_cost,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
-            paymentModel: t.payment_model || 'four_way'
+            paymentModel: t.payment_model || 'four_way',
+            sortOrder: t.sort_order || 'wins,hands,points'
           }));
           setTournaments(mappedTournaments);
         }
@@ -2544,7 +2549,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             bostonPotCost: t.boston_pot_cost,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
-            paymentModel: t.payment_model || 'four_way'
+            paymentModel: t.payment_model || 'four_way',
+            sortOrder: t.sort_order || 'wins,hands,points'
           }));
           setTournaments(mappedTournaments);
         }
@@ -2574,7 +2580,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             bostonPotCost: t.boston_pot_cost,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
-            paymentModel: t.payment_model || 'four_way'
+            paymentModel: t.payment_model || 'four_way',
+            sortOrder: t.sort_order || 'wins,hands,points'
           }));
           setTournaments(mappedTournaments);
         }
@@ -2601,7 +2608,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             bostonPotCost: t.boston_pot_cost,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
-            paymentModel: t.payment_model || 'four_way'
+            paymentModel: t.payment_model || 'four_way',
+            sortOrder: t.sort_order || 'wins,hands,points'
           }));
           setTournaments(mappedTournaments);
         }

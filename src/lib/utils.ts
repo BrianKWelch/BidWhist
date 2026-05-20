@@ -29,7 +29,7 @@ export function formatTeamName(teamName: string): string {
  * @param {number} numRounds - Number of rounds
  * @returns {{ sortedTeams: any[], resultsMatrix: any }}
  */
-export function getSortedTournamentResults(teams, games, schedule, overrides, numRounds) {
+export function getSortedTournamentResults(teams, games, schedule, overrides, numRounds, sortOrder = 'wins,hands,points') {
   // Helper to get override key
   const getOverrideKey = (teamId, round, field) => `${teamId}_${round}_${field}`;
   // Always use string IDs for registeredTeams
@@ -124,33 +124,34 @@ export function getSortedTournamentResults(teams, games, schedule, overrides, nu
     };
   }
   // Sort teams
+  const priority = (sortOrder || 'wins,hands,points').split(',');
   const sortedTeams = registeredTeams.slice().sort((a, b) => {
-    // 1. Wins
-    const aWins = resultsMatrix[a.id]['totalPoints'].wins;
-    const bWins = resultsMatrix[b.id]['totalPoints'].wins;
-    if (bWins !== aWins) return bWins - aWins;
+    // Dynamic tiebreakers 1–3 based on sortOrder
+    for (const criterion of priority) {
+      if (criterion === 'wins') {
+        const aWins = resultsMatrix[a.id]['totalPoints'].wins;
+        const bWins = resultsMatrix[b.id]['totalPoints'].wins;
+        if (bWins !== aWins) return bWins - aWins;
+      } else if (criterion === 'hands') {
+        const aHands = resultsMatrix[a.id]['totalPoints'].hands || 0;
+        const bHands = resultsMatrix[b.id]['totalPoints'].hands || 0;
+        if (bHands !== aHands) return bHands - aHands;
+      } else if (criterion === 'points') {
+        const aPoints = resultsMatrix[a.id]['totalPoints'].points;
+        const bPoints = resultsMatrix[b.id]['totalPoints'].points;
+        if (bPoints !== aPoints) return bPoints - aPoints;
+      }
+    }
 
-    // 2. Total Hands Won (descending)
-    const aHands = resultsMatrix[a.id]['totalPoints'].hands || 0;
-    const bHands = resultsMatrix[b.id]['totalPoints'].hands || 0;
-    if (bHands !== aHands) return bHands - aHands;
-
-    // 3. Total Points (descending)
-    const aPoints = resultsMatrix[a.id]['totalPoints'].points;
-    const bPoints = resultsMatrix[b.id]['totalPoints'].points;
-    if (bPoints !== aPoints) return bPoints - aPoints;
-
-    // 4. First Round Points (descending)
+    // Fixed tiebreakers 4–6
     const aR1 = resultsMatrix[a.id][1]?.points || 0;
     const bR1 = resultsMatrix[b.id][1]?.points || 0;
     if (bR1 !== aR1) return bR1 - aR1;
 
-    // 5. Second Round Points (descending)
     const aR2 = resultsMatrix[a.id][2]?.points || 0;
     const bR2 = resultsMatrix[b.id][2]?.points || 0;
     if (bR2 !== aR2) return bR2 - aR2;
 
-    // 6. Team Number (ascending)
     const aNum = typeof a.teamNumber === 'number' ? a.teamNumber : Number(a.teamNumber) || Number(a.id);
     const bNum = typeof b.teamNumber === 'number' ? b.teamNumber : Number(b.teamNumber) || Number(b.id);
     return aNum - bNum;

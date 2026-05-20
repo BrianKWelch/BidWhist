@@ -884,7 +884,8 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
         editingTournament.status,
         editingTournament.tracksHands,
         editingTournament.scoringMode,
-        editingTournament.paymentModel
+        editingTournament.paymentModel,
+        editingTournament.sortOrder
       );
 
       setEditingTournament(null);
@@ -2698,6 +2699,42 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                     : 'Entry fees split 4 ways; Boston Pot tracked separately'
                   }
                 </div>
+              </div>
+              <div>
+                <Label>Results Sort Order (1st–3rd tiebreaker)</Label>
+                <div className="space-y-2 mt-2">
+                  {(['wins', 'hands', 'points'] as const).map((criterion) => {
+                    const order = (editingTournament.sortOrder || 'wins,hands,points').split(',');
+                    const priority = order.indexOf(criterion) + 1;
+                    const labels: Record<string, string> = { wins: 'Wins', hands: 'Total Hands Won', points: 'Total Points' };
+                    return (
+                      <div key={criterion} className="flex items-center gap-3">
+                        <span className="text-sm w-36">{labels[criterion]}</span>
+                        <select
+                          className="border rounded p-1 text-sm w-16"
+                          value={priority}
+                          onChange={(e) => {
+                            const newPriority = Number(e.target.value);
+                            const newOrder = [...order];
+                            const currentPos = newOrder.indexOf(criterion);
+                            const targetPos = newPriority - 1;
+                            if (currentPos !== targetPos) {
+                              const displaced = newOrder[targetPos];
+                              newOrder[targetPos] = criterion;
+                              newOrder[currentPos] = displaced;
+                            }
+                            setEditingTournament({ ...editingTournament, sortOrder: newOrder.join(',') });
+                          }}
+                        >
+                          <option value={1}>1</option>
+                          <option value={2}>2</option>
+                          <option value={3}>3</option>
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">4th–6th tiebreakers (Round 1 pts, Round 2 pts, Team #) are fixed</div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={handleEditTournament} className="flex-1">
