@@ -5,7 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { BracketDisplay } from './BracketDisplay';
-import { Trophy, Target, RotateCcw } from 'lucide-react';
+import { BracketVisual } from './BracketVisual';
+import { getVisualPos } from '@/lib/bracketUtils';
+import { Trophy, Target, RotateCcw, BarChart2 } from 'lucide-react';
 import type { BracketTeam, BracketMatch, Bracket } from '@/contexts/AppContext';
 import { getSortedTournamentResults } from '@/lib/utils';
 
@@ -18,6 +20,7 @@ export const BracketGenerator: React.FC = () => {
   const [bracket, setBracket] = useState<Bracket | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [showRestartDialog, setShowRestartDialog] = useState(false);
+  const [showVisualDialog, setShowVisualDialog] = useState(false);
   const [showSeedsDialog, setShowSeedsDialog] = useState(false);
   const [topSeeds, setTopSeeds] = useState<BracketTeam[]>([]);
   // L oad resultsOverrides from localStorage (same as TournamentResults)
@@ -38,7 +41,9 @@ export const BracketGenerator: React.FC = () => {
     // Use getSortedTournamentResults to get the correct team list as shown in the dialog
     const schedule = schedules.find(s => s.tournamentId === selectedTournament);
     const numRounds = schedule ? schedule.rounds : 5;
-    const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
+    const tournament = tournaments.find(t => t.id === selectedTournament);
+    const sortOrder = tournament?.sortOrder || 'wins,hands,points';
+    const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds, sortOrder);
     // Assign seed strictly by row order from sortedTeams
     const seededTeams = sortedTeams.slice(0, size).map((team, index) => ({
       seed: index + 1,
@@ -57,7 +62,7 @@ export const BracketGenerator: React.FC = () => {
     };
     setBracket(newBracket);
     saveBracket(newBracket);
-    setTopSeeds(seededTeams.slice(0, 5));
+    setTopSeeds(seededTeams);
     setShowDialog(false);
     setShowSeedsDialog(true);
   };
@@ -145,11 +150,16 @@ export const BracketGenerator: React.FC = () => {
     const nextMatch = nextRoundMatches.find(m => m.table === nextRoundTable);
     
     if (nextMatch) {
+      // Determine slot using visual position parity:
+      // even visPos → top feeder → team1 slot; odd → bottom feeder → team2 slot
+      const visPos = getVisualPos(bracket.size, match.round, match.table);
+      const isTeam1Slot = visPos % 2 === 0;
+
       const finalMatches = updatedMatches.map(m => {
         if (m.id === nextMatch.id) {
-          if (!m.team1) {
+          if (isTeam1Slot) {
             return { ...m, team1: { ...winner, seed: winner.seed } };
-          } else if (!m.team2) {
+          } else {
             return { ...m, team2: { ...winner, seed: winner.seed } };
           }
         }
@@ -220,27 +230,13 @@ export const BracketGenerator: React.FC = () => {
                   </DialogHeader>
                   <div className="flex flex-col md:flex-row gap-6 p-2">
                     <div className="flex-1 border rounded p-2 bg-gray-50">
-                      <h4 className="font-semibold mb-2 text-blue-700">Tournament Results Order</h4>
+                      <h4 className="font-semibold mb-2 text-blue-700">Seeding Order</h4>
                       <ol className="list-decimal pl-4">
                         {(() => {
                           const schedule = schedules.find(s => s.tournamentId === selectedTournament);
                           const numRounds = schedule ? schedule.rounds : 5;
-                          const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
-                          return sortedTeams.map((team, idx) => (
-                            <li key={team.id} className="mb-1">
-                              <Badge variant="outline">#{idx + 1}</Badge> <span className="font-medium">{team.name}</span> <span className="text-xs text-gray-500">(Team # {team.teamNumber ?? team.id})</span>
-                            </li>
-                          ));
-                        })()}
-                      </ol>
-                    </div>
-                    <div className="flex-1 border rounded p-2 bg-gray-50">
-                      <h4 className="font-semibold mb-2 text-green-700">Bracket Seeding Order (Preview)</h4>
-                      <ol className="list-decimal pl-4">
-                        {(() => {
-                          const schedule = schedules.find(s => s.tournamentId === selectedTournament);
-                          const numRounds = schedule ? schedule.rounds : 5;
-                          const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds);
+                          const t = tournaments.find(t => t.id === selectedTournament);
+                          const { sortedTeams } = getSortedTournamentResults(teams, games, schedule, overrides, numRounds, t?.sortOrder || 'wins,hands,points');
                           return sortedTeams.map((team, idx) => (
                             <li key={team.id} className="mb-1">
                               <Badge variant="outline">#{idx + 1}</Badge> <span className="font-medium">{team.name}</span> <span className="text-xs text-gray-500">(Team # {team.teamNumber ?? team.id})</span>
@@ -261,26 +257,39 @@ export const BracketGenerator: React.FC = () => {
             )}
             
             {bracket && (
-              <Dialog open={showRestartDialog} onOpenChange={setShowRestartDialog}>
-                                 <DialogTrigger asChild>
-                   <Button variant="destructive" className="flex items-center gap-2" style={{ backgroundColor: 'black', color: 'white' }}>
-                     <RotateCcw className="h-4 w-4" />
-                     Restart Bracket
-                   </Button>
-                 </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Restart Bracket?</DialogTitle>
-                  </DialogHeader>
-                  <div className="p-4">
-                    <p className="mb-4">Are you sure you want to restart the bracket? This will delete all current progress and cannot be undone.</p>
-                    <div className="flex gap-2 justify-end">
-                      <Button variant="outline" onClick={() => setShowRestartDialog(false)}>Cancel</Button>
-                      <Button variant="destructive" onClick={handleRestartBracket}>Yes, Restart</Button>
+              <>
+                {/* View Bracket visual */}
+                <Button
+                  className="flex items-center gap-2"
+                  style={{ backgroundColor: '#a60002', color: 'white' }}
+                  onClick={() => setShowVisualDialog(true)}
+                >
+                  <BarChart2 className="h-4 w-4" />
+                  View Bracket
+                </Button>
+
+                {/* Restart Bracket */}
+                <Dialog open={showRestartDialog} onOpenChange={setShowRestartDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="destructive" className="flex items-center gap-2" style={{ backgroundColor: 'black', color: 'white' }}>
+                      <RotateCcw className="h-4 w-4" />
+                      Restart Bracket
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Restart Bracket?</DialogTitle>
+                    </DialogHeader>
+                    <div className="p-4">
+                      <p className="mb-4">Are you sure you want to restart the bracket? This will delete all current progress and cannot be undone.</p>
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="outline" onClick={() => setShowRestartDialog(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleRestartBracket}>Yes, Restart</Button>
+                      </div>
                     </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
           </div>
 
@@ -297,7 +306,7 @@ export const BracketGenerator: React.FC = () => {
               <Dialog open={showSeedsDialog} onOpenChange={setShowSeedsDialog}>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Top 5 Seeds</DialogTitle>
+                    <DialogTitle>Bracket Seeds ({topSeeds.length} Teams)</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-2">
                     {topSeeds.length === 0 && (
@@ -327,6 +336,25 @@ export const BracketGenerator: React.FC = () => {
           )}
         </div>
       </CardContent>
+
+      {/* Visual bracket dialog */}
+      <Dialog open={showVisualDialog} onOpenChange={setShowVisualDialog}>
+        <DialogContent className="max-w-[95vw] w-full max-h-[92vh] overflow-auto p-0">
+          <DialogHeader className="px-6 pt-5 pb-2">
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold" style={{ color: '#a60002' }}>
+              <BarChart2 className="h-5 w-5" />
+              {bracket?.size}-Team Bracket
+            </DialogTitle>
+          </DialogHeader>
+          {bracket && (
+            <BracketVisual
+              size={bracket.size}
+              matches={bracket.matches}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
     </Card>
   );
 };
