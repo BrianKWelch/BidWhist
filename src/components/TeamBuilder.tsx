@@ -883,7 +883,8 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
         editingTournament.description,
         editingTournament.status,
         editingTournament.tracksHands,
-        editingTournament.scoringMode
+        editingTournament.scoringMode,
+        editingTournament.paymentModel
       );
 
       setEditingTournament(null);
@@ -2668,9 +2669,33 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                   </SelectContent>
                 </Select>
                 <div className="text-xs text-gray-500 mt-1">
-                  {editingTournament.scoringMode === 'team' 
+                  {editingTournament.scoringMode === 'team'
                     ? 'Teams will enter their own scores after each game'
                     : 'Only administrators can enter scores for all teams'
+                  }
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="edit_payment_model">Payment Model</Label>
+                <Select
+                  value={editingTournament.paymentModel || 'four_way'}
+                  onValueChange={(value: 'four_way' | 'five_way') => setEditingTournament({
+                    ...editingTournament,
+                    paymentModel: value
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="four_way">4-Way Split (1st–4th, Boston Pot separate)</SelectItem>
+                    <SelectItem value="five_way">5-Way Split (1st–4th + Side Pot combined)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-gray-500 mt-1">
+                  {editingTournament.paymentModel === 'five_way'
+                    ? 'Entry fees + side pot are combined into one prize pool, split 5 ways'
+                    : 'Entry fees split 4 ways; Boston Pot tracked separately'
                   }
                 </div>
               </div>

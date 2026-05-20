@@ -32,6 +32,7 @@ const TournamentManagement: React.FC = () => {
   const [editCost, setEditCost] = useState('');
   const [editBostonCost, setEditBostonCost] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editPaymentModel, setEditPaymentModel] = useState<'four_way' | 'five_way'>('four_way');
 
 
   const activeTournament = getActiveTournament();
@@ -62,6 +63,7 @@ const TournamentManagement: React.FC = () => {
     setEditCost(tournament.cost.toString());
     setEditBostonCost(tournament.bostonPotCost.toString());
     setEditDescription(tournament.description || '');
+    setEditPaymentModel(tournament.paymentModel || 'four_way');
   };
 
   const saveEdit = async () => {
@@ -76,7 +78,11 @@ const TournamentManagement: React.FC = () => {
       editName.trim(),
       cost,
       bostonCost,
-      editDescription.trim() || undefined
+      editDescription.trim() || undefined,
+      undefined,
+      undefined,
+      undefined,
+      editPaymentModel
     );
 
     cancelEdit();
@@ -88,6 +94,7 @@ const TournamentManagement: React.FC = () => {
     setEditCost('');
     setEditBostonCost('');
     setEditDescription('');
+    setEditPaymentModel('four_way');
   };
 
   return (
@@ -239,6 +246,17 @@ const TournamentManagement: React.FC = () => {
                           placeholder="Description"
                           rows={2}
                         />
+                        <div>
+                          <Label className="text-xs text-gray-500">Payment Model</Label>
+                          <select
+                            className="border rounded p-1 text-sm w-full mt-1"
+                            value={editPaymentModel}
+                            onChange={(e) => setEditPaymentModel(e.target.value as 'four_way' | 'five_way')}
+                          >
+                            <option value="four_way">4-Way Split (1st–4th, Boston Pot separate)</option>
+                            <option value="five_way">5-Way Split (1st–4th + Side Pot combined)</option>
+                          </select>
+                        </div>
                         <div className="flex gap-2">
                           <Button size="sm" onClick={saveEdit}>
                             <Save className="w-3 h-3" />
@@ -272,6 +290,9 @@ const TournamentManagement: React.FC = () => {
                             <Badge variant="outline" className="flex items-center gap-1">
                               <Star className="w-3 h-3" />
                               Boston: ${tournament.bostonPotCost}
+                            </Badge>
+                            <Badge variant="outline" className={tournament.paymentModel === 'five_way' ? 'border-purple-400 text-purple-700' : 'border-gray-300 text-gray-600'}>
+                              {tournament.paymentModel === 'five_way' ? '5-Way Split' : '4-Way Split'}
                             </Badge>
                           </div>
                         </div>

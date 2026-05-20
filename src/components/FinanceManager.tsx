@@ -4,24 +4,49 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppContext } from '@/contexts/AppContext';
-import { DollarSign, Percent } from 'lucide-react';
+import { DollarSign, Percent, AlertCircle } from 'lucide-react';
+
+const DEFAULT_PERCENTAGES = {
+  clubShare: 30,
+  firstPlace: 50,
+  secondPlace: 25,
+  thirdPlace: 15,
+  fourthPlace: 10,
+  sidePot: 10,
+};
+
+function loadPercentages(tournamentId: string) {
+  try {
+    const raw = localStorage.getItem(`financePercentages_${tournamentId}`);
+    if (raw) return { ...DEFAULT_PERCENTAGES, ...JSON.parse(raw) };
+  } catch {}
+  return { ...DEFAULT_PERCENTAGES };
+}
+
+function savePercentages(tournamentId: string, pct: typeof DEFAULT_PERCENTAGES) {
+  try {
+    localStorage.setItem(`financePercentages_${tournamentId}`, JSON.stringify(pct));
+  } catch {}
+}
 
 const FinanceManager: React.FC = () => {
-  // Boston Pot Distribution state
-  const [bostonPotCollected, setBostonPotCollected] = useState(0);
-  const [bostonWinners, setBostonWinners] = useState(1);
-  const bostonSplit = bostonWinners > 0 ? bostonPotCollected / bostonWinners : 0;
   const { tournaments, teams, getActiveTournament } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState('');
-  const [collected, setCollected] = useState(0);
-  const [owed, setOwed] = useState(0);
-  const [clubShare, setClubShare] = useState(30);
-  const [firstPlace, setFirstPlace] = useState(50);
-  const [secondPlace, setSecondPlace] = useState(25);
-  const [thirdPlace, setThirdPlace] = useState(15);
-  const [fourthPlace, setFourthPlace] = useState(10);
 
-  // Set default tournament to active tournament when component mounts
+  const [clubShare, setClubShare] = useState(DEFAULT_PERCENTAGES.clubShare);
+  const [firstPlace, setFirstPlace] = useState(DEFAULT_PERCENTAGES.firstPlace);
+  const [secondPlace, setSecondPlace] = useState(DEFAULT_PERCENTAGES.secondPlace);
+  const [thirdPlace, setThirdPlace] = useState(DEFAULT_PERCENTAGES.thirdPlace);
+  const [fourthPlace, setFourthPlace] = useState(DEFAULT_PERCENTAGES.fourthPlace);
+  const [sidePot, setSidePot] = useState(DEFAULT_PERCENTAGES.sidePot);
+
+  const [entryCollected, setEntryCollected] = useState(0);
+  const [entryOwed, setEntryOwed] = useState(0);
+  const [bostonPotCollected, setBostonPotCollected] = useState(0);
+  const [bostonPotOwed, setBostonPotOwed] = useState(0);
+  const [bostonWinners, setBostonWinners] = useState(1);
+
+  // Default to active tournament on mount
   useEffect(() => {
     const activeTournament = getActiveTournament();
     if (activeTournament && !selectedTournament) {
@@ -29,83 +54,104 @@ const FinanceManager: React.FC = () => {
     }
   }, [getActiveTournament, selectedTournament]);
 
-  // Calculate collected and owed amounts based on selected tournament
+  // Load persisted percentages when tournament changes
   useEffect(() => {
-    if (selectedTournament) {
-      const tournament = tournaments.find(t => t.id === selectedTournament);
-      if (tournament) {
-        let totalCollected = 0;
-        let totalOwed = 0;
+    if (!selectedTournament) return;
+    const pct = loadPercentages(selectedTournament);
+    setClubShare(pct.clubShare);
+    setFirstPlace(pct.firstPlace);
+    setSecondPlace(pct.secondPlace);
+    setThirdPlace(pct.thirdPlace);
+    setFourthPlace(pct.fourthPlace);
+    setSidePot(pct.sidePot);
+  }, [selectedTournament]);
 
-        teams.forEach(team => {
-          if (team.registeredTournaments?.includes(selectedTournament)) {
-            const tournamentCost = tournament.cost;
-            // Only use tournament cost for collected/owed calculation, not Boston pot cost
-            const entryCostPerPlayer = tournamentCost / 2;
+  // Save percentages to localStorage whenever they change
+  useEffect(() => {
+    if (!selectedTournament) return;
+    savePercentages(selectedTournament, { clubShare, firstPlace, secondPlace, thirdPlace, fourthPlace, sidePot });
+  }, [selectedTournament, clubShare, firstPlace, secondPlace, thirdPlace, fourthPlace, sidePot]);
 
-            // Check player 1 payment
-            const player1Paid = team.player1TournamentPayments?.[selectedTournament] || false;
-            if (player1Paid) {
-              totalCollected += entryCostPerPlayer; // Only tournament entry fee per player
-            } else {
-              totalOwed += entryCostPerPlayer; // Only tournament entry fee per player
-            }
-
-            // Check player 2 payment
-            const player2Paid = team.player2TournamentPayments?.[selectedTournament] || false;
-            if (player2Paid) {
-              totalCollected += entryCostPerPlayer; // Only tournament entry fee per player
-            } else {
-              totalOwed += entryCostPerPlayer; // Only tournament entry fee per player
-            }
-          }
-        });
-
-        // Boston pot: sum for all teams registered for Boston pot in this tournament AND have paid
-        const bostonPotTotal = teams.reduce((sum, team) => {
-          if (team.bostonPotTournaments?.includes(selectedTournament)) {
-            // Check if both players have paid their Boston pot fees
-            const player1Paid = team.player1TournamentPayments?.[selectedTournament] || false;
-            const player2Paid = team.player2TournamentPayments?.[selectedTournament] || false;
-            
-            // Only count if both players have paid
-            if (player1Paid && player2Paid) {
-              return sum + (tournament.bostonPotCost || 0);
-            }
-          }
-          return sum;
-        }, 0);
-
-        setCollected(totalCollected);
-        setOwed(totalOwed);
-        setBostonPotCollected(bostonPotTotal);
-      }
-    } else {
-      setCollected(0);
-      setOwed(0);
+  // Recalculate collected/owed when tournament or teams change
+  useEffect(() => {
+    if (!selectedTournament) {
+      setEntryCollected(0);
+      setEntryOwed(0);
       setBostonPotCollected(0);
+      setBostonPotOwed(0);
+      return;
     }
+    const tournament = tournaments.find(t => t.id === selectedTournament);
+    if (!tournament) return;
+
+    let totalEntryCollected = 0;
+    let totalEntryOwed = 0;
+    let totalBostonCollected = 0;
+    let totalBostonOwed = 0;
+
+    teams.forEach(team => {
+      if (!team.registeredTournaments?.includes(selectedTournament)) return;
+
+      const entryCostPerPlayer = tournament.cost / 2;
+      const p1Paid = team.player1TournamentPayments?.[selectedTournament] || false;
+      const p2Paid = team.player2TournamentPayments?.[selectedTournament] || false;
+
+      if (p1Paid) totalEntryCollected += entryCostPerPlayer;
+      else totalEntryOwed += entryCostPerPlayer;
+
+      if (p2Paid) totalEntryCollected += entryCostPerPlayer;
+      else totalEntryOwed += entryCostPerPlayer;
+
+      if (team.bostonPotTournaments?.includes(selectedTournament)) {
+        if (p1Paid && p2Paid) {
+          totalBostonCollected += tournament.bostonPotCost || 0;
+        } else {
+          totalBostonOwed += tournament.bostonPotCost || 0;
+        }
+      }
+    });
+
+    setEntryCollected(totalEntryCollected);
+    setEntryOwed(totalEntryOwed);
+    setBostonPotCollected(totalBostonCollected);
+    setBostonPotOwed(totalBostonOwed);
   }, [selectedTournament, tournaments, teams]);
 
-  const totalExpected = collected + owed;
+  const tournament = tournaments.find(t => t.id === selectedTournament);
+  const isFiveWay = tournament?.paymentModel === 'five_way';
+
+  // 4-way: prize pool uses entry fees only; boston pot is separate
+  // 5-way: prize pool combines entry fees + boston pot
+  const totalCollected = isFiveWay ? entryCollected + bostonPotCollected : entryCollected;
+  const totalOwed = isFiveWay ? entryOwed + bostonPotOwed : entryOwed;
+  const totalExpected = totalCollected + totalOwed;
+
   const clubAmount = (totalExpected * clubShare) / 100;
   const prizePool = totalExpected - clubAmount;
-  
+
+  const prizeTotal = isFiveWay
+    ? firstPlace + secondPlace + thirdPlace + fourthPlace + sidePot
+    : firstPlace + secondPlace + thirdPlace + fourthPlace;
+  const prizeIsValid = prizeTotal === 100;
+
   const firstPayout = (prizePool * firstPlace) / 100;
   const secondPayout = (prizePool * secondPlace) / 100;
   const thirdPayout = (prizePool * thirdPlace) / 100;
   const fourthPayout = (prizePool * fourthPlace) / 100;
+  const sidePotPayout = (prizePool * sidePot) / 100;
+
+  const bostonSplit = bostonWinners > 0 ? bostonPotCollected / bostonWinners : 0;
+
+  const amountClass = prizeIsValid ? '' : 'opacity-50';
 
   return (
     <div className="space-y-6">
+      {/* Tournament selector */}
       <Card className="mb-4">
         <CardContent>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 pt-4">
             <Label htmlFor="tournamentSelect">Select Tournament</Label>
-            <Select
-              value={selectedTournament}
-              onValueChange={setSelectedTournament}
-            >
+            <Select value={selectedTournament} onValueChange={setSelectedTournament}>
               <SelectTrigger id="tournamentSelect" className="w-64">
                 <SelectValue placeholder="Choose a tournament" />
               </SelectTrigger>
@@ -115,9 +161,16 @@ const FinanceManager: React.FC = () => {
                 ))}
               </SelectContent>
             </Select>
+            {tournament && (
+              <span className={`text-sm font-medium px-2 py-1 rounded ${isFiveWay ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                {isFiveWay ? '5-Way Split' : '4-Way Split'}
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Money summary */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -126,17 +179,17 @@ const FinanceManager: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${isFiveWay ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
             <div>
               <Label>Money Collected ($)</Label>
               <div className="p-2 bg-green-100 rounded border font-semibold text-green-700">
-                ${collected.toFixed(2)}
+                ${totalCollected.toFixed(2)}
               </div>
             </div>
             <div>
               <Label>Money Owed ($)</Label>
               <div className="p-2 bg-red-100 rounded border font-semibold text-red-700">
-                ${owed.toFixed(2)}
+                ${totalOwed.toFixed(2)}
               </div>
             </div>
             <div>
@@ -145,15 +198,24 @@ const FinanceManager: React.FC = () => {
                 ${totalExpected.toFixed(2)}
               </div>
             </div>
-            <div>
-              <Label htmlFor="bostonPotCollected">Boston Pot Collected ($)</Label>
-              <div className="p-2 bg-yellow-100 rounded border font-semibold text-yellow-700">
-                ${bostonPotCollected.toFixed(2)}
+            {!isFiveWay && (
+              <div>
+                <Label>Boston Pot Collected ($)</Label>
+                <div className="p-2 bg-yellow-100 rounded border font-semibold text-yellow-700">
+                  ${bostonPotCollected.toFixed(2)}
+                </div>
               </div>
-            </div>
+            )}
           </div>
+          {isFiveWay && (
+            <p className="text-sm text-purple-700 bg-purple-50 rounded p-2">
+              5-Way mode: entry fees (${entryCollected.toFixed(2)} collected) + side pot fees (${bostonPotCollected.toFixed(2)} collected) are combined into one prize pool.
+            </p>
+          )}
         </CardContent>
       </Card>
+
+      {/* Payout distribution */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -162,6 +224,7 @@ const FinanceManager: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Club share */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center gap-2">
               <Label htmlFor="clubShare" className="min-w-0 flex-1">Club Share (%)</Label>
@@ -178,8 +241,16 @@ const FinanceManager: React.FC = () => {
             </div>
           </div>
 
+          {/* Prize pool splits */}
           <div className="space-y-3">
-            <h3 className="font-semibold">Prize Pool: ${prizePool.toFixed(2)}</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Prize Pool: ${prizePool.toFixed(2)}</h3>
+              <div className={`flex items-center gap-1 text-sm font-semibold ${prizeIsValid ? 'text-green-600' : 'text-red-600'}`}>
+                {!prizeIsValid && <AlertCircle className="h-4 w-4" />}
+                Prize %: {prizeTotal}% {prizeIsValid ? '✓' : '— must equal 100%'}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center gap-2">
                 <Label htmlFor="first" className="min-w-0 flex-1">1st Place (%)</Label>
@@ -190,7 +261,7 @@ const FinanceManager: React.FC = () => {
                   onChange={(e) => setFirstPlace(Number(e.target.value))}
                   className="w-20"
                 />
-                <div className="font-semibold text-yellow-600 min-w-0">
+                <div className={`font-semibold text-yellow-600 min-w-0 ${amountClass}`}>
                   ${firstPayout.toFixed(2)}
                 </div>
               </div>
@@ -203,7 +274,7 @@ const FinanceManager: React.FC = () => {
                   onChange={(e) => setSecondPlace(Number(e.target.value))}
                   className="w-20"
                 />
-                <div className="font-semibold text-gray-600 min-w-0">
+                <div className={`font-semibold text-gray-600 min-w-0 ${amountClass}`}>
                   ${secondPayout.toFixed(2)}
                 </div>
               </div>
@@ -216,7 +287,7 @@ const FinanceManager: React.FC = () => {
                   onChange={(e) => setThirdPlace(Number(e.target.value))}
                   className="w-20"
                 />
-                <div className="font-semibold text-orange-600 min-w-0">
+                <div className={`font-semibold text-orange-600 min-w-0 ${amountClass}`}>
                   ${thirdPayout.toFixed(2)}
                 </div>
               </div>
@@ -229,28 +300,47 @@ const FinanceManager: React.FC = () => {
                   onChange={(e) => setFourthPlace(Number(e.target.value))}
                   className="w-20"
                 />
-                <div className="font-semibold text-blue-600 min-w-0">
+                <div className={`font-semibold text-blue-600 min-w-0 ${amountClass}`}>
                   ${fourthPayout.toFixed(2)}
                 </div>
               </div>
+
+              {isFiveWay && (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="sidePot" className="min-w-0 flex-1">Side Pot (%)</Label>
+                  <Input
+                    id="sidePot"
+                    type="number"
+                    value={sidePot}
+                    onChange={(e) => setSidePot(Number(e.target.value))}
+                    className="w-20"
+                  />
+                  <div className={`font-semibold text-purple-600 min-w-0 ${amountClass}`}>
+                    ${sidePotPayout.toFixed(2)}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-4 font-semibold mt-4">
-              <div>
-                Boston Pot Split per Team: <span className="text-green-700">${bostonSplit.toFixed(2)}</span>
+
+            {/* Boston pot (4-way only) */}
+            {!isFiveWay && (
+              <div className="flex items-center gap-4 font-semibold mt-4">
+                <div>
+                  Boston Pot Split per Team: <span className="text-green-700">${bostonSplit.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="bostonWinners">Number of Boston Winners</Label>
+                  <Input
+                    id="bostonWinners"
+                    type="number"
+                    min={1}
+                    value={bostonWinners}
+                    onChange={e => setBostonWinners(Number(e.target.value))}
+                    className="w-32"
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="bostonWinners">Number of Boston Winners</Label>
-                <Input
-                  id="bostonWinners"
-                  type="number"
-                  min={1}
-                  value={bostonWinners}
-                  onChange={e => setBostonWinners(Number(e.target.value))}
-                  placeholder="Enter number of winning teams"
-                  className="w-32"
-                />
-              </div>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>

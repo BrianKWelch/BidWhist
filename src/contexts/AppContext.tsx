@@ -62,6 +62,7 @@ export interface Tournament {
   status: 'active' | 'pending' | 'finished';
   tracksHands?: boolean;
   scoringMode?: 'team' | 'admin';
+  paymentModel?: 'four_way' | 'five_way';
 }
 
 export interface Game {
@@ -215,7 +216,7 @@ interface AppContextType {
   updateTeam: (updatedTeam: Team) => void;
   addTournament: (name: string, cost: number, bostonPotCost: number, description?: string, tracksHands?: boolean) => void;
   createTournament: (name: string, status: 'pending' | 'active' | 'finished') => Promise<void>;
-  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin') => void;
+  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way') => void;
   updateTournamentStatus: (tournament: Tournament) => Promise<void>;
   deleteTournament: (tournamentId: string) => Promise<void>;
   submitGame: (game: any) => void;
