@@ -114,7 +114,7 @@ export const BracketDisplay: React.FC<BracketDisplayProps> = ({
           return (
             <Card key={round} className="w-full">
               <CardHeader>
-                <CardTitle className="text-center">
+                <CardTitle className="text-center" style={{ color: '#a60002' }}>
                   {getRoundName(round)} - {roundMatches.length} Tables
                 </CardTitle>
               </CardHeader>

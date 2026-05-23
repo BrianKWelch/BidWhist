@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PlayerSetup from './PlayerSetup';
 import TeamBuilder from './TeamBuilder';
 import PlayerRegistration from './PlayerRegistration';
+import { RegistrationDesk } from './RegistrationDesk';
 import TeamsByTournament from './TeamsByTournament';
 import TeamPayments from './TeamPayments';
 import TeamPaymentDetails from './TeamPaymentDetails';
@@ -22,7 +23,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import {
   Users, History, RotateCcw, Settings, Calendar,
   MessageSquare, Award, CalendarClock, DollarSign, Search,
-  UserPlus, Trophy, FileSpreadsheet
+  UserPlus, Trophy, FileSpreadsheet, ClipboardList
 } from 'lucide-react';
 import { BracketIcon, CommandCenterIcon, ResultsIcon, CityIcon, GoIcon, RefreshIcon, MessageIcon, ScheduleIcon, DollarIcon } from './icons/CustomIcons';
 import { toast } from '@/hooks/use-toast';
@@ -84,7 +85,8 @@ const AppLayout = () => {
               tracksHands: t.tracks_hands !== false,
               scoringMode: t.scoring_mode || 'team',
               paymentModel: t.payment_model || 'four_way',
-              sortOrder: t.sort_order || 'wins,hands,points'
+              sortOrder: t.sort_order || 'wins,hands,points',
+              prepaidCost: t.prepaid_cost || 40
             }));
             setTournaments(mappedTournaments);
           }
@@ -194,6 +196,7 @@ const AppLayout = () => {
                 {(() => {
                   const activeTournament = getActiveTournament();
                   const navigationItems = [
+                    ['reg-desk', <ClipboardList className="h-6 w-6" />],
                     ['teams', <CommandCenterIcon />],
                     ['schedule', <ScheduleIcon />],
                     ['results', <ResultsIcon />],
@@ -226,7 +229,8 @@ const AppLayout = () => {
 
             {/* Tabs Content */}
             <div className="flex-1 p-4">
-              <TabsContent value="teams"><TeamBuilder 
+              <TabsContent value="reg-desk"><RegistrationDesk /></TabsContent>
+              <TabsContent value="teams"><TeamBuilder
                 onTeamPaymentClick={(teamId) => {
                   setSelectedTeamForPayments(teamId);
                   setActiveTab("team-payment-details");

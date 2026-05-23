@@ -1,12 +1,15 @@
 import React from 'react';
 import type { BracketMatch, BracketTeam } from '@/contexts/AppContext';
 import { getVisualPos } from '@/lib/bracketUtils';
+import setplayLogo from '@/assets/SetPlay_Logo crop.png';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 const MATCH_H = 78;   // height of each match card (px)
 const MATCH_W = 215;  // width of each match card (px)
 const CONN_W  = 50;   // horizontal connector width (px)
 const UNIT    = 100;  // vertical space per round-1 slot — must be >= MATCH_H
+
+const LINE_COLOR = '#475569'; // shared between connectors and card borders
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 const slotH   = (round: number) => Math.pow(2, round - 1) * UNIT;
@@ -95,15 +98,14 @@ export const BracketVisual: React.FC<{ size: number; matches: BracketMatch[] }> 
     const nX          = leftX(r + 1);         // left edge of round r+1 cards
 
     for (let p = 0; p < numPairs; p++) {
-      // Visual positions of the two feeder matches
       const visA = getVisualPos(size, r, rMatches[p * 2].table);
       const visB = getVisualPos(size, r, rMatches[p * 2 + 1].table);
       const cyA  = centerY(r, visA);
       const cyB  = centerY(r, visB);
-      const cyN  = (cyA + cyB) / 2;  // midpoint = center of next-round match
+      const cyN  = (cyA + cyB) / 2;
 
       lines.push(
-        <g key={`c-${r}-${p}`} stroke="#cbd5e1" strokeWidth={1.5} fill="none">
+        <g key={`c-${r}-${p}`} stroke={LINE_COLOR} strokeWidth={2} fill="none">
           <line x1={rX} y1={cyA} x2={mX} y2={cyA} />
           <line x1={rX} y1={cyB} x2={mX} y2={cyB} />
           <line x1={mX} y1={cyA} x2={mX} y2={cyB} />
@@ -116,22 +118,33 @@ export const BracketVisual: React.FC<{ size: number; matches: BracketMatch[] }> 
   return (
     <div style={{ overflowX: 'auto', padding: '20px 28px 28px' }}>
 
-      {/* Round header labels */}
-      <div style={{ display: 'flex', marginBottom: 10 }}>
-        {Array.from({ length: numRounds }, (_, i) => (
-          <div key={i} style={{
-            width: MATCH_W,
-            marginRight: i < numRounds - 1 ? CONN_W : 0,
-            textAlign: 'center',
-            fontSize: 11,
-            fontWeight: 700,
-            color: '#a60002',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}>
-            {getRoundName(i + 1, numRounds)}
-          </div>
-        ))}
+      {/* Logo + round header row */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+
+        {/* Round header labels — same width as bracket */}
+        <div style={{ display: 'flex', flex: 1 }}>
+          {Array.from({ length: numRounds }, (_, i) => (
+            <div key={i} style={{
+              width: MATCH_W,
+              marginRight: i < numRounds - 1 ? CONN_W : 0,
+              textAlign: 'center',
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#a60002',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}>
+              {getRoundName(i + 1, numRounds)}
+            </div>
+          ))}
+        </div>
+
+        {/* SetPlay logo — right of headers */}
+        <img
+          src={setplayLogo}
+          alt="SetPlay"
+          style={{ height: 36, marginLeft: 24, opacity: 0.85, flexShrink: 0 }}
+        />
       </div>
 
       {/* Bracket canvas */}
@@ -164,31 +177,31 @@ export const BracketVisual: React.FC<{ size: number; matches: BracketMatch[] }> 
                 left:  leftX(round),
                 width: MATCH_W,
                 height: MATCH_H,
-                border: `1px solid ${hasWin ? '#86efac' : '#e2e8f0'}`,
+                border: `1.5px solid ${hasWin ? '#16a34a' : LINE_COLOR}`,
                 borderRadius: 6,
                 backgroundColor: '#fff',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
               }}>
-                {/* Table label */}
+                {/* Table label — red bar */}
                 <div style={{
                   fontSize: 9,
-                  color: '#94a3b8',
+                  color: '#fff',
                   textAlign: 'center',
-                  padding: '2px 0',
-                  borderBottom: '1px solid #f1f5f9',
-                  letterSpacing: '0.05em',
+                  padding: '3px 0',
+                  letterSpacing: '0.07em',
                   textTransform: 'uppercase',
+                  fontWeight: 700,
                   lineHeight: 1.2,
-                  backgroundColor: '#fafafa',
+                  backgroundColor: '#a60002',
                 }}>
                   Table {match.table}
                 </div>
 
                 <TeamRow team={match.team1} isWinner={t1Win} score={match.team1Score} />
-                <div style={{ height: 1, backgroundColor: '#f1f5f9' }} />
+                <div style={{ height: 1, backgroundColor: '#e2e8f0' }} />
                 <TeamRow team={match.team2} isWinner={t2Win} score={match.team2Score} />
               </div>
             );

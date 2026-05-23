@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppContext } from '@/contexts/AppContext';
+import { supabase } from '../supabaseClient';
 import { DollarSign, Percent, AlertCircle } from 'lucide-react';
 
 const DEFAULT_PERCENTAGES = {
@@ -45,6 +46,13 @@ const FinanceManager: React.FC = () => {
   const [bostonPotCollected, setBostonPotCollected] = useState(0);
   const [bostonPotOwed, setBostonPotOwed] = useState(0);
   const [bostonWinners, setBostonWinners] = useState(1);
+
+  // Prepaid adjustment fields
+  const [prepaidCount, setPrepaidCount] = useState(0);
+  const [totalPlayerCount, setTotalPlayerCount] = useState(0);
+  const [discountPerPlayer, setDiscountPerPlayer] = useState(0);
+  const [baseMode, setBaseMode] = useState<'collected' | 'prepay'>('collected');
+  const [giveback, setGiveback] = useState(0);
 
   // Default to active tournament on mount
   useEffect(() => {
@@ -117,6 +125,31 @@ const FinanceManager: React.FC = () => {
     setBostonPotOwed(totalBostonOwed);
   }, [selectedTournament, tournaments, teams]);
 
+  // Fetch prepaid and total player counts from player_tournament
+  useEffect(() => {
+    if (!selectedTournament) {
+      setPrepaidCount(0);
+      setTotalPlayerCount(0);
+      return;
+    }
+    const fetchCounts = async () => {
+      const [{ count: prepaid }, { count: total }] = await Promise.all([
+        supabase
+          .from('player_tournament')
+          .select('*', { count: 'exact', head: true })
+          .eq('tournament_id', selectedTournament)
+          .eq('prepaid', true),
+        supabase
+          .from('player_tournament')
+          .select('*', { count: 'exact', head: true })
+          .eq('tournament_id', selectedTournament),
+      ]);
+      setPrepaidCount(prepaid ?? 0);
+      setTotalPlayerCount(total ?? 0);
+    };
+    fetchCounts();
+  }, [selectedTournament]);
+
   const tournament = tournaments.find(t => t.id === selectedTournament);
   const isFiveWay = tournament?.paymentModel === 'five_way';
 
@@ -126,8 +159,14 @@ const FinanceManager: React.FC = () => {
   const totalOwed = isFiveWay ? entryOwed + bostonPotOwed : entryOwed;
   const totalExpected = totalCollected + totalOwed;
 
-  const clubAmount = (totalExpected * clubShare) / 100;
-  const prizePool = totalExpected - clubAmount;
+  // Prepaid adjustment
+  const nonPrepaidCount = totalPlayerCount - prepaidCount;
+  const assumePrepayAmount = totalCollected - (discountPerPlayer * totalPlayerCount);
+  const adjustedBase = baseMode === 'prepay' ? assumePrepayAmount : totalCollected;
+
+  const clubAmount = (adjustedBase * clubShare) / 100;
+  const prizePoolBeforeGiveback = adjustedBase - clubAmount;
+  const prizePool = prizePoolBeforeGiveback - giveback;
 
   const prizeTotal = isFiveWay
     ? firstPlace + secondPlace + thirdPlace + fourthPlace + sidePot
@@ -215,6 +254,95 @@ const FinanceManager: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Prepaid Adjustment */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Prepaid Adjustment
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+
+          {/* Player counts */}
+          <div className="flex gap-6 text-sm">
+            <div className="flex flex-col items-center px-4 py-2 bg-green-50 rounded border border-green-200">
+              <span className="text-2xl font-bold text-green-700">{prepaidCount}</span>
+              <span className="text-green-600 font-medium">Prepaid</span>
+            </div>
+            <div className="flex flex-col items-center px-4 py-2 bg-orange-50 rounded border border-orange-200">
+              <span className="text-2xl font-bold text-orange-700">{nonPrepaidCount}</span>
+              <span className="text-orange-600 font-medium">Walk-in</span>
+            </div>
+            <div className="flex flex-col items-center px-4 py-2 bg-gray-50 rounded border border-gray-200">
+              <span className="text-2xl font-bold text-gray-700">{totalPlayerCount}</span>
+              <span className="text-gray-600 font-medium">Total Players</span>
+            </div>
+          </div>
+
+          {/* Discount input */}
+          <div className="flex items-center gap-3">
+            <Label htmlFor="discountPerPlayer" className="min-w-0 flex-1">
+              Discount Per Player ($)
+              <span className="block text-xs text-gray-500 font-normal">
+                Assume Prepay = Collected − (discount × {totalPlayerCount} players)
+              </span>
+            </Label>
+            <Input
+              id="discountPerPlayer"
+              type="number"
+              min={0}
+              value={discountPerPlayer}
+              onChange={e => setDiscountPerPlayer(Number(e.target.value))}
+              className="w-24"
+            />
+          </div>
+
+          {/* Two amounts — pick one */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setBaseMode('collected')}
+              className={`p-3 rounded border-2 text-left transition-colors ${
+                baseMode === 'collected'
+                  ? 'border-green-500 bg-green-50'
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="text-xs font-medium text-gray-500 mb-1">Collected Amount</div>
+              <div className={`text-xl font-bold ${baseMode === 'collected' ? 'text-green-700' : 'text-gray-600'}`}>
+                ${totalCollected.toFixed(2)}
+              </div>
+              {baseMode === 'collected' && (
+                <div className="text-xs text-green-600 mt-1">✓ Using as base</div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setBaseMode('prepay')}
+              className={`p-3 rounded border-2 text-left transition-colors ${
+                baseMode === 'prepay'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="text-xs font-medium text-gray-500 mb-1">Assume Prepay Amount</div>
+              <div className={`text-xl font-bold ${baseMode === 'prepay' ? 'text-blue-700' : 'text-gray-600'}`}>
+                ${assumePrepayAmount.toFixed(2)}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                ${totalCollected.toFixed(2)} − (${discountPerPlayer} × {totalPlayerCount})
+              </div>
+              {baseMode === 'prepay' && (
+                <div className="text-xs text-blue-600 mt-1">✓ Using as base</div>
+              )}
+            </button>
+          </div>
+
+        </CardContent>
+      </Card>
+
       {/* Payout distribution */}
       <Card>
         <CardHeader>
@@ -240,6 +368,28 @@ const FinanceManager: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Giveback field */}
+          <div className="flex items-center gap-2">
+            <Label htmlFor="giveback" className="min-w-0 flex-1">
+              Giveback / Entry Fee Returns ($)
+              <span className="block text-xs text-gray-500 font-normal">Subtracted from prize pool before player % calculations</span>
+            </Label>
+            <Input
+              id="giveback"
+              type="number"
+              min={0}
+              value={giveback}
+              onChange={e => setGiveback(Number(e.target.value))}
+              className="w-24"
+            />
+          </div>
+
+          {giveback > 0 && (
+            <div className="p-2 bg-amber-50 rounded border border-amber-200 text-sm text-amber-700">
+              After club share (${clubAmount.toFixed(2)}) and giveback (${giveback.toFixed(2)}) removed from ${adjustedBase.toFixed(2)} base — prize pool is ${prizePool.toFixed(2)}
+            </div>
+          )}
 
           {/* Prize pool splits */}
           <div className="space-y-3">

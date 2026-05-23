@@ -461,7 +461,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [enteringTeamId, setEnteringTeamId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const { teams, schedules, games, tournaments, getActiveTournament, submitGame, confirmScore, beginScoreEntry, releaseScoreEntryLock, refreshGamesFromSupabase, getActiveMessages } = useAppContext();
+  const { teams, schedules, games, tournaments, getActiveTournament, submitGame, confirmScore, beginScoreEntry, releaseScoreEntryLock, retractScore, refreshGamesFromSupabase, getActiveMessages } = useAppContext();
 
   const cleanPhoneNumber = (phone: string) => {
     return phone.replace(/\D/g, '');
@@ -537,15 +537,6 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
     }
   }, [team]);
 
-  // Force re-render when messages change
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // This will trigger a re-render when messages change
-      setRefreshKey(prev => prev + 1);
-    }, 1000); // Check every second
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Periodic refresh as backup to real-time updates
   useEffect(() => {
@@ -656,25 +647,6 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
         // Use the winner field from the game data, which handles tied scores correctly
         const isWin = (isTeamAInGame && existingGame.winner === 'teamA') || (!isTeamAInGame && existingGame.winner === 'teamB');
         
-        // Debug logging to see what's happening
-        console.log('Game result debug:', {
-          matchId: match.id,
-          teamId: team.id,
-          isTeamAInGame,
-          myScore,
-          opponentScore,
-          winner: existingGame.winner,
-          isWin,
-          scoreA: existingGame.scoreA,
-          scoreB: existingGame.scoreB,
-          gameTeamA: existingGame.teamA,
-          gameTeamB: existingGame.teamB,
-          scheduleTeamA: match.teamA,
-          scheduleTeamB: match.teamB,
-          winnerCheck: `isTeamAInGame=${isTeamAInGame}, winner=${existingGame.winner}, isWin=${isWin}`,
-          shouldBeWin: existingGame.scoreA > existingGame.scoreB ? 'teamA should win' : 'teamB should win'
-        });
-        
         gameResult = {
           myScore,
           opponentScore,
@@ -732,7 +704,6 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
   // Login screen
   if (!team) {
     const activeMessage = getActiveMessages()[0];
-    console.log('Login screen - active message:', activeMessage);
       return (
     <div className="min-h-screen flex flex-col justify-start items-center bg-gray-50 px-4 pt-0 pb-4">
       <MessageBanner 
@@ -890,7 +861,13 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => {
+              onClick={async () => {
+                // Release any active score entry lock before logging out
+                if (enteringTeamId && selectedMatch) {
+                  await releaseScoreEntryLock({ matchId: selectedMatch.id, teamId: enteringTeamId });
+                }
+                setSelectedMatch(null);
+                setEnteringTeamId(null);
                 setTeam(null);
                 setTestMode(false);
                 setAdminMode(false);
@@ -1117,19 +1094,33 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                                      </div>
                                                    </Badge>
                                                  ) : match.status === 'Opponent confirming score' ? (
-                                                   <Badge 
-                                                     variant="secondary"
-                                                     className="text-xs bg-green-100 text-green-800 border-green-300"
-                                                   >
-                                                     <div className="flex items-center">
-                                                       <div className="flex space-x-1 mr-1">
-                                                         <div className="w-1 h-1 bg-green-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                                         <div className="w-1 h-1 bg-green-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                                         <div className="w-1 h-1 bg-green-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                                   <div className="flex flex-col items-center gap-1">
+                                                     <Badge
+                                                       variant="secondary"
+                                                       className="text-xs bg-green-100 text-green-800 border-green-300"
+                                                     >
+                                                       <div className="flex items-center">
+                                                         <div className="flex space-x-1 mr-1">
+                                                           <div className="w-1 h-1 bg-green-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                                           <div className="w-1 h-1 bg-green-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                                           <div className="w-1 h-1 bg-green-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                                         </div>
+                                                         <span className="text-xs">Confirming</span>
                                                        </div>
-                                                       <span className="text-xs">Confirming</span>
-                                                     </div>
-                                                   </Badge>
+                                                     </Badge>
+                                                     <button
+                                                       className="text-xs text-red-500 underline"
+                                                       onClick={async () => {
+                                                         const g = match.existingGame;
+                                                         if (!g) return;
+                                                         const r = await retractScore(g.id, String(team.id));
+                                                         if (r.ok) toast({ title: 'Score retracted — both teams can re-enter' });
+                                                         else toast({ title: 'Could not retract', variant: 'destructive' });
+                                                       }}
+                                                     >
+                                                       Retract score
+                                                     </button>
+                                                   </div>
                                                  ) : match.status === 'Score disputed - re-enter' ? (
                                                    <Button 
                                                      size="sm" 
@@ -1170,18 +1161,20 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                                    >
                                                      <span className="text-xs">Disputed</span>
                                                    </Badge>
-                                                ) : (
-                                                   <Badge 
-                                                     variant={match.status === 'Waiting for opponent confirmation' ? 'secondary' : 'default'}
-                                                     className="text-xs"
-                                                     onClick={() => {
-                                                       if (match.status === 'Pending confirmation') {
-                                                         setSelectedMatch(match);
-                                                       }
-                                                     }}
+                                                ) : match.status === 'Pending confirmation' ? (
+                                                   <Button
+                                                     size="sm"
+                                                     className="text-white font-bold px-2 py-1 text-xs rounded-md shadow-sm animate-pulse"
+                                                     style={{ backgroundColor: '#a60002' }}
+                                                     onClick={() => setSelectedMatch(match)}
                                                    >
+                                                     <Check className="h-3 w-3 mr-1" />
+                                                     Confirm Score
+                                                   </Button>
+                                                 ) : (
+                                                   <Badge variant="secondary" className="text-xs">
                                                      {match.status === 'Waiting for opponent' && <Clock className="h-3 w-3 mr-1" />}
-                                                     {match.status === 'Pending confirmation' ? 'Confirm Score' : match.status}
+                                                     {match.status}
                                                    </Badge>
                                                  )}
                                               </div>

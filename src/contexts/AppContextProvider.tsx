@@ -690,7 +690,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
-            sortOrder: t.sort_order || 'wins,hands,points'
+            sortOrder: t.sort_order || 'wins,hands,points',
+              prepaidCost: t.prepaid_cost || 40
           }));
           setTournaments(tournaments);
         }
@@ -1960,13 +1961,31 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       if (existing && existing.length > 0) {
         const g = existing[0];
-        // If another team holds the lock, deny
+        const LOCK_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
+        // Auto-expire stale 'entering' locks (browser closed, phone died, etc.)
         if (g.status === 'entering' && String(g.entered_by_team_id) !== String(teamId)) {
+          const lockAge = Date.now() - new Date(g.timestamp).getTime();
+          if (lockAge > LOCK_EXPIRY_MS) {
+            // Stale lock — delete it and fall through to create a fresh one
+            await supabase.from('games').delete().eq('id', g.id);
+          } else {
+            return { ok: false, reason: 'conflict' as const };
+          }
+        }
+
+        // pending_confirmation: allow the ORIGINAL submitter to retract (handled via retractScore),
+        // but block everyone else so the confirmer can still act
+        if (g.status === 'pending_confirmation' && String(g.entered_by_team_id) !== String(teamId)) {
           return { ok: false, reason: 'conflict' as const };
         }
-        if (g.status === 'pending_confirmation') {
-          return { ok: false, reason: 'conflict' as const };
+        // If the same team that submitted tries to re-enter via beginScoreEntry while pending,
+        // treat it as a retract (delete) + fresh start
+        if (g.status === 'pending_confirmation' && String(g.entered_by_team_id) === String(teamId)) {
+          await supabase.from('games').delete().eq('id', g.id);
+          // Fall through to create a fresh entering record
         }
+
         // For disputed status, only allow the team that originally entered the score to re-enter
         if (g.status === 'disputed' && String(g.entered_by_team_id) !== String(teamId)) {
           return { ok: false, reason: 'conflict' as const };
@@ -2032,16 +2051,37 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         .eq('matchId', matchId)
         .eq('status', 'entering')
         .eq('entered_by_team_id', teamId);
-      
+
       if (error) {
         console.error('Error releasing score entry lock:', error);
         return { ok: false };
       }
-      
+
       await refreshGamesFromSupabase();
       return { ok: true };
     } catch (error) {
       console.error('Error releasing score entry lock:', error);
+      return { ok: false };
+    }
+  };
+
+  // Lets the submitter retract a pending_confirmation score so both teams can start fresh
+  const retractScore = async (gameId: string, teamId: string) => {
+    try {
+      const { error } = await supabase
+        .from('games')
+        .delete()
+        .eq('id', gameId)
+        .eq('entered_by_team_id', String(teamId))
+        .eq('status', 'pending_confirmation');
+      if (error) {
+        console.error('Error retracting score:', error);
+        return { ok: false };
+      }
+      await refreshGamesFromSupabase();
+      return { ok: true };
+    } catch (error) {
+      console.error('Error retracting score:', error);
       return { ok: false };
     }
   };
@@ -2390,6 +2430,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       submitGame,
       beginScoreEntry,
       releaseScoreEntryLock,
+      retractScore,
       confirmGame: (gameId: string, confirmedBy: string) => { setGames(prev => prev.map(game => game.id === gameId ? { ...game, confirmed: true, confirmedBy } : game)); },
       updateGameScore: (matchId: string, teamAScore: number, teamBScore: number) => {},
       saveSchedule: async (schedule: TournamentSchedule) => {
@@ -2515,7 +2556,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
-            sortOrder: t.sort_order || 'wins,hands,points'
+            sortOrder: t.sort_order || 'wins,hands,points',
+              prepaidCost: t.prepaid_cost || 40
           }));
           setTournaments(mappedTournaments);
         }
@@ -2550,7 +2592,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
-            sortOrder: t.sort_order || 'wins,hands,points'
+            sortOrder: t.sort_order || 'wins,hands,points',
+              prepaidCost: t.prepaid_cost || 40
           }));
           setTournaments(mappedTournaments);
         }
@@ -2581,7 +2624,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
-            sortOrder: t.sort_order || 'wins,hands,points'
+            sortOrder: t.sort_order || 'wins,hands,points',
+              prepaidCost: t.prepaid_cost || 40
           }));
           setTournaments(mappedTournaments);
         }
@@ -2609,7 +2653,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
-            sortOrder: t.sort_order || 'wins,hands,points'
+            sortOrder: t.sort_order || 'wins,hands,points',
+              prepaidCost: t.prepaid_cost || 40
           }));
           setTournaments(mappedTournaments);
         }
