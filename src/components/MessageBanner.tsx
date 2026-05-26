@@ -2,59 +2,33 @@ import React from 'react';
 
 interface MessageBannerProps {
   message: string;
-  type?: 'info' | 'warning' | 'success' | 'error';
+  type?: string; // kept for backward compat but ignored — single style only
 }
 
-const MessageBanner: React.FC<MessageBannerProps> = ({ message, type = 'info' }) => {
-  console.log('MessageBanner render:', { message, type });
+const MessageBanner: React.FC<MessageBannerProps> = ({ message }) => {
   if (!message) return null;
 
-  const getBannerStyles = () => {
-    switch (type) {
-      case 'warning':
-        return 'bg-yellow-500 text-yellow-900';
-      case 'success':
-        return 'bg-green-500 text-green-900';
-      case 'error':
-        return 'bg-red-500 text-red-900';
-      default:
-        return 'bg-blue-500 text-blue-900';
-    }
-  };
-
   return (
-    <div className={`fixed top-0 left-0 right-0 z-50 ${getBannerStyles()} py-2 overflow-hidden`}>
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
+      backgroundColor: '#a60002',
+      padding: '10px 0',
+      overflow: 'hidden',
+    }}>
       <div className="animate-marquee whitespace-nowrap">
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
-        <span className="inline-block px-4 font-medium text-sm">
-          {message}
-        </span>
+        {[...Array(8)].map((_, i) => (
+          <span key={i} style={{
+            display: 'inline-block',
+            paddingLeft: 48,
+            paddingRight: 48,
+            fontSize: 18,
+            fontWeight: 700,
+            color: '#ffffff',
+            letterSpacing: '0.02em',
+          }}>
+            {message}
+          </span>
+        ))}
       </div>
     </div>
   );

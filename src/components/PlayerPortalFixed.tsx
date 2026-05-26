@@ -727,6 +727,8 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                               <div className="space-y-2">
                   <label className="text-sm font-bold" style={{ color: '#a60002' }}>Phone Number</label>
                   <Input
+                    type="tel"
+                    inputMode="numeric"
                     placeholder="(XXX) XXX-XXXX"
                     value={phoneNumber}
                     onChange={(e) => {
