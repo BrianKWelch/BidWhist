@@ -2242,12 +2242,32 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           
           // Update team_registrations join table if registeredTournaments is present
           if (Array.isArray(registeredTournaments)) {
-            // Remove all existing registrations for this team
+            // Find which tournaments are being removed so we can clean up player_tournament
+            const { data: existingRegs } = await supabase
+              .from('team_registrations').select('tournament_id').eq('team_id', id);
+            const prevTournaments = (existingRegs || []).map((r: any) => r.tournament_id);
+            const removedTournaments = prevTournaments.filter((tid: string) => !registeredTournaments.includes(tid));
+
+            // Remove all existing registrations for this team then re-insert
             await supabase.from('team_registrations').delete().eq('team_id', id);
-            // Insert new registrations
             if (registeredTournaments.length > 0) {
               const newRegs = registeredTournaments.map(tournament_id => ({ team_id: id, tournament_id }));
               await supabase.from('team_registrations').insert(newRegs);
+            }
+
+            // Clean up player_tournament for removed tournaments so players can be re-registered
+            if (removedTournaments.length > 0) {
+              const { data: teamData } = await supabase
+                .from('teams').select('player1_id, player2_id').eq('id', id).single();
+              if (teamData) {
+                const playerIds = [teamData.player1_id, teamData.player2_id].filter(Boolean);
+                for (const tid of removedTournaments) {
+                  await supabase.from('player_tournament')
+                    .delete()
+                    .in('player_id', playerIds)
+                    .eq('tournament_id', tid);
+                }
+              }
             }
           }
 
