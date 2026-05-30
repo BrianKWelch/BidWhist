@@ -6,22 +6,23 @@ import { Trophy, Target, Award, Calendar, Search } from 'lucide-react';
 import { TournamentResults } from './TournamentResults';
 const ExportResultsButton = React.lazy(() => import('./ExportResultsButton'));
 
-const ScoreVerifier = ({ games, teams, schedules, activeTournamentId }: { games: any[]; teams: any[]; schedules: any[]; activeTournamentId: string | null }) => {
+const ScoreVerifier = ({ games, teams, schedules, activeTournamentId, onRefresh }: { games: any[]; teams: any[]; schedules: any[]; activeTournamentId: string | null; onRefresh: () => void }) => {
   const [roundInput, setRoundInput] = React.useState('');
   const [teamInput, setTeamInput] = React.useState('');
+  const [editing, setEditing] = React.useState(false);
+  const [editValues, setEditValues] = React.useState({ myScore: '', oppScore: '', myHands: '', oppHands: '', myBostons: '', oppBostons: '' });
+  const [saving, setSaving] = React.useState(false);
 
-  const result = React.useMemo(() => {
+  const found = React.useMemo(() => {
     const round = parseInt(roundInput);
     const teamNum = teamInput.trim();
     if (!round || !teamNum) return null;
 
-    // Find team by number or id
     const team = teams.find(t =>
       String(t.teamNumber) === teamNum || String(t.id) === teamNum
     );
     if (!team) return { error: `No team found for #${teamNum}` };
 
-    // Find the match in the active tournament's schedule for this round and team
     const schedule = schedules.find(s => s.tournamentId === activeTournamentId);
     if (!schedule) return { error: 'No active tournament schedule found' };
 
@@ -31,76 +32,183 @@ const ScoreVerifier = ({ games, teams, schedules, activeTournamentId }: { games:
     );
     if (!match) return { error: `Team ${teamNum} not scheduled in Round ${round}` };
 
-    // Find the confirmed game by matchId (most reliable)
     const game = games.find(g =>
       String(g.matchId) === String(match.id) &&
       (g.status === 'confirmed' || g.confirmed === true)
     );
     if (!game) return { error: `No confirmed score yet for Team ${teamNum} Round ${round}` };
 
-    // isA = this team is the teamA side in the game record
     const isA = String(game.teamA) === String(team.id);
-
-    const score  = isA ? (game.scoreA ?? game.score_a ?? 0) : (game.scoreB ?? game.score_b ?? 0);
-    const hands  = isA ? (game.handsA ?? game.hands_a ?? 0) : (game.handsB ?? game.hands_b ?? 0);
-    const bostons = isA ? (game.boston_a ?? 0) : (game.boston_b ?? 0);
+    const myScore   = isA ? (game.scoreA ?? game.score_a ?? 0) : (game.scoreB ?? game.score_b ?? 0);
+    const oppScore  = isA ? (game.scoreB ?? game.score_b ?? 0) : (game.scoreA ?? game.score_a ?? 0);
+    const myHands   = isA ? (game.handsA ?? game.hands_a ?? 0) : (game.handsB ?? game.hands_b ?? 0);
+    const oppHands  = isA ? (game.handsB ?? game.hands_b ?? 0) : (game.handsA ?? game.hands_a ?? 0);
+    const myBostons  = isA ? (game.boston_a ?? 0) : (game.boston_b ?? 0);
+    const oppBostons = isA ? (game.boston_b ?? 0) : (game.boston_a ?? 0);
     const oppId  = isA ? String(game.teamB) : String(game.teamA);
     const opp    = teams.find(t => String(t.id) === oppId);
 
-    return { score, hands, bostons, oppName: opp?.name ?? `Team ${oppId}` };
+    return { game, isA, myScore, oppScore, myHands, oppHands, myBostons, oppBostons, oppName: opp?.name ?? `Team ${oppId}`, teamName: team.name };
   }, [roundInput, teamInput, games, teams, schedules, activeTournamentId]);
+
+  const startEdit = () => {
+    if (!found || found.error) return;
+    setEditValues({
+      myScore: String(found.myScore),
+      oppScore: String(found.oppScore),
+      myHands: String(found.myHands),
+      oppHands: String(found.oppHands),
+      myBostons: String(found.myBostons),
+      oppBostons: String(found.oppBostons),
+    });
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!found || found.error) return;
+    setSaving(true);
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const { isA, game } = found;
+      const myScore   = Number(editValues.myScore);
+      const oppScore  = Number(editValues.oppScore);
+      const myHands   = Number(editValues.myHands);
+      const oppHands  = Number(editValues.oppHands);
+      const myBostons  = Number(editValues.myBostons);
+      const oppBostons = Number(editValues.oppBostons);
+
+      const scoreA  = isA ? myScore  : oppScore;
+      const scoreB  = isA ? oppScore : myScore;
+      const handsA  = isA ? myHands  : oppHands;
+      const handsB  = isA ? oppHands : myHands;
+      const bostonA = isA ? myBostons  : oppBostons;
+      const bostonB = isA ? oppBostons : myBostons;
+      const winner  = scoreA > scoreB ? 'teamA' : scoreB > scoreA ? 'teamB' : game.winner;
+
+      const { error } = await supabase.from('games').update({
+        scoreA, scoreB, handsA, handsB, boston_a: bostonA, boston_b: bostonB, winner
+      }).eq('id', game.id);
+
+      if (error) {
+        alert('Save failed: ' + error.message);
+      } else {
+        setEditing(false);
+        onRefresh();
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = 'w-16 border-2 border-gray-300 rounded px-1 py-1 text-center font-bold text-lg focus:border-red-600 outline-none';
 
   return (
     <Card className="border-2" style={{ borderColor: '#a60002' }}>
       <CardContent className="pt-4 pb-4">
+        {/* Lookup row */}
         <div className="flex flex-wrap items-center gap-3">
           <Search className="h-5 w-5 shrink-0" style={{ color: '#a60002' }} />
           <div className="flex items-center gap-2">
             <label className="text-sm font-semibold whitespace-nowrap">Round</label>
-            <input
-              type="number" min="1"
-              value={roundInput}
-              onChange={e => setRoundInput(e.target.value)}
-              className="w-16 border rounded px-2 py-1 text-center font-bold text-lg"
-              placeholder="—"
-            />
+            <input type="number" min="1" value={roundInput}
+              onChange={e => { setRoundInput(e.target.value); setEditing(false); }}
+              className="w-16 border rounded px-2 py-1 text-center font-bold text-lg" placeholder="—" />
           </div>
           <div className="flex items-center gap-2">
             <label className="text-sm font-semibold whitespace-nowrap">Team #</label>
-            <input
-              type="number" min="1"
-              value={teamInput}
-              onChange={e => setTeamInput(e.target.value)}
-              className="w-24 border rounded px-2 py-1 text-center font-bold text-lg"
-              placeholder="—"
-            />
+            <input type="number" min="1" value={teamInput}
+              onChange={e => { setTeamInput(e.target.value); setEditing(false); }}
+              className="w-24 border rounded px-2 py-1 text-center font-bold text-lg" placeholder="—" />
           </div>
 
-          {result && (
-            result.error
-              ? <span className="text-sm text-red-600 font-medium">{result.error}</span>
-              : (
+          {found && (
+            found.error
+              ? <span className="text-sm text-red-600 font-medium">{found.error}</span>
+              : !editing && (
                 <div className="flex items-center gap-4 ml-2">
                   <div className="text-center">
                     <div className="text-xs text-gray-500 uppercase tracking-wide">Score</div>
-                    <div className="text-2xl font-black" style={{ color: '#a60002' }}>{result.score}</div>
+                    <div className="text-2xl font-black" style={{ color: '#a60002' }}>{found.myScore}</div>
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-gray-500 uppercase tracking-wide">Hands</div>
-                    <div className="text-2xl font-black">{result.hands ?? '—'}</div>
+                    <div className="text-2xl font-black">{found.myHands}</div>
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-gray-500 uppercase tracking-wide">Bostons</div>
-                    <div className="text-2xl font-black">{result.bostons > 0 ? result.bostons : '—'}</div>
+                    <div className="text-2xl font-black">{found.myBostons > 0 ? found.myBostons : '—'}</div>
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-gray-500 uppercase tracking-wide">vs</div>
-                    <div className="text-sm font-semibold">{result.oppName}</div>
+                    <div className="text-sm font-semibold">{found.oppName}</div>
                   </div>
+                  <button onClick={startEdit}
+                    className="ml-2 text-xs font-bold px-3 py-1 rounded text-white"
+                    style={{ backgroundColor: '#a60002' }}>
+                    Edit
+                  </button>
                 </div>
               )
           )}
         </div>
+
+        {/* Edit row — shown below when editing */}
+        {editing && found && !found.error && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="text-xs font-bold text-gray-500 uppercase mb-3">
+              Editing: {found.teamName} vs {found.oppName}
+            </div>
+            <div className="flex flex-wrap gap-4 items-end">
+              {/* Team side */}
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-center" style={{ color: '#a60002' }}>Team Score</div>
+                <input type="number" className={inputCls} value={editValues.myScore}
+                  onChange={e => setEditValues(v => ({ ...v, myScore: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-center" style={{ color: '#a60002' }}>Team Hands</div>
+                <input type="number" className={inputCls} value={editValues.myHands}
+                  onChange={e => setEditValues(v => ({ ...v, myHands: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-center" style={{ color: '#a60002' }}>Team Bos</div>
+                <input type="number" className={inputCls} value={editValues.myBostons}
+                  onChange={e => setEditValues(v => ({ ...v, myBostons: e.target.value }))} />
+              </div>
+
+              <div className="text-xl font-black text-gray-400 pb-1">vs</div>
+
+              {/* Opponent side */}
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-center text-gray-500">Opp Score</div>
+                <input type="number" className={inputCls} value={editValues.oppScore}
+                  onChange={e => setEditValues(v => ({ ...v, oppScore: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-center text-gray-500">Opp Hands</div>
+                <input type="number" className={inputCls} value={editValues.oppHands}
+                  onChange={e => setEditValues(v => ({ ...v, oppHands: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-center text-gray-500">Opp Bos</div>
+                <input type="number" className={inputCls} value={editValues.oppBostons}
+                  onChange={e => setEditValues(v => ({ ...v, oppBostons: e.target.value }))} />
+              </div>
+
+              <div className="flex gap-2 pb-1">
+                <button onClick={saveEdit} disabled={saving}
+                  className="px-4 py-1 rounded text-white font-bold text-sm"
+                  style={{ backgroundColor: '#a60002', opacity: saving ? 0.6 : 1 }}>
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => setEditing(false)}
+                  className="px-4 py-1 rounded text-gray-600 font-bold text-sm border border-gray-300">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -180,7 +288,7 @@ const CombinedResultsPage = () => {
 
   return (
     <div className="space-y-6">
-      <ScoreVerifier games={games} teams={teams} schedules={schedules} activeTournamentId={activeTournament?.id ?? null} />
+      <ScoreVerifier games={games} teams={teams} schedules={schedules} activeTournamentId={activeTournament?.id ?? null} onRefresh={refreshGamesFromSupabase} />
       <div>
         {/* Export Button */}
         <div className="flex justify-end mb-2">
