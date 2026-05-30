@@ -1118,10 +1118,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const saveSchedule = async (schedule: TournamentSchedule) => {
-    // Upsert all matches in the schedule to Supabase
+    // Delete existing matches for this tournament, then insert fresh (avoids stale orphan records from upsert)
     try {
       const { matches } = schedule;
-      // Prepare matches for Supabase (map TS fields to DB columns)
       const supabaseMatches = matches.map(m => ({
         id: m.id,
         team_a: m.teamA,
@@ -1132,13 +1131,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         is_bye: m.isBye ?? false,
         is_same_city: m.isSameCity ?? false
       }));
-      const { error } = await supabase.from('matches').upsert(supabaseMatches, { onConflict: ['id'] });
+      const { error: deleteError } = await supabase
+        .from('matches')
+        .delete()
+        .eq('tournament_id', schedule.tournamentId);
+      if (deleteError) {
+        toast({ title: 'Failed to clear old schedule', description: deleteError.message, variant: 'destructive' });
+        return;
+      }
+      const { error } = await supabase.from('matches').insert(supabaseMatches);
       if (error) {
         toast({ title: 'Failed to save schedule to Supabase', description: error.message, variant: 'destructive' });
         return;
       }
       toast({ title: 'Schedule saved to Supabase!', variant: 'default' });
-      // Update local state for UI
       setSchedules(prev => [...prev.filter(s => s.tournamentId !== schedule.tournamentId), schedule]);
     } catch (err) {
       toast({ title: 'Unexpected error saving schedule', description: String(err), variant: 'destructive' });
@@ -2434,10 +2440,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       confirmGame: (gameId: string, confirmedBy: string) => { setGames(prev => prev.map(game => game.id === gameId ? { ...game, confirmed: true, confirmedBy } : game)); },
       updateGameScore: (matchId: string, teamAScore: number, teamBScore: number) => {},
       saveSchedule: async (schedule: TournamentSchedule) => {
-        // Upsert all matches in the schedule to Supabase
+        // Delete existing matches for this tournament, then insert fresh (avoids stale orphan records from upsert)
         try {
           const { matches } = schedule;
-          // Prepare matches for Supabase (map TS fields to DB columns)
           const supabaseMatches = matches.map(m => ({
             id: m.id,
             team_a: m.teamA,
@@ -2448,13 +2453,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             is_bye: m.isBye ?? false,
             is_same_city: m.isSameCity ?? false
           }));
-          const { error } = await supabase.from('matches').upsert(supabaseMatches, { onConflict: ['id'] });
+          const { error: deleteError } = await supabase
+            .from('matches')
+            .delete()
+            .eq('tournament_id', schedule.tournamentId);
+          if (deleteError) {
+            toast({ title: 'Failed to clear old schedule', description: deleteError.message, variant: 'destructive' });
+            return;
+          }
+          const { error } = await supabase.from('matches').insert(supabaseMatches);
           if (error) {
             toast({ title: 'Failed to save schedule to Supabase', description: error.message, variant: 'destructive' });
             return;
           }
           toast({ title: 'Schedule saved to Supabase!', variant: 'default' });
-          // Update local state for UI
           setSchedules(prev => [...prev.filter(s => s.tournamentId !== schedule.tournamentId), schedule]);
         } catch (err) {
           toast({ title: 'Unexpected error saving schedule', description: String(err), variant: 'destructive' });

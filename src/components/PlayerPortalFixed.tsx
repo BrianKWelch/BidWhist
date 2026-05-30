@@ -470,22 +470,27 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
   const handleLogin = () => {
     setLoginError('');
     const cleanPhone = cleanPhoneNumber(phoneNumber);
-    
+
     if (cleanPhone.length !== 10) {
       setLoginError('Please enter a valid 10-digit phone number');
       return;
     }
-    
-    const foundTeam = teams.find(t => {
+
+    const activeTournament = getActiveTournament();
+
+    // Find all teams whose phone matches
+    const matchingTeams = teams.filter(t => {
       const teamPhone = cleanPhoneNumber(t.phoneNumber);
       const player1Phone = cleanPhoneNumber(t.player1_phone || '');
       const player2Phone = cleanPhoneNumber(t.player2_phone || '');
-      
-      return teamPhone === cleanPhone || 
-             player1Phone === cleanPhone || 
-             player2Phone === cleanPhone;
+      return teamPhone === cleanPhone || player1Phone === cleanPhone || player2Phone === cleanPhone;
     });
-    
+
+    // Prefer the team registered for the active tournament
+    const foundTeam = activeTournament
+      ? (matchingTeams.find(t => t.registeredTournaments?.includes(activeTournament.id)) ?? matchingTeams[0])
+      : matchingTeams[0];
+
     if (foundTeam) {
       setTeam(foundTeam);
     } else {
@@ -697,8 +702,11 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
     const wins = results.filter(r => r.isWin).length;
     const totalGames = results.length;
     const totalPoints = results.reduce((sum, r) => sum + r.teamScore, 0);
-    const avgPoints = totalGames > 0 ? (totalPoints / totalGames).toFixed(1) : '0.0';
-    return { wins, totalGames, totalPoints, avgPoints, results };
+    const totalHands = results.reduce((sum, r) => {
+      const isTeamAInGame = String(r.teamA) === String(team.id);
+      return sum + (isTeamAInGame ? (r.handsA ?? 0) : (r.handsB ?? 0));
+    }, 0);
+    return { wins, totalGames, totalPoints, totalHands, results };
   }, [games, team, schedules, getActiveTournament, teams]);
 
   // Login screen
@@ -1321,8 +1329,8 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
               <p className="text-sm text-white">Games Played</p>
             </div>
             <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#a60002' }}>
-              <p className="text-2xl font-bold text-white">{getTeamRecord.avgPoints}</p>
-              <p className="text-sm text-white">Avg Points/Game</p>
+              <p className="text-2xl font-bold text-white">{getTeamRecord.totalHands}</p>
+              <p className="text-sm text-white">Hands Won</p>
             </div>
             <div className="text-center p-4 bg-black rounded-lg">
               <p className="text-2xl font-bold text-white">{getTeamRecord.totalPoints}</p>

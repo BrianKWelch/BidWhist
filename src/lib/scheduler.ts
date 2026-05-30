@@ -98,8 +98,24 @@ export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: nu
     totalTeams++;
   }
 
-  // 5. Shuffle within columns (except split city teams, which are locked at top/bottom)
-  // (Optional: implement a shuffle that avoids BYE vs. same city in first rounds)
+  // 5a. Randomly flip which side each city group is on
+  if (Math.random() < 0.5) {
+    const tempLeft = [...leftTeams];
+    leftTeams.length = 0;
+    leftTeams.push(...rightTeams);
+    rightTeams.length = 0;
+    rightTeams.push(...tempLeft);
+  }
+
+  // 5b. Shuffle within columns so seating varies each tournament
+  for (let i = leftTeams.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [leftTeams[i], leftTeams[j]] = [leftTeams[j], leftTeams[i]];
+  }
+  for (let i = rightTeams.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rightTeams[i], rightTeams[j]] = [rightTeams[j], rightTeams[i]];
+  }
 
   // 6. Generate rounds
   const rounds: GameMatch[][] = [];

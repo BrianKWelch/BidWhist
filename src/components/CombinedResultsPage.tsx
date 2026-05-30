@@ -2,9 +2,97 @@ import React from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Target, Award, Calendar } from 'lucide-react';
+import { Trophy, Target, Award, Calendar, Search } from 'lucide-react';
 import { TournamentResults } from './TournamentResults';
 const ExportResultsButton = React.lazy(() => import('./ExportResultsButton'));
+
+const ScoreVerifier = ({ games, teams }: { games: any[]; teams: any[] }) => {
+  const [roundInput, setRoundInput] = React.useState('');
+  const [teamInput, setTeamInput] = React.useState('');
+
+  const result = React.useMemo(() => {
+    const round = parseInt(roundInput);
+    const teamNum = teamInput.trim();
+    if (!round || !teamNum) return null;
+
+    const team = teams.find(t =>
+      String(t.teamNumber) === teamNum || String(t.id) === teamNum
+    );
+    if (!team) return { error: `No team found for #${teamNum}` };
+
+    const game = games.find(g =>
+      g.round === round && g.status === 'confirmed' &&
+      (String(g.teamA?.id ?? g.teamA) === String(team.id) ||
+       String(g.teamB?.id ?? g.teamB) === String(team.id))
+    );
+    if (!game) return { error: `No confirmed game found for Team ${teamNum} in Round ${round}` };
+
+    const isA = String(game.teamA?.id ?? game.teamA) === String(team.id);
+
+    const score  = isA ? game.scoreA  : game.scoreB;
+    const hands  = isA ? game.handsA  : game.handsB;
+    const boston = (game.boston === 'teamA' && isA) || (game.boston === 'teamB' && !isA);
+    const oppId  = isA ? (game.teamB?.id ?? game.teamB) : (game.teamA?.id ?? game.teamA);
+    const opp    = teams.find(t => String(t.id) === String(oppId));
+
+    return { score, hands, boston, oppName: opp?.name ?? `Team ${oppId}` };
+  }, [roundInput, teamInput, games, teams]);
+
+  return (
+    <Card className="border-2" style={{ borderColor: '#a60002' }}>
+      <CardContent className="pt-4 pb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Search className="h-5 w-5 shrink-0" style={{ color: '#a60002' }} />
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-semibold whitespace-nowrap">Round</label>
+            <input
+              type="number" min="1"
+              value={roundInput}
+              onChange={e => setRoundInput(e.target.value)}
+              className="w-16 border rounded px-2 py-1 text-center font-bold text-lg"
+              placeholder="—"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-semibold whitespace-nowrap">Team #</label>
+            <input
+              type="number" min="1"
+              value={teamInput}
+              onChange={e => setTeamInput(e.target.value)}
+              className="w-24 border rounded px-2 py-1 text-center font-bold text-lg"
+              placeholder="—"
+            />
+          </div>
+
+          {result && (
+            result.error
+              ? <span className="text-sm text-red-600 font-medium">{result.error}</span>
+              : (
+                <div className="flex items-center gap-4 ml-2">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Score</div>
+                    <div className="text-2xl font-black" style={{ color: '#a60002' }}>{result.score}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Hands</div>
+                    <div className="text-2xl font-black">{result.hands ?? '—'}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Boston</div>
+                    <div className="text-2xl font-black">{result.boston ? '✅' : '—'}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">vs</div>
+                    <div className="text-sm font-semibold">{result.oppName}</div>
+                  </div>
+                </div>
+              )
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const CombinedResultsPage = () => {
   const { games, teams, getTournamentResults, tournaments, getActiveTournament, refreshGamesFromSupabase } = useAppContext();
@@ -80,6 +168,7 @@ const CombinedResultsPage = () => {
 
   return (
     <div className="space-y-6">
+      <ScoreVerifier games={games} teams={teams} />
       <div>
         {/* Export Button */}
         <div className="flex justify-end mb-2">
