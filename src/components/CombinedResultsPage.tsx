@@ -6,7 +6,7 @@ import { Trophy, Target, Award, Calendar, Search } from 'lucide-react';
 import { TournamentResults } from './TournamentResults';
 const ExportResultsButton = React.lazy(() => import('./ExportResultsButton'));
 
-const ScoreVerifier = ({ games, teams }: { games: any[]; teams: any[] }) => {
+const ScoreVerifier = ({ games, teams, schedules, activeTournamentId }: { games: any[]; teams: any[]; schedules: any[]; activeTournamentId: string | null }) => {
   const [roundInput, setRoundInput] = React.useState('');
   const [teamInput, setTeamInput] = React.useState('');
 
@@ -15,28 +15,40 @@ const ScoreVerifier = ({ games, teams }: { games: any[]; teams: any[] }) => {
     const teamNum = teamInput.trim();
     if (!round || !teamNum) return null;
 
+    // Find team by number or id
     const team = teams.find(t =>
       String(t.teamNumber) === teamNum || String(t.id) === teamNum
     );
     if (!team) return { error: `No team found for #${teamNum}` };
 
-    const game = games.find(g =>
-      g.round === round && g.status === 'confirmed' &&
-      (String(g.teamA?.id ?? g.teamA) === String(team.id) ||
-       String(g.teamB?.id ?? g.teamB) === String(team.id))
+    // Find the match in the active tournament's schedule for this round and team
+    const schedule = schedules.find(s => s.tournamentId === activeTournamentId);
+    if (!schedule) return { error: 'No active tournament schedule found' };
+
+    const match = schedule.matches.find((m: any) =>
+      m.round === round &&
+      (String(m.teamA) === String(team.id) || String(m.teamB) === String(team.id))
     );
-    if (!game) return { error: `No confirmed game found for Team ${teamNum} in Round ${round}` };
+    if (!match) return { error: `Team ${teamNum} not scheduled in Round ${round}` };
 
-    const isA = String(game.teamA?.id ?? game.teamA) === String(team.id);
+    // Find the confirmed game by matchId (most reliable)
+    const game = games.find(g =>
+      String(g.matchId) === String(match.id) &&
+      (g.status === 'confirmed' || g.confirmed === true)
+    );
+    if (!game) return { error: `No confirmed score yet for Team ${teamNum} Round ${round}` };
 
-    const score  = isA ? game.scoreA  : game.scoreB;
-    const hands  = isA ? game.handsA  : game.handsB;
-    const boston = (game.boston === 'teamA' && isA) || (game.boston === 'teamB' && !isA);
-    const oppId  = isA ? (game.teamB?.id ?? game.teamB) : (game.teamA?.id ?? game.teamA);
-    const opp    = teams.find(t => String(t.id) === String(oppId));
+    // isA = this team is the teamA side in the game record
+    const isA = String(game.teamA) === String(team.id);
 
-    return { score, hands, boston, oppName: opp?.name ?? `Team ${oppId}` };
-  }, [roundInput, teamInput, games, teams]);
+    const score  = isA ? (game.scoreA ?? game.score_a ?? 0) : (game.scoreB ?? game.score_b ?? 0);
+    const hands  = isA ? (game.handsA ?? game.hands_a ?? 0) : (game.handsB ?? game.hands_b ?? 0);
+    const bostons = isA ? (game.boston_a ?? 0) : (game.boston_b ?? 0);
+    const oppId  = isA ? String(game.teamB) : String(game.teamA);
+    const opp    = teams.find(t => String(t.id) === oppId);
+
+    return { score, hands, bostons, oppName: opp?.name ?? `Team ${oppId}` };
+  }, [roundInput, teamInput, games, teams, schedules, activeTournamentId]);
 
   return (
     <Card className="border-2" style={{ borderColor: '#a60002' }}>
@@ -78,8 +90,8 @@ const ScoreVerifier = ({ games, teams }: { games: any[]; teams: any[] }) => {
                     <div className="text-2xl font-black">{result.hands ?? '—'}</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xs text-gray-500 uppercase tracking-wide">Boston</div>
-                    <div className="text-2xl font-black">{result.boston ? '✅' : '—'}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Bostons</div>
+                    <div className="text-2xl font-black">{result.bostons > 0 ? result.bostons : '—'}</div>
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-gray-500 uppercase tracking-wide">vs</div>
@@ -95,7 +107,7 @@ const ScoreVerifier = ({ games, teams }: { games: any[]; teams: any[] }) => {
 };
 
 const CombinedResultsPage = () => {
-  const { games, teams, getTournamentResults, tournaments, getActiveTournament, refreshGamesFromSupabase } = useAppContext();
+  const { games, teams, schedules, getTournamentResults, tournaments, getActiveTournament, refreshGamesFromSupabase } = useAppContext();
 
   // Real-time updates for admin portal
   React.useEffect(() => {
@@ -168,7 +180,7 @@ const CombinedResultsPage = () => {
 
   return (
     <div className="space-y-6">
-      <ScoreVerifier games={games} teams={teams} />
+      <ScoreVerifier games={games} teams={teams} schedules={schedules} activeTournamentId={activeTournament?.id ?? null} />
       <div>
         {/* Export Button */}
         <div className="flex justify-end mb-2">
