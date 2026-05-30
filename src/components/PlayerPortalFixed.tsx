@@ -866,13 +866,12 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
             <img src={import.meta.env.BASE_URL + 'SetPlay_Logo.png'} alt="SetPlay Logo" className="h-40 w-auto" />
           </div>
           
-          {/* Right: Logout Button */}
-          <div className="flex items-center justify-center h-40">
-            <Button 
-              variant="outline" 
-              size="sm" 
+          {/* Right: Logout + Reset Buttons */}
+          <div className="flex flex-col items-center justify-center h-40 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
               onClick={async () => {
-                // Release any active score entry lock before logging out
                 if (enteringTeamId && selectedMatch) {
                   await releaseScoreEntryLock({ matchId: selectedMatch.id, teamId: enteringTeamId });
                 }
@@ -887,6 +886,17 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
               style={{ backgroundColor: '#a60002' }}
             >
               Logout
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                ['tournamentResults', 'resultsOverrides', 'schedules', 'games', 'scoreSubmissions', 'teams'].forEach(k => localStorage.removeItem(k));
+                window.location.reload();
+              }}
+              className="text-xs border-gray-400 text-gray-600"
+            >
+              Reset
             </Button>
           </div>
         </div>
