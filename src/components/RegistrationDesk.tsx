@@ -24,6 +24,8 @@ interface DeskTournEntry {
   p2_paid: boolean;
   p1_prepaid: boolean;
   p2_prepaid: boolean;
+  p1_boston: boolean;
+  p2_boston: boolean;
 }
 
 interface DeskTeam {
@@ -128,7 +130,7 @@ export const RegistrationDesk: React.FC = () => {
         .select('team_id, tournament_id'),
       supabase
         .from('player_tournament')
-        .select('player_id, tournament_id, paid, b_paid, prepaid'),
+        .select('player_id, tournament_id, paid, b_paid, prepaid, entered_boston_pot'),
     ]);
 
     // Build team_id → [tournament_id] map
@@ -172,10 +174,12 @@ export const RegistrationDesk: React.FC = () => {
               : null;
             return {
               tournament_id: tid,
-              p1_paid:    p1pt?.paid    ?? false,
-              p2_paid:    p2pt?.paid    ?? false,
-              p1_prepaid: p1pt?.prepaid ?? false,
-              p2_prepaid: p2pt?.prepaid ?? false,
+              p1_paid:    p1pt?.paid             ?? false,
+              p2_paid:    p2pt?.paid             ?? false,
+              p1_prepaid: p1pt?.prepaid          ?? false,
+              p2_prepaid: p2pt?.prepaid          ?? false,
+              p1_boston:  p1pt?.entered_boston_pot ?? false,
+              p2_boston:  p2pt?.entered_boston_pot ?? false,
             };
           }),
         };
@@ -858,7 +862,7 @@ export const RegistrationDesk: React.FC = () => {
                       }`}
                       title={et.p1_paid ? 'Click to mark unpaid' : 'Click to mark paid'}
                     >
-                      {et.p1_paid ? `P1 ✓ $${perPlayer(et.tournament_id).toFixed(0)}` : `Collect P1 $${perPlayer(et.tournament_id).toFixed(0)}`}
+                      {(() => { const amt = (perPlayer(et.tournament_id) + (et.p1_boston ? bostonCost(et.tournament_id) : 0)).toFixed(0); return et.p1_paid ? `P1 ✓ $${amt}` : `Collect P1 $${amt}`; })()}
                     </button>
 
                     {editingTeam.player2 && (
@@ -871,7 +875,7 @@ export const RegistrationDesk: React.FC = () => {
                         }`}
                         title={et.p2_paid ? 'Click to mark unpaid' : 'Click to mark paid'}
                       >
-                        {et.p2_paid ? `P2 ✓ $${perPlayer(et.tournament_id).toFixed(0)}` : `Collect P2 $${perPlayer(et.tournament_id).toFixed(0)}`}
+                        {(() => { const amt = (perPlayer(et.tournament_id) + (et.p2_boston ? bostonCost(et.tournament_id) : 0)).toFixed(0); return et.p2_paid ? `P2 ✓ $${amt}` : `Collect P2 $${amt}`; })()}
                       </button>
                     )}
                     {(et.p1_prepaid || et.p2_prepaid) && (
@@ -1137,7 +1141,7 @@ export const RegistrationDesk: React.FC = () => {
                         }`}
                         title={tr.p1_paid ? 'Click to mark unpaid' : 'Click to mark paid'}
                       >
-                        {tr.p1_paid ? `P1 ✓ $${perPlayer(tr.tournament_id).toFixed(0)}` : `Collect P1 $${perPlayer(tr.tournament_id).toFixed(0)}`}
+                        {(() => { const amt = (perPlayer(tr.tournament_id) + (tr.p1_boston ? bostonCost(tr.tournament_id) : 0)).toFixed(0); return tr.p1_paid ? `P1 ✓ $${amt}` : `Collect P1 $${amt}`; })()}
                       </button>
 
                       {team.player2 && (
@@ -1150,7 +1154,7 @@ export const RegistrationDesk: React.FC = () => {
                           }`}
                           title={tr.p2_paid ? 'Click to mark unpaid' : 'Click to mark paid'}
                         >
-                          {tr.p2_paid ? `P2 ✓ $${perPlayer(tr.tournament_id).toFixed(0)}` : `Collect P2 $${perPlayer(tr.tournament_id).toFixed(0)}`}
+                          {(() => { const amt = (perPlayer(tr.tournament_id) + (tr.p2_boston ? bostonCost(tr.tournament_id) : 0)).toFixed(0); return tr.p2_paid ? `P2 ✓ $${amt}` : `Collect P2 $${amt}`; })()}
                         </button>
                       )}
 
