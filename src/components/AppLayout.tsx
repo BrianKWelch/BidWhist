@@ -82,6 +82,7 @@ const AppLayout = () => {
             const mappedTournaments = tournamentsData.map(t => ({
               ...t,
               bostonPotCost: t.boston_pot_cost,
+              allowPrepay: t.allow_prepay || false,
               tracksHands: t.tracks_hands !== false,
               scoringMode: t.scoring_mode || 'team',
               paymentModel: t.payment_model || 'four_way',

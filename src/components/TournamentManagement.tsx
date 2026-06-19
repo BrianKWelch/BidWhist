@@ -33,6 +33,7 @@ const TournamentManagement: React.FC = () => {
   const [editBostonCost, setEditBostonCost] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editPaymentModel, setEditPaymentModel] = useState<'four_way' | 'five_way'>('four_way');
+  const [editAllowPrepay, setEditAllowPrepay] = useState(false);
 
 
   const activeTournament = getActiveTournament();
@@ -64,6 +65,7 @@ const TournamentManagement: React.FC = () => {
     setEditBostonCost(tournament.bostonPotCost.toString());
     setEditDescription(tournament.description || '');
     setEditPaymentModel(tournament.paymentModel || 'four_way');
+    setEditAllowPrepay(tournament.allowPrepay || false);
   };
 
   const saveEdit = async () => {
@@ -82,7 +84,9 @@ const TournamentManagement: React.FC = () => {
       undefined,
       undefined,
       undefined,
-      editPaymentModel
+      editPaymentModel,
+      undefined,
+      editAllowPrepay
     );
 
     cancelEdit();
@@ -95,6 +99,7 @@ const TournamentManagement: React.FC = () => {
     setEditBostonCost('');
     setEditDescription('');
     setEditPaymentModel('four_way');
+    setEditAllowPrepay(false);
   };
 
   return (
@@ -257,6 +262,10 @@ const TournamentManagement: React.FC = () => {
                             <option value="five_way">5-Way Split (1st–4th + Side Pot combined)</option>
                           </select>
                         </div>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={editAllowPrepay} onChange={e => setEditAllowPrepay(e.target.checked)} />
+                          Allow Prepay Discount at Registration
+                        </label>
                         <div className="flex gap-2">
                           <Button size="sm" onClick={saveEdit}>
                             <Save className="w-3 h-3" />

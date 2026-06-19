@@ -44,6 +44,7 @@ const BLANK = {
   p2Prepaid: false, p2PayNow: true,
   city: '',
   selectedTourneys: [] as string[],
+  bostonPotTourneys: [] as string[],
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -317,11 +318,24 @@ export const RegistrationDesk: React.FC = () => {
     return t ? t.cost / 2 : 0;
   };
 
-  // Total owed per player across all selected tourneys; prepaid = subtract $30 flat
+  // bostonPotCost is per-team; halve it for per-player ($10/team → $5/player)
+  const bostonCost = (tid: string) => {
+    const t = tournaments.find(x => x.id === tid);
+    return (t?.bostonPotCost || 10) / 2;
+  };
+
+  // Show prepay only if at least one selected tournament has allowPrepay enabled
+  const showPrepay = form.selectedTourneys.some(tid => {
+    const t = tournaments.find(x => x.id === tid);
+    return t?.allowPrepay === true;
+  });
+
+  // Total owed per player across all selected tourneys; prepaid = subtract $30 flat; boston = +$5/tourney
   const totalOwed = (slot: 'p1' | 'p2') => {
     const prep = slot === 'p1' ? form.p1Prepaid : form.p2Prepaid;
     const base = form.selectedTourneys.reduce((s, tid) => s + perPlayer(tid), 0);
-    return prep ? Math.max(0, base - PREPAID_DISCOUNT) : base;
+    const boston = form.bostonPotTourneys.reduce((s, tid) => s + bostonCost(tid), 0);
+    return (prep ? Math.max(0, base - PREPAID_DISCOUNT) : base) + boston;
   };
 
   // ── Find or create player ─────────────────────────────────────────────────
@@ -391,17 +405,17 @@ export const RegistrationDesk: React.FC = () => {
   // ── Upsert player_tournament (check-then-insert to avoid duplicate key) ───
   const upsertPT = async (
     supabase: any,
-    playerId: number, tournamentId: string, paid: boolean, prepaid: boolean
+    playerId: number, tournamentId: string, paid: boolean, prepaid: boolean, enteredBostonPot: boolean = false
   ) => {
     const { data: existing } = await supabase
       .from('player_tournament').select('id')
       .eq('player_id', playerId).eq('tournament_id', tournamentId).maybeSingle();
     if (existing) {
       await supabase.from('player_tournament')
-        .update({ paid, prepaid }).eq('id', existing.id);
+        .update({ paid, prepaid, entered_boston_pot: enteredBostonPot }).eq('id', existing.id);
     } else {
       await supabase.from('player_tournament')
-        .insert({ player_id: playerId, tournament_id: tournamentId, paid, prepaid, b_paid: false, entered_boston_pot: false });
+        .insert({ player_id: playerId, tournament_id: tournamentId, paid, prepaid, b_paid: false, entered_boston_pot: enteredBostonPot });
     }
   };
 
@@ -418,6 +432,7 @@ export const RegistrationDesk: React.FC = () => {
       p2Prepaid: false, p2PayNow: false,
       city:     team.city ?? '',
       selectedTourneys: [],
+      bostonPotTourneys: [],
     });
     setEditingTeam(team);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -547,11 +562,12 @@ export const RegistrationDesk: React.FC = () => {
 
         // 4. Add any newly selected tournaments
         for (const tid of form.selectedTourneys) {
+          const inBoston = form.bostonPotTourneys.includes(tid);
           await supabase.from('team_registrations')
             .upsert({ team_id: editingTeam.id, tournament_id: tid }, { onConflict: 'team_id,tournament_id', ignoreDuplicates: true });
-          await upsertPT(supabase, editingTeam.player1.id, tid, form.p1PayNow, form.p1Prepaid);
+          await upsertPT(supabase, editingTeam.player1.id, tid, form.p1PayNow, form.p1Prepaid, inBoston);
           if (p2Id) {
-            await upsertPT(supabase, p2Id, tid, form.p2PayNow, form.p2Prepaid);
+            await upsertPT(supabase, p2Id, tid, form.p2PayNow, form.p2Prepaid, inBoston);
           }
         }
 
@@ -582,11 +598,12 @@ export const RegistrationDesk: React.FC = () => {
         if (!teamId) throw new Error('Failed to create team');
 
         for (const tid of form.selectedTourneys) {
+          const inBoston = form.bostonPotTourneys.includes(tid);
           await supabase.from('team_registrations')
             .upsert({ team_id: teamId, tournament_id: tid }, { onConflict: 'team_id,tournament_id', ignoreDuplicates: true });
-          await upsertPT(supabase, p1Id, tid, form.p1PayNow, form.p1Prepaid);
+          await upsertPT(supabase, p1Id, tid, form.p1PayNow, form.p1Prepaid, inBoston);
           if (p2Id) {
-            await upsertPT(supabase, p2Id, tid, form.p2PayNow, form.p2Prepaid);
+            await upsertPT(supabase, p2Id, tid, form.p2PayNow, form.p2Prepaid, inBoston);
           }
         }
 
@@ -881,31 +898,51 @@ export const RegistrationDesk: React.FC = () => {
               </Label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {addableTourneys.map(t => {
-                  const checked  = form.selectedTourneys.includes(t.id);
-                  const isDup    = dupTourneys.includes(t.id);
-                  const p1Price  = perPlayer(t.id);
-                  const p2Price  = (form.p2First || form.p2Phone) ? perPlayer(t.id) : null;
+                  const checked    = form.selectedTourneys.includes(t.id);
+                  const isDup      = dupTourneys.includes(t.id);
+                  const inBoston   = form.bostonPotTourneys.includes(t.id);
+                  const basePrice  = perPlayer(t.id);
+                  const p1Price    = basePrice + (inBoston ? bostonCost(t.id) : 0);
+                  const p2Price    = (form.p2First || form.p2Phone) ? p1Price : null;
                   return (
-                    <label key={t.id} className={`flex items-start gap-2 p-2 rounded border cursor-pointer text-sm transition-colors ${
+                    <div key={t.id} className={`p-2 rounded border text-sm transition-colors ${
                       isDup   ? 'border-red-400 bg-red-50' :
                       checked ? 'border-green-400 bg-green-50' :
                                 'border-gray-200 hover:border-gray-400'
                     }`}>
-                      <input type="checkbox" className="mt-0.5" checked={checked}
-                        onChange={e => setForm(f => ({
-                          ...f,
-                          selectedTourneys: e.target.checked
-                            ? [...f.selectedTourneys, t.id]
-                            : f.selectedTourneys.filter(x => x !== t.id),
-                        }))} />
-                      <span>
-                        <span className="font-medium block">{t.name}</span>
-                        <span className="text-xs text-gray-500">
-                          ${p1Price}/P1{p2Price !== null ? ` · $${p2Price}/P2` : ''}
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" className="mt-0.5" checked={checked}
+                          onChange={e => setForm(f => ({
+                            ...f,
+                            selectedTourneys: e.target.checked
+                              ? [...f.selectedTourneys, t.id]
+                              : f.selectedTourneys.filter(x => x !== t.id),
+                            bostonPotTourneys: e.target.checked
+                              ? f.bostonPotTourneys
+                              : f.bostonPotTourneys.filter(x => x !== t.id),
+                          }))} />
+                        <span>
+                          <span className="font-medium block">{t.name}</span>
+                          <span className="text-xs text-gray-500">
+                            ${p1Price}/P1{p2Price !== null ? ` · $${p2Price}/P2` : ''}
+                          </span>
+                          {isDup && <span className="text-xs text-red-600 font-medium block">⚠ already registered</span>}
                         </span>
-                        {isDup && <span className="text-xs text-red-600 font-medium block">⚠ already registered</span>}
-                      </span>
-                    </label>
+                      </label>
+                      {checked && (
+                        <label className="flex items-center gap-1.5 mt-1.5 ml-5 cursor-pointer text-xs font-medium" style={{ color: '#a60002' }}>
+                          <input type="checkbox"
+                            checked={form.bostonPotTourneys.includes(t.id)}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              bostonPotTourneys: e.target.checked
+                                ? [...f.bostonPotTourneys, t.id]
+                                : f.bostonPotTourneys.filter(x => x !== t.id),
+                            }))} />
+                          Boston Pot (+${bostonCost(t.id)}/player)
+                        </label>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -919,11 +956,13 @@ export const RegistrationDesk: React.FC = () => {
               {/* P1 payment */}
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold tracking-widest" style={{ color: '#a60002' }}>P1</span>
-                <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
-                  <input type="checkbox" checked={form.p1Prepaid}
-                    onChange={e => setForm(f => ({ ...f, p1Prepaid: e.target.checked }))} />
-                  Pre-paid
-                </label>
+                {showPrepay && (
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                    <input type="checkbox" checked={form.p1Prepaid}
+                      onChange={e => setForm(f => ({ ...f, p1Prepaid: e.target.checked }))} />
+                    Pre-paid
+                  </label>
+                )}
                 <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
                   <input type="checkbox" checked={form.p1PayNow}
                     onChange={e => setForm(f => ({ ...f, p1PayNow: e.target.checked }))} />
@@ -942,11 +981,13 @@ export const RegistrationDesk: React.FC = () => {
                   <div className="w-px h-5 bg-gray-200" />
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold tracking-widest text-gray-500">P2</span>
-                    <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
-                      <input type="checkbox" checked={form.p2Prepaid}
-                        onChange={e => setForm(f => ({ ...f, p2Prepaid: e.target.checked }))} />
-                      Pre-paid
-                    </label>
+                    {showPrepay && (
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                        <input type="checkbox" checked={form.p2Prepaid}
+                          onChange={e => setForm(f => ({ ...f, p2Prepaid: e.target.checked }))} />
+                        Pre-paid
+                      </label>
+                    )}
                     <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
                       <input type="checkbox" checked={form.p2PayNow}
                         onChange={e => setForm(f => ({ ...f, p2PayNow: e.target.checked }))} />

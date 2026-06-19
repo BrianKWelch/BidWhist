@@ -65,6 +65,7 @@ export interface Tournament {
   paymentModel?: 'four_way' | 'five_way';
   sortOrder?: string;
   prepaidCost?: number;
+  allowPrepay?: boolean;
 }
 
 export interface Game {
@@ -218,7 +219,7 @@ interface AppContextType {
   updateTeam: (updatedTeam: Team) => void;
   addTournament: (name: string, cost: number, bostonPotCost: number, description?: string, tracksHands?: boolean) => void;
   createTournament: (name: string, status: 'pending' | 'active' | 'finished') => Promise<void>;
-  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string) => void;
+  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string, allowPrepay?: boolean) => void;
   updateTournamentStatus: (tournament: Tournament) => Promise<void>;
   deleteTournament: (tournamentId: string) => Promise<void>;
   submitGame: (game: any) => void;

@@ -687,6 +687,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const tournaments = (result.data || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
+            allowPrepay: t.allow_prepay || false,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
@@ -2548,7 +2549,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       finishTournament,
       getActiveTournament,
       setActiveTournament,
-      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string) => {
+      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string, allowPrepay?: boolean) => {
         const { supabase } = await import('../supabaseClient');
         // Update in Supabase
         const updateData: any = {
@@ -2570,6 +2571,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (sortOrder !== undefined) {
           updateData.sort_order = sortOrder;
         }
+        if (allowPrepay !== undefined) {
+          updateData.allow_prepay = allowPrepay;
+        }
         const { error } = await supabase
           .from('tournaments')
           .update(updateData)
@@ -2585,6 +2589,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const mappedTournaments = (tournamentsData || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
+            allowPrepay: t.allow_prepay || false,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
@@ -2621,6 +2626,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const mappedTournaments = (tournamentsData || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
+            allowPrepay: t.allow_prepay || false,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
@@ -2653,6 +2659,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const mappedTournaments = (tournamentsData || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
+            allowPrepay: t.allow_prepay || false,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
@@ -2682,6 +2689,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const mappedTournaments = (tournamentsData || []).map(t => ({
             ...t,
             bostonPotCost: t.boston_pot_cost,
+            allowPrepay: t.allow_prepay || false,
             tracksHands: t.tracks_hands !== false,
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
