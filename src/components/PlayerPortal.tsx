@@ -124,22 +124,25 @@ const PlayerPortal = () => {
   };
 
   const getTeamPerformance = () => {
-    if (!team) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: 0 };
+    if (!team) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: 0, bostons: 0 };
     const completedGames = getCompletedGames();
     let wins = 0;
     let totalPoints = 0;
+    let bostons = 0;
     completedGames.forEach(game => {
       const isTeamA = game.teamA.name === team.name;
       const myScore = isTeamA ? game.scoreA : game.scoreB;
       const opponentScore = isTeamA ? game.scoreB : game.scoreA;
       totalPoints += myScore;
       if (myScore > opponentScore) wins++;
+      bostons += isTeamA ? (game.boston_a ?? 0) : (game.boston_b ?? 0);
     });
     return {
       wins,
       totalGames: completedGames.length,
       totalPoints,
-      avgPoints: completedGames.length > 0 ? (totalPoints / completedGames.length).toFixed(1) : 0
+      avgPoints: completedGames.length > 0 ? (totalPoints / completedGames.length).toFixed(1) : 0,
+      bostons
     };
   };
 
@@ -354,7 +357,7 @@ const PlayerPortal = () => {
                 {/* Record Section */}
                 <div className="mt-8">
                   <h3 className="text-lg font-semibold mb-2">My Team Record</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="text-center p-4 bg-green-50 rounded-lg">
                       <p className="text-2xl font-bold text-green-600">{performance.wins}</p>
                       <p className="text-sm text-gray-600">Wins</p>
@@ -370,6 +373,10 @@ const PlayerPortal = () => {
                     <div className="text-center p-4 bg-orange-50 rounded-lg">
                       <p className="text-2xl font-bold text-orange-600">{performance.totalPoints}</p>
                       <p className="text-sm text-gray-600">Total Points</p>
+                    </div>
+                    <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                      <p className="text-2xl font-bold text-yellow-600">{performance.bostons}</p>
+                      <p className="text-sm text-gray-600">Bostons</p>
                     </div>
                   </div>
                 </div>

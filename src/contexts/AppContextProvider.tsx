@@ -293,6 +293,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const teamsWithPlayers = (teamsData || []).map(team => ({
             ...team,
             id: String(team.id),
+            teamNumber: team.team_number,
             // Populate legacy fields from player data for backward compatibility
             player1FirstName: team.player1?.first_name || '',
             player1LastName: team.player1?.last_name || '',
@@ -345,6 +346,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return {
             ...team,
             id: String(team.id),
+            teamNumber: team.team_number,
             // Populate legacy fields from player data for backward compatibility
             player1FirstName: team.player1?.first_name || '',
             player1LastName: team.player1?.last_name || '',
@@ -1705,6 +1707,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const teamsWithPlayers = (teamsData || []).map(team => ({
           ...team,
           id: String(team.id),
+          teamNumber: team.team_number,
           // Populate legacy fields from player data for backward compatibility
           player1FirstName: team.player1?.first_name || '',
           player1LastName: team.player1?.last_name || '',
@@ -1806,6 +1809,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return {
           ...team,
           id: String(team.id),
+          teamNumber: team.team_number,
           // Populate legacy fields from player data for backward compatibility
           player1FirstName: team.player1?.first_name || '',
           player1LastName: team.player1?.last_name || '',

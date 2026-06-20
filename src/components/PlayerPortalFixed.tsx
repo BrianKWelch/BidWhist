@@ -22,6 +22,7 @@ const DirectScoreEntry = ({ team, match, onComplete }: { team: Team; match: any;
   const [bostonB, setBostonB] = useState('0');
   const [currentStep, setCurrentStep] = useState(0);
   const [tieWinner, setTieWinner] = useState<'teamA' | 'teamB' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { teams, submitGame, getActiveTournament } = useAppContext();
 
   const activeTournament = getActiveTournament();
@@ -96,8 +97,13 @@ const DirectScoreEntry = ({ team, match, onComplete }: { team: Team; match: any;
       entered_by_team_id: team.id
     };
 
-    await submitGame(gameData);
-    onComplete();
+    setIsSubmitting(true);
+    try {
+      await submitGame(gameData);
+      onComplete();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -322,13 +328,13 @@ const DirectScoreEntry = ({ team, match, onComplete }: { team: Team; match: any;
             >
               Back
             </Button>
-            <Button 
-              onClick={handleSubmitScore} 
+            <Button
+              onClick={handleSubmitScore}
               className="flex-1"
-              disabled={parseInt(scoreA) === parseInt(scoreB) && !tieWinner}
+              disabled={(parseInt(scoreA) === parseInt(scoreB) && !tieWinner) || isSubmitting}
             >
               <Check className="h-4 w-4 mr-2" />
-              Submit Score
+              {isSubmitting ? 'Submitting...' : 'Submit Score'}
             </Button>
           </div>
         </div>
@@ -676,9 +682,9 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
   // Only show results for the active tournament
   const getTeamRecord = useMemo(() => {
     const activeTournament = getActiveTournament();
-    if (!team || !activeTournament) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: '0.0', results: [] };
+    if (!team || !activeTournament) return { wins: 0, losses: 0, totalGames: 0, totalPoints: 0, totalHands: 0, totalBostons: 0, results: [] };
     const schedule = schedules.find(s => s.tournamentId === activeTournament.id);
-    if (!schedule) return { wins: 0, totalGames: 0, totalPoints: 0, avgPoints: '0.0', results: [] };
+    if (!schedule) return { wins: 0, losses: 0, totalGames: 0, totalPoints: 0, totalHands: 0, totalBostons: 0, results: [] };
     const matchIds = new Set(schedule.matches.map(m => m.id));
     const results = games.filter(game =>
       (game.teamA === team.id || game.teamB === team.id) &&
@@ -700,13 +706,18 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
       };
     });
     const wins = results.filter(r => r.isWin).length;
+    const losses = results.filter(r => !r.isWin).length;
     const totalGames = results.length;
     const totalPoints = results.reduce((sum, r) => sum + r.teamScore, 0);
     const totalHands = results.reduce((sum, r) => {
       const isTeamAInGame = String(r.teamA) === String(team.id);
       return sum + (isTeamAInGame ? (r.handsA ?? 0) : (r.handsB ?? 0));
     }, 0);
-    return { wins, totalGames, totalPoints, totalHands, results };
+    const totalBostons = results.reduce((sum, r) => {
+      const isTeamAInGame = String(r.teamA) === String(team.id);
+      return sum + (isTeamAInGame ? (r.boston_a ?? 0) : (r.boston_b ?? 0));
+    }, 0);
+    return { wins, losses, totalGames, totalPoints, totalHands, totalBostons, results };
   }, [games, team, schedules, getActiveTournament, teams]);
 
   // Login screen
@@ -1335,14 +1346,22 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
               <p className="text-sm text-white">Wins</p>
             </div>
             <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#a60002' }}>
-              <p className="text-2xl font-bold text-white">{getTeamRecord.totalGames}</p>
-              <p className="text-sm text-white">Games Played</p>
+              <p className="text-2xl font-bold text-white">{getTeamRecord.losses}</p>
+              <p className="text-sm text-white">Losses</p>
             </div>
             <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#a60002' }}>
               <p className="text-2xl font-bold text-white">{getTeamRecord.totalHands}</p>
               <p className="text-sm text-white">Hands Won</p>
             </div>
             <div className="text-center p-4 bg-black rounded-lg">
+              <p className="text-2xl font-bold text-white">{getTeamRecord.totalBostons}</p>
+              <p className="text-sm text-white">Bostons</p>
+            </div>
+            <div className="text-center p-4 bg-black rounded-lg">
+              <p className="text-2xl font-bold text-white">{getTeamRecord.totalGames}</p>
+              <p className="text-sm text-white">Total Games</p>
+            </div>
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#a60002' }}>
               <p className="text-2xl font-bold text-white">{getTeamRecord.totalPoints}</p>
               <p className="text-sm text-white">Total Points</p>
             </div>

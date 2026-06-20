@@ -471,8 +471,13 @@ export const RegistrationDesk: React.FC = () => {
   // ── Toggle a player paid/unpaid ───────────────────────────────────────────
   const togglePaid = async (team: DeskTeam, playerId: number, tournamentId: string, currentlyPaid: boolean) => {
     const { supabase } = await import('../supabaseClient');
+    const entry = team.tournaments.find(t => t.tournament_id === tournamentId);
+    const isPlayer1 = playerId === team.player1.id;
+    const isInBoston = isPlayer1 ? entry?.p1_boston : entry?.p2_boston;
+    const updateData: Record<string, unknown> = { paid: !currentlyPaid };
+    if (isInBoston) updateData.b_paid = !currentlyPaid;
     await supabase.from('player_tournament')
-      .update({ paid: !currentlyPaid })
+      .update(updateData)
       .eq('player_id', playerId)
       .eq('tournament_id', tournamentId);
 

@@ -48,7 +48,7 @@ const ScoreVerifier = ({ games, teams, schedules, activeTournamentId, onRefresh 
     const oppId  = isA ? String(game.teamB) : String(game.teamA);
     const opp    = teams.find(t => String(t.id) === oppId);
 
-    return { game, isA, myScore, oppScore, myHands, oppHands, myBostons, oppBostons, oppName: opp?.name ?? `Team ${oppId}`, teamName: team.name };
+    return { game, isA, myScore, oppScore, myHands, oppHands, myBostons, oppBostons, oppName: opp?.name ?? `Team ${oppId}`, oppTeamNumber: opp?.teamNumber ?? (opp as any)?.team_number ?? oppId, teamName: team.name, myTeamNumber: team.teamNumber ?? (team as any)?.team_number ?? team.id };
   }, [roundInput, teamInput, games, teams, schedules, activeTournamentId]);
 
   const startEdit = () => {
@@ -125,25 +125,28 @@ const ScoreVerifier = ({ games, teams, schedules, activeTournamentId, onRefresh 
             found.error
               ? <span className="text-sm text-red-600 font-medium">{found.error}</span>
               : !editing && (
-                <div className="flex items-center gap-4 ml-2">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 uppercase tracking-wide">Score</div>
-                    <div className="text-2xl font-black" style={{ color: '#a60002' }}>{found.myScore}</div>
+                <div className="flex items-center gap-3 ml-2 flex-wrap">
+                  {(() => {
+                    const iWon = (found.game.winner === 'teamA') === found.isA;
+                    return (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded ${iWon ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {iWon ? 'WIN' : 'LOSS'}
+                      </span>
+                    );
+                  })()}
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold">{found.myTeamNumber != null ? `#${found.myTeamNumber} ` : ''}{found.teamName}</span>
+                    <span className="text-2xl font-black" style={{ color: '#a60002' }}>{found.myScore}</span>
+                    <span className="text-gray-400 font-bold">–</span>
+                    <span className="text-2xl font-black text-gray-600">{found.oppScore}</span>
+                    <span className="text-sm font-semibold text-gray-500">{found.oppTeamNumber != null ? `#${found.oppTeamNumber} ` : ''}{found.oppName}</span>
                   </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 uppercase tracking-wide">Hands</div>
-                    <div className="text-2xl font-black">{found.myHands}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 uppercase tracking-wide">Bostons</div>
-                    <div className="text-2xl font-black">{found.myBostons > 0 ? found.myBostons : '—'}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 uppercase tracking-wide">vs</div>
-                    <div className="text-sm font-semibold">{found.oppName}</div>
-                  </div>
+                  <span className="text-xs text-gray-400">Hands: {found.myHands}–{found.oppHands}</span>
+                  {(found.myBostons > 0 || found.oppBostons > 0) && (
+                    <span className="text-xs text-yellow-600 font-medium">Boston: {found.myBostons}–{found.oppBostons}</span>
+                  )}
                   <button onClick={startEdit}
-                    className="ml-2 text-xs font-bold px-3 py-1 rounded text-white"
+                    className="ml-1 text-xs font-bold px-3 py-1 rounded text-white"
                     style={{ backgroundColor: '#a60002' }}>
                     Edit
                   </button>

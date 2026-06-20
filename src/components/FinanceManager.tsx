@@ -94,8 +94,6 @@ const FinanceManager: React.FC = () => {
 
     let totalEntryCollected = 0;
     let totalEntryOwed = 0;
-    let totalBostonCollected = 0;
-    let totalBostonOwed = 0;
 
     teams.forEach(team => {
       if (!team.registeredTournaments?.includes(selectedTournament)) return;
@@ -110,19 +108,11 @@ const FinanceManager: React.FC = () => {
       if (p2Paid) totalEntryCollected += entryCostPerPlayer;
       else totalEntryOwed += entryCostPerPlayer;
 
-      if (team.bostonPotTournaments?.includes(selectedTournament)) {
-        if (p1Paid && p2Paid) {
-          totalBostonCollected += tournament.bostonPotCost || 0;
-        } else {
-          totalBostonOwed += tournament.bostonPotCost || 0;
-        }
-      }
+      // Boston Pot collected/owed is computed via direct Supabase query below (entered_boston_pot + paid)
     });
 
     setEntryCollected(totalEntryCollected);
     setEntryOwed(totalEntryOwed);
-    setBostonPotCollected(totalBostonCollected);
-    setBostonPotOwed(totalBostonOwed);
   }, [selectedTournament, tournaments, teams]);
 
   // Fetch prepaid and total player counts from player_tournament
@@ -133,19 +123,25 @@ const FinanceManager: React.FC = () => {
       return;
     }
     const fetchCounts = async () => {
-      const [{ count: prepaid }, { count: total }] = await Promise.all([
-        supabase
-          .from('player_tournament')
-          .select('*', { count: 'exact', head: true })
-          .eq('tournament_id', selectedTournament)
-          .eq('prepaid', true),
-        supabase
-          .from('player_tournament')
-          .select('*', { count: 'exact', head: true })
-          .eq('tournament_id', selectedTournament),
+      const tournament = tournaments.find(t => t.id === selectedTournament);
+
+      const [
+        { count: prepaid },
+        { count: total },
+        { count: bostonCollected },
+        { count: bostonOwed },
+      ] = await Promise.all([
+        supabase.from('player_tournament').select('*', { count: 'exact', head: true }).eq('tournament_id', selectedTournament).eq('prepaid', true),
+        supabase.from('player_tournament').select('*', { count: 'exact', head: true }).eq('tournament_id', selectedTournament),
+        supabase.from('player_tournament').select('*', { count: 'exact', head: true }).eq('tournament_id', selectedTournament).eq('b_paid', true),
+        supabase.from('player_tournament').select('*', { count: 'exact', head: true }).eq('tournament_id', selectedTournament).eq('entered_boston_pot', true).eq('b_paid', false),
       ]);
+
+      const bostonTeamCost = tournament?.bostonPotCost || 0;
       setPrepaidCount(prepaid ?? 0);
       setTotalPlayerCount(total ?? 0);
+      setBostonPotCollected(Math.floor((bostonCollected ?? 0) / 2) * bostonTeamCost);
+      setBostonPotOwed(Math.floor((bostonOwed ?? 0) / 2) * bostonTeamCost);
     };
     fetchCounts();
   }, [selectedTournament]);
