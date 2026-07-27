@@ -8,7 +8,6 @@ import { AppContextProvider } from "@/contexts/AppContextProvider";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import PlayerPortalPage from "./pages/PlayerPortalPage";
-import BadgeVisitors from "./pages/BadgeVisitors";
 
 const queryClient = new QueryClient();
 
@@ -23,7 +22,6 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/portal" element={<PlayerPortalPage />} />
-              <Route path="/visitors" element={<BadgeVisitors />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </HashRouter>
