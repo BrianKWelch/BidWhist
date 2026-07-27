@@ -9,6 +9,7 @@ import { Camera, Loader2, Save, RotateCcw } from 'lucide-react';
 import { supabase } from '@/supabaseClient';
 import { toast } from '@/hooks/use-toast';
 import { parseBadgeText } from '@/lib/badgeParser';
+import { normalizeImageOrientation } from '@/lib/imageOrientation';
 import { BadgeVisitorDraft, EMPTY_BADGE_DRAFT } from '@/types/badgeVisitor';
 
 const LAST_EVENT_KEY = 'badgeScanner.lastEventName';
@@ -48,17 +49,19 @@ const BadgeScanner: React.FC<BadgeScannerProps> = ({ onSaved }) => {
     e.target.value = '';
     if (!file) return;
 
-    const previewUrl = URL.createObjectURL(file);
-    setImagePreview(previewUrl);
     setDraft({
       ...EMPTY_BADGE_DRAFT,
       event_name: localStorage.getItem(LAST_EVENT_KEY) || '',
     });
     setIsScanning(true);
 
+    const normalized = await normalizeImageOrientation(file);
+    const previewUrl = URL.createObjectURL(normalized);
+    setImagePreview(previewUrl);
+
     try {
       const worker = await getWorker();
-      const { data } = await worker.recognize(file);
+      const { data } = await worker.recognize(normalized);
       const rawText = data.text || '';
       const guessed = parseBadgeText(rawText);
       setDraft((prev) => ({
