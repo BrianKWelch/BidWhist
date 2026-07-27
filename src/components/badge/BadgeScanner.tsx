@@ -8,8 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Camera, Loader2, Save, RotateCcw } from 'lucide-react';
 import { supabase } from '@/supabaseClient';
 import { toast } from '@/hooks/use-toast';
-import { parseBadgeText } from '@/lib/badgeParser';
-import { normalizeImageOrientation, OrientationDebug } from '@/lib/imageOrientation';
+import { extractOcrLines, parseBadgeLines } from '@/lib/badgeParser';
+import { normalizeImageOrientation } from '@/lib/imageOrientation';
 import { BadgeVisitorDraft, EMPTY_BADGE_DRAFT } from '@/types/badgeVisitor';
 
 const LAST_EVENT_KEY = 'badgeScanner.lastEventName';
@@ -22,7 +22,6 @@ const BadgeScanner: React.FC<BadgeScannerProps> = ({ onSaved }) => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<OrientationDebug | null>(null);
   const [draft, setDraft] = useState<BadgeVisitorDraft>(() => ({
     ...EMPTY_BADGE_DRAFT,
     event_name: localStorage.getItem(LAST_EVENT_KEY) || '',
@@ -55,18 +54,17 @@ const BadgeScanner: React.FC<BadgeScannerProps> = ({ onSaved }) => {
       event_name: localStorage.getItem(LAST_EVENT_KEY) || '',
     });
     setIsScanning(true);
-    setDebugInfo(null);
 
-    const { blob: normalized, debug } = await normalizeImageOrientation(file);
-    setDebugInfo(debug);
+    const { blob: normalized } = await normalizeImageOrientation(file);
     const previewUrl = URL.createObjectURL(normalized);
     setImagePreview(previewUrl);
 
     try {
       const worker = await getWorker();
-      const { data } = await worker.recognize(normalized);
+      const { data } = await worker.recognize(normalized, {}, { text: true, blocks: true });
       const rawText = data.text || '';
-      const guessed = parseBadgeText(rawText);
+      const ocrLines = extractOcrLines(data.blocks, rawText);
+      const guessed = parseBadgeLines(ocrLines);
       setDraft((prev) => ({
         ...prev,
         ...guessed,
@@ -216,19 +214,8 @@ const BadgeScanner: React.FC<BadgeScannerProps> = ({ onSaved }) => {
               <Textarea id="notes" value={draft.notes || ''} onChange={updateField('notes')} disabled={isScanning} rows={2} />
             </div>
 
-            {debugInfo && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
-                <p className="font-semibold">Debug info (temporary, for troubleshooting the scanner)</p>
-                <p>method: {debugInfo.method}</p>
-                {debugInfo.beforeDims && <p>image dimensions: {debugInfo.beforeDims}</p>}
-                {debugInfo.afterDims && <p>after normalize: {debugInfo.afterDims}</p>}
-                {debugInfo.blobSize !== undefined && <p>normalized blob size: {debugInfo.blobSize} bytes</p>}
-                {debugInfo.error && <p className="font-semibold text-red-700">error: {debugInfo.error}</p>}
-              </div>
-            )}
-
             {draft.raw_ocr_text && (
-              <details className="text-sm text-muted-foreground" open>
+              <details className="text-sm text-muted-foreground">
                 <summary className="cursor-pointer select-none">Raw scanned text</summary>
                 <pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{draft.raw_ocr_text}</pre>
               </details>
