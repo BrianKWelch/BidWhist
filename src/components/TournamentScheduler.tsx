@@ -15,7 +15,7 @@ import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export const TournamentScheduler: React.FC = () => {
-  const { teams, tournaments, schedules, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, getActiveTournament } = useAppContext();
+  const { teams, tournaments, schedules, games, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, getActiveTournament, generateMaltNextRound, generateMaltMakeupRound } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [numberOfRounds, setNumberOfRounds] = useState<string>('4');
   const [currentSchedule, setCurrentSchedule] = useState<TournamentSchedule | null>(null);
@@ -55,7 +55,7 @@ export const TournamentScheduler: React.FC = () => {
       return;
     }
 
-    const tournamentTeams = teams.filter(team => 
+    const tournamentTeams = teams.filter(team =>
       team.registeredTournaments?.includes(selectedTournament)
     );
 
@@ -64,7 +64,13 @@ export const TournamentScheduler: React.FC = () => {
       return;
     }
 
-    // Show option selection dialog
+    // MALT: generate only Round 1 directly, no dialog
+    if (tournament?.rotationType === 'malt') {
+      void generateMaltRound1(tournamentTeams);
+      return;
+    }
+
+    // Standard: show option selection dialog
     setScheduleOption(null);
     setShowScheduleEditor(true);
   };
@@ -183,6 +189,74 @@ export const TournamentScheduler: React.FC = () => {
     });
   };
 
+  const generateMaltRound1 = async (tournamentTeams: typeof teams) => {
+    const existingSchedule = schedules.find(s => s.tournamentId === selectedTournament);
+    if (existingSchedule) {
+      const confirmed = window.confirm(
+        'Generating a new schedule will clear all existing results, scores, and standings for this tournament. Are you sure?'
+      );
+      if (!confirmed) return;
+    }
+
+    const schedulerTeams = tournamentTeams.map(team => ({
+      id: team.id,
+      name: team.name,
+      city: team.city
+    }));
+
+    const allRounds = generateNRoundsWithByeAndFinal(schedulerTeams, 1);
+    const round1 = allRounds[0];
+
+    const matches: ScheduleMatch[] = [];
+    let matchId = 1;
+    let tableNum = 1;
+    const maxTables = Math.floor(tournamentTeams.length / 2);
+
+    round1.forEach(match => {
+      if ('teamA' in match && 'teamB' in match) {
+        const isBye = match.teamA.id === 'BYE' || match.teamB.id === 'BYE';
+        matches.push({
+          id: `${selectedTournament}-r1-m${matchId++}`,
+          teamA: match.teamA.id,
+          teamB: match.teamB.id,
+          round: 1,
+          table: Math.min(tableNum++, maxTables),
+          tournamentId: selectedTournament,
+          isBye,
+          isSameCity: match.teamA.city === match.teamB.city
+        });
+      }
+    });
+
+    const schedule: TournamentSchedule = {
+      tournamentId: selectedTournament,
+      rounds: 1,
+      matches
+    };
+
+    clearTournamentResults(selectedTournament);
+    clearGames(selectedTournament);
+    clearScoreSubmissions(selectedTournament);
+
+    setCurrentSchedule(schedule);
+    saveSchedule(schedule);
+    setIsScheduleLocked(true);
+
+    // Save total rounds to tournament record
+    try {
+      const { supabase } = await import('../supabaseClient');
+      await supabase.from('tournaments').update({ malt_rounds: numRoundsInt }).eq('id', selectedTournament);
+    } catch (e) {
+      console.warn('Could not save malt_rounds:', e);
+    }
+
+    const nonByeCount = matches.filter(m => !m.isBye).length;
+    toast({
+      title: `MALT Round 1 generated! (${nonByeCount} tables)`,
+      description: 'Generate the next round after all games are confirmed.'
+    });
+  };
+
   const handleScheduleSave = (schedule: TournamentSchedule) => {
     // Clear all existing results and data for this tournament before saving new schedule
     clearTournamentResults(selectedTournament);
@@ -220,12 +294,22 @@ export const TournamentScheduler: React.FC = () => {
   };
 
   const tournament = tournaments.find(t => t.id === selectedTournament);
-  const tournamentTeams = teams.filter(team => 
+  const tournamentTeams = teams.filter(team =>
     team.registeredTournaments?.includes(selectedTournament)
   );
   const existingSchedule = schedules.find(s => s.tournamentId === selectedTournament);
   const maxTablesForTournament = tournamentTeams.length > 0 ? Math.floor(tournamentTeams.length / 2) : 0;
   const isOdd = tournamentTeams.length % 2 === 1;
+
+  const isMalt = tournament?.rotationType === 'malt';
+  const numRoundsInt = parseInt(numberOfRounds) || 4;
+  const maltCurrentRound = currentSchedule?.rounds ?? 0;
+  const maltCurrentRoundMatches = currentSchedule?.matches.filter(m => m.round === maltCurrentRound && !m.isBye) ?? [];
+  const maltRoundComplete = maltCurrentRoundMatches.length > 0 &&
+    maltCurrentRoundMatches.every(m => games.some(g => g.matchId === m.id && g.confirmed));
+  const maltHasByes = (currentSchedule?.matches ?? []).some(m => m.isBye);
+  const maltCanGenerateNext = isMalt && !!currentSchedule && maltCurrentRound < numRoundsInt && maltRoundComplete;
+  const maltCanGenerateMakeup = isMalt && !!currentSchedule && maltCurrentRound >= numRoundsInt && maltRoundComplete && maltHasByes;
 
   const teamsByCity = tournamentTeams.reduce((acc, team) => {
     if (!acc[team.city]) acc[team.city] = 0;
@@ -335,7 +419,7 @@ export const TournamentScheduler: React.FC = () => {
 
           {isScheduleLocked && currentSchedule && (
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={handleSendScoreSheets}
                 disabled={linksSent}
                 variant="secondary"
@@ -343,6 +427,45 @@ export const TournamentScheduler: React.FC = () => {
               >
                 {linksSent ? 'Links Sent ✓' : 'Send Score Sheet Out'}
               </Button>
+            </div>
+          )}
+
+          {isMalt && currentSchedule && (
+            <div className="flex items-center gap-3 pt-1">
+              <Badge variant="outline" className="border-blue-400 text-blue-700 text-sm px-3 py-1">
+                Round {maltCurrentRound} of {numRoundsInt}
+              </Badge>
+              {maltCanGenerateNext && (
+                <Button
+                  size="sm"
+                  style={{ backgroundColor: '#1d4ed8', color: 'white' }}
+                  onClick={async () => {
+                    const ok = await generateMaltNextRound(selectedTournament);
+                    if (ok) toast({ title: `Round ${maltCurrentRound + 1} generated!` });
+                    else toast({ title: 'Could not generate next round — check that all games are confirmed.', variant: 'destructive' });
+                  }}
+                >
+                  Generate Round {maltCurrentRound + 1}
+                </Button>
+              )}
+              {maltCanGenerateMakeup && (
+                <Button
+                  size="sm"
+                  style={{ backgroundColor: '#15803d', color: 'white' }}
+                  onClick={async () => {
+                    const ok = await generateMaltMakeupRound(selectedTournament);
+                    if (ok) toast({ title: 'Makeup round generated!' });
+                    else toast({ title: 'Could not generate makeup round.', variant: 'destructive' });
+                  }}
+                >
+                  Generate Makeup Round
+                </Button>
+              )}
+              {isMalt && currentSchedule && maltCurrentRound >= numRoundsInt && maltRoundComplete && !maltHasByes && (
+                <Badge variant="outline" className="border-green-500 text-green-700 text-sm px-3 py-1">
+                  All rounds complete
+                </Badge>
+              )}
             </div>
           )}
         </CardContent>

@@ -885,7 +885,9 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
         editingTournament.tracksHands,
         editingTournament.scoringMode,
         editingTournament.paymentModel,
-        editingTournament.sortOrder
+        editingTournament.sortOrder,
+        editingTournament.allowPrepay,
+        editingTournament.rotationType
       );
 
       setEditingTournament(null);
@@ -2571,7 +2573,7 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
 
       {/* Edit Tournament Dialog */}
       <Dialog open={showEditTournamentDialog && editingTournament !== null} onOpenChange={setShowEditTournamentDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Tournament</DialogTitle>
           </DialogHeader>
@@ -2699,6 +2701,24 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                     : 'Entry fees split 4 ways; Boston Pot tracked separately'
                   }
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="edit_rotation_type">Table Rotation</Label>
+                <Select
+                  value={editingTournament.rotationType || 'standard'}
+                  onValueChange={(value: 'standard' | 'malt') => setEditingTournament({
+                    ...editingTournament,
+                    rotationType: value
+                  })}
+                >
+                  <SelectTrigger id="edit_rotation_type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard (pre-set round-robin)</SelectItem>
+                    <SelectItem value="malt">MALT (win/loss determines next table)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Results Sort Order (1st–3rd tiebreaker)</Label>

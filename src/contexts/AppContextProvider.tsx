@@ -694,7 +694,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
-              prepaidCost: t.prepaid_cost || 40
+              prepaidCost: t.prepaid_cost || 40,
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            maltRounds: t.malt_rounds || 0
           }));
           setTournaments(tournaments);
         }
@@ -736,7 +738,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ...t,
         bostonPotCost: t.boston_pot_cost,
         tracksHands: t.tracks_hands !== false,
-        scoringMode: t.scoring_mode || 'team'
+        scoringMode: t.scoring_mode || 'team',
+        rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+        maltRounds: t.malt_rounds || 0
       }));
       setTournaments(mappedTournaments);
     } else {
@@ -1882,7 +1886,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ...t,
         bostonPotCost: t.boston_pot_cost,
         tracksHands: t.tracks_hands !== false,
-        scoringMode: t.scoring_mode || 'team'
+        scoringMode: t.scoring_mode || 'team',
+        rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+        maltRounds: t.malt_rounds || 0
       }));
       setTournaments(mappedTournaments);
     } catch (error) {
@@ -2497,6 +2503,162 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           toast({ title: 'Unexpected error saving schedule', description: String(err), variant: 'destructive' });
         }
       },
+      generateMaltNextRound: async (tournamentId: string): Promise<boolean> => {
+        const { getMaltNext } = await import('../lib/maltRotation');
+        const schedule = schedules.find(s => s.tournamentId === tournamentId);
+        if (!schedule) { toast({ title: 'No schedule found', variant: 'destructive' }); return false; }
+
+        const currentRound = schedule.rounds;
+        const numTables = schedule.matches.filter(m => m.round === 1 && !m.isBye).length;
+
+        const currentRoundMatches = schedule.matches.filter(m => m.round === currentRound && !m.isBye);
+        const matchIdToMatch = new Map(currentRoundMatches.map(m => [m.id, m]));
+        const roundGames = games.filter(g => g.matchId && matchIdToMatch.has(g.matchId) && (g.confirmed || g.status === 'confirmed'));
+
+        if (roundGames.length < currentRoundMatches.length) {
+          const proceed = window.confirm(
+            `Only ${roundGames.length} of ${currentRoundMatches.length} Round ${currentRound} games are confirmed. Generate Round ${currentRound + 1} anyway?`
+          );
+          if (!proceed) return false;
+        }
+
+        // Determine current bye team
+        const currentByeMatch = schedule.matches.find(m => m.round === currentRound && m.isBye);
+        const currentByeTeamId = currentByeMatch
+          ? (currentByeMatch.teamB === 'BYE' ? currentByeMatch.teamA : currentByeMatch.teamB)
+          : null;
+
+        // Build table → {winnerId, loserId} from games
+        const tableResults: Record<number, { winnerId: string; loserId: string }> = {};
+        for (const game of roundGames) {
+          const match = matchIdToMatch.get(game.matchId!);
+          if (!match || match.table == null) continue;
+          const winnerId = game.winner === 'teamA' ? game.teamA : game.teamB;
+          const loserId = game.winner === 'teamA' ? game.teamB : game.teamA;
+          tableResults[match.table] = { winnerId, loserId };
+        }
+        // Fill missing (unplayed) matches with placeholder so every table has an entry
+        for (const match of currentRoundMatches) {
+          if (match.table != null && !tableResults[match.table]) {
+            tableResults[match.table] = { winnerId: match.teamA, loserId: match.teamB };
+          }
+        }
+
+        // Next bye team = winner at Table 2 this round (only if bye cascade is active)
+        let nextByeTeamId: string | null = null;
+        if (currentByeTeamId !== null) {
+          const t2Result = tableResults[2];
+          nextByeTeamId = t2Result ? t2Result.winnerId : null;
+        }
+
+        // Compute next round table assignments
+        const tableAssignments: Record<number, string[]> = {};
+        for (const [tableStr, result] of Object.entries(tableResults)) {
+          const table = parseInt(tableStr);
+          const { winner: winnerDest, loser: loserDest } = getMaltNext(numTables, table);
+
+          // Loser always moves normally
+          if (!tableAssignments[loserDest]) tableAssignments[loserDest] = [];
+          tableAssignments[loserDest].push(result.loserId);
+
+          if (currentByeTeamId !== null && table === 2) {
+            // T2 winner gets bye; previous bye team fills their winner slot
+            if (currentByeTeamId) {
+              if (!tableAssignments[winnerDest]) tableAssignments[winnerDest] = [];
+              tableAssignments[winnerDest].push(currentByeTeamId);
+            }
+          } else {
+            if (!tableAssignments[winnerDest]) tableAssignments[winnerDest] = [];
+            tableAssignments[winnerDest].push(result.winnerId);
+          }
+        }
+
+        const nextRound = currentRound + 1;
+        const newMatches: import('../contexts/AppContext').ScheduleMatch[] = [];
+        let matchIdx = 1;
+        for (const [tableStr, teamIds] of Object.entries(tableAssignments)) {
+          if (teamIds.length === 2) {
+            newMatches.push({
+              id: `${tournamentId}-r${nextRound}-m${matchIdx++}`,
+              teamA: teamIds[0],
+              teamB: teamIds[1],
+              round: nextRound,
+              table: parseInt(tableStr),
+              tournamentId,
+              isBye: false
+            });
+          }
+        }
+        if (currentByeTeamId !== null && nextByeTeamId) {
+          newMatches.push({
+            id: `${tournamentId}-r${nextRound}-bye`,
+            teamA: nextByeTeamId,
+            teamB: 'BYE',
+            round: nextRound,
+            table: numTables + 1,
+            tournamentId,
+            isBye: true
+          });
+        }
+
+        const { supabase } = await import('../supabaseClient');
+        const supabaseMatches = newMatches.map(m => ({
+          id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round,
+          tournament_id: m.tournamentId, table_number: m.table ?? 1,
+          is_bye: m.isBye ?? false, is_same_city: false
+        }));
+        const { error } = await supabase.from('matches').insert(supabaseMatches);
+        if (error) { toast({ title: 'Failed to generate next round', description: error.message, variant: 'destructive' }); return false; }
+
+        setSchedules(prev => prev.map(s => {
+          if (s.tournamentId !== tournamentId) return s;
+          return { ...s, matches: [...s.matches, ...newMatches], rounds: nextRound };
+        }));
+        toast({ title: `Round ${nextRound} generated!` });
+        return true;
+      },
+
+      generateMaltMakeupRound: async (tournamentId: string): Promise<boolean> => {
+        const schedule = schedules.find(s => s.tournamentId === tournamentId);
+        if (!schedule) return false;
+
+        const byeMatches = schedule.matches.filter(m => m.isBye);
+        const byeTeamIds = byeMatches.map(m => m.teamB === 'BYE' ? m.teamA : m.teamB).filter(id => id !== 'BYE');
+        if (byeTeamIds.length === 0) { toast({ title: 'No bye teams to pair', variant: 'destructive' }); return false; }
+
+        const byeTeamObjects = byeTeamIds.map(id => teams.find(t => t.id === id)).filter((t): t is NonNullable<typeof t> => !!t);
+        const shuffled = [...byeTeamObjects].sort(() => Math.random() - 0.5);
+
+        const makeupRound = schedule.rounds + 1;
+        const newMatches: import('../contexts/AppContext').ScheduleMatch[] = [];
+        for (let i = 0; i + 1 < shuffled.length; i += 2) {
+          newMatches.push({
+            id: `${tournamentId}-makeup-m${i / 2 + 1}`,
+            teamA: shuffled[i].id,
+            teamB: shuffled[i + 1].id,
+            round: makeupRound,
+            table: i / 2 + 1,
+            tournamentId,
+            isBye: false
+          });
+        }
+
+        const { supabase } = await import('../supabaseClient');
+        const { error } = await supabase.from('matches').insert(newMatches.map(m => ({
+          id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round,
+          tournament_id: m.tournamentId, table_number: m.table ?? 1,
+          is_bye: false, is_same_city: false
+        })));
+        if (error) { toast({ title: 'Failed to generate makeup round', description: error.message, variant: 'destructive' }); return false; }
+
+        setSchedules(prev => prev.map(s => {
+          if (s.tournamentId !== tournamentId) return s;
+          return { ...s, matches: [...s.matches, ...newMatches], rounds: makeupRound };
+        }));
+        toast({ title: 'Makeup round generated!' });
+        return true;
+      },
+
       addScoreText: (scoreText: ScoreText) => { setScoreTexts(prev => [...prev, scoreText]); },
       updateScoreText: (id: string, updates: any) => { setScoreTexts(prev => prev.map(text => text.id === id ? { ...text, ...updates } : text)); },
       getPendingGames: () => games.filter(game => !game.confirmed),
@@ -2553,7 +2715,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       finishTournament,
       getActiveTournament,
       setActiveTournament,
-      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string, allowPrepay?: boolean) => {
+      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string, allowPrepay?: boolean, rotationType?: 'standard' | 'malt', maltRounds?: number) => {
         const { supabase } = await import('../supabaseClient');
         // Update in Supabase
         const updateData: any = {
@@ -2578,6 +2740,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (allowPrepay !== undefined) {
           updateData.allow_prepay = allowPrepay;
         }
+        if (rotationType !== undefined) {
+          updateData.rotation_type = rotationType;
+        }
+        if (maltRounds !== undefined) {
+          updateData.malt_rounds = maltRounds;
+        }
         const { error } = await supabase
           .from('tournaments')
           .update(updateData)
@@ -2598,7 +2766,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
-              prepaidCost: t.prepaid_cost || 40
+              prepaidCost: t.prepaid_cost || 40,
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            maltRounds: t.malt_rounds || 0
           }));
           setTournaments(mappedTournaments);
         }
@@ -2635,7 +2805,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
-              prepaidCost: t.prepaid_cost || 40
+              prepaidCost: t.prepaid_cost || 40,
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            maltRounds: t.malt_rounds || 0
           }));
           setTournaments(mappedTournaments);
         }
@@ -2668,7 +2840,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
-              prepaidCost: t.prepaid_cost || 40
+              prepaidCost: t.prepaid_cost || 40,
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            maltRounds: t.malt_rounds || 0
           }));
           setTournaments(mappedTournaments);
         }
@@ -2698,7 +2872,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             scoringMode: t.scoring_mode || 'team',
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
-              prepaidCost: t.prepaid_cost || 40
+              prepaidCost: t.prepaid_cost || 40,
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            maltRounds: t.malt_rounds || 0
           }));
           setTournaments(mappedTournaments);
         }

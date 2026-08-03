@@ -206,6 +206,7 @@ const AppLayout = () => {
                     ['finance', <DollarIcon />],
                     ['cities', <CityIcon />],
                     ['messaging', <MessageIcon />],
+                    ['tournament-setup', <Settings className="h-6 w-6" />],
                   ];
                   
       // Add admin scoring tabs if tournament is in admin mode
@@ -258,6 +259,7 @@ const AppLayout = () => {
               <TabsContent value="messaging"><MessageManager /></TabsContent>
               <TabsContent value="admin-scoring"><AdminScoreEntry /></TabsContent>
         <TabsContent value="quick-scoring"><QuickScoreEntry /></TabsContent>
+              <TabsContent value="tournament-setup"><TournamentManagement /></TabsContent>
             </div>
           </div>
         </Tabs>

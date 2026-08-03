@@ -34,6 +34,7 @@ const TournamentManagement: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [editPaymentModel, setEditPaymentModel] = useState<'four_way' | 'five_way'>('four_way');
   const [editAllowPrepay, setEditAllowPrepay] = useState(false);
+  const [editRotationType, setEditRotationType] = useState<'standard' | 'malt'>('standard');
 
 
   const activeTournament = getActiveTournament();
@@ -66,6 +67,7 @@ const TournamentManagement: React.FC = () => {
     setEditDescription(tournament.description || '');
     setEditPaymentModel(tournament.paymentModel || 'four_way');
     setEditAllowPrepay(tournament.allowPrepay || false);
+    setEditRotationType(tournament.rotationType || 'standard');
   };
 
   const saveEdit = async () => {
@@ -86,7 +88,8 @@ const TournamentManagement: React.FC = () => {
       undefined,
       editPaymentModel,
       undefined,
-      editAllowPrepay
+      editAllowPrepay,
+      editRotationType
     );
 
     cancelEdit();
@@ -100,6 +103,7 @@ const TournamentManagement: React.FC = () => {
     setEditDescription('');
     setEditPaymentModel('four_way');
     setEditAllowPrepay(false);
+    setEditRotationType('standard');
   };
 
   return (
@@ -266,6 +270,17 @@ const TournamentManagement: React.FC = () => {
                           <input type="checkbox" checked={editAllowPrepay} onChange={e => setEditAllowPrepay(e.target.checked)} />
                           Allow Prepay Discount at Registration
                         </label>
+                        <div>
+                          <Label className="text-xs text-gray-500">Table Rotation</Label>
+                          <select
+                            className="border rounded p-1 text-sm w-full mt-1"
+                            value={editRotationType}
+                            onChange={(e) => setEditRotationType(e.target.value as 'standard' | 'malt')}
+                          >
+                            <option value="standard">Standard (pre-set round-robin)</option>
+                            <option value="malt">MALT (win/loss determines next table)</option>
+                          </select>
+                        </div>
                         <div className="flex gap-2">
                           <Button size="sm" onClick={saveEdit}>
                             <Save className="w-3 h-3" />
@@ -303,6 +318,9 @@ const TournamentManagement: React.FC = () => {
                             <Badge variant="outline" className={tournament.paymentModel === 'five_way' ? 'border-purple-400 text-purple-700' : 'border-gray-300 text-gray-600'}>
                               {tournament.paymentModel === 'five_way' ? '5-Way Split' : '4-Way Split'}
                             </Badge>
+                            {tournament.rotationType === 'malt' && (
+                              <Badge variant="outline" className="border-blue-400 text-blue-700">MALT</Badge>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
