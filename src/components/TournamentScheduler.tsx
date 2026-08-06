@@ -15,7 +15,7 @@ import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export const TournamentScheduler: React.FC = () => {
-  const { teams, tournaments, schedules, games, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, getActiveTournament, generateMaltNextRound, generateMaltMakeupRound } = useAppContext();
+  const { teams, tournaments, schedules, games, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, getActiveTournament, generateMaltNextRound, generateMaltMakeupRound, refreshTournaments } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [numberOfRounds, setNumberOfRounds] = useState<string>('4');
   const [currentSchedule, setCurrentSchedule] = useState<TournamentSchedule | null>(null);
@@ -247,10 +247,11 @@ export const TournamentScheduler: React.FC = () => {
     saveSchedule(schedule);
     setIsScheduleLocked(true);
 
-    // Save total rounds to tournament record
+    // Save total rounds to tournament record and refresh so numberOfRounds stays correct
     try {
       const { supabase } = await import('../supabaseClient');
       await supabase.from('tournaments').update({ malt_rounds: numRoundsInt }).eq('id', selectedTournament);
+      await refreshTournaments();
     } catch (e) {
       console.warn('Could not save malt_rounds:', e);
     }
