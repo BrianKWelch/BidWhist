@@ -40,8 +40,9 @@ export const TournamentScheduler: React.FC = () => {
       if (existingSchedule) {
         setCurrentSchedule(existingSchedule);
         const t = tournaments.find(t => t.id === selectedTournament);
-        if (t?.rotationType === 'malt' && t.maltRounds) {
-          setNumberOfRounds(t.maltRounds.toString());
+        if (t?.rotationType === 'malt') {
+          // For MALT: use stored maltRounds if available; otherwise keep whatever the admin typed (default '4')
+          if (t.maltRounds) setNumberOfRounds(t.maltRounds.toString());
         } else {
           setNumberOfRounds(existingSchedule.rounds ? existingSchedule.rounds.toString() : '4');
         }
@@ -459,6 +460,13 @@ export const TournamentScheduler: React.FC = () => {
                   size="sm"
                   style={{ backgroundColor: '#1d4ed8', color: 'white' }}
                   onClick={async () => {
+                    if (!tournament?.maltRounds && numRoundsInt > 0) {
+                      try {
+                        const { supabase } = await import('../supabaseClient');
+                        await supabase.from('tournaments').update({ malt_rounds: numRoundsInt }).eq('id', selectedTournament);
+                        await refreshTournaments();
+                      } catch (e) { console.warn('Could not persist malt_rounds:', e); }
+                    }
                     const ok = await generateMaltNextRound(selectedTournament);
                     if (ok) toast({ title: `Round ${maltCurrentRound + 1} generated!` });
                     else toast({ title: 'Could not generate next round.', variant: 'destructive' });
