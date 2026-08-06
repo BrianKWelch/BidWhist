@@ -309,7 +309,11 @@ export const TournamentScheduler: React.FC = () => {
   const isOdd = tournamentTeams.length % 2 === 1;
 
   const isMalt = tournament?.rotationType === 'malt';
-  const numRoundsInt = parseInt(numberOfRounds) || 4;
+  // For MALT: read the stored total directly from the tournament record so it
+  // can never be overwritten by the generated round count.
+  const numRoundsInt = isMalt
+    ? (tournament?.maltRounds || parseInt(numberOfRounds) || 4)
+    : (parseInt(numberOfRounds) || 4);
   const maltCurrentRound = currentSchedule?.rounds ?? 0;
   const maltCurrentRoundMatches = currentSchedule?.matches.filter(m => m.round === maltCurrentRound && !m.isBye) ?? [];
   const maltRoundComplete = maltCurrentRoundMatches.length > 0 &&
