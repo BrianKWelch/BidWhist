@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import PlayerPortalPage from "./pages/PlayerPortalPage";
 import BadgeVisitors from "./pages/BadgeVisitors";
+import SmsBlastPage from "./pages/SmsBlastPage";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/portal" element={<PlayerPortalPage />} />
               <Route path="/visitors" element={<BadgeVisitors />} />
+              <Route path="/sms" element={<SmsBlastPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </HashRouter>
