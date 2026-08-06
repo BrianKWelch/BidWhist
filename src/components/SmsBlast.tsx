@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
-import { CheckSquare, Square, Send, MessageSquare } from 'lucide-react';
+import { SquareCheck, Square, Send, MessageSquare } from 'lucide-react';
 
 interface PhoneEntry {
   phone: string;
@@ -208,7 +208,7 @@ export const SmsBlast: React.FC = () => {
                   className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50 select-none"
                 >
                   {selected.has(entry.phone)
-                    ? <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                    ? <SquareCheck className="w-4 h-4 text-blue-600 shrink-0" />
                     : <Square className="w-4 h-4 text-gray-300 shrink-0" />
                   }
                   <div className="flex-1 min-w-0">
