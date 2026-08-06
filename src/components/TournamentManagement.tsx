@@ -6,11 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, Plus, Trophy, Star, Edit2, Save, X, MessageSquare } from 'lucide-react';
+import { Settings, Plus, Trophy, Star, Edit2, Save, X, MessageSquare, AlertTriangle } from 'lucide-react';
 import CityManager from './CityManager';
 import { IntegratedScoreSystem } from './IntegratedScoreSystem';
 import MessageManager from './MessageManager';
 import { useAppContext } from '@/contexts/AppContext';
+import { toast } from '@/hooks/use-toast';
 
 const TournamentManagement: React.FC = () => {
   const {
@@ -19,10 +20,15 @@ const TournamentManagement: React.FC = () => {
     addTournament,
     updateTournament,
     getActiveTournament,
-    setActiveTournament
+    setActiveTournament,
+    refreshTeams,
+    refreshSchedules,
+    refreshGamesFromSupabase,
   } = useAppContext();
 
   const [activeTab, setActiveTab] = useState('tournaments');
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [tournamentName, setTournamentName] = useState('');
   const [tournamentCost, setTournamentCost] = useState('');
   const [bostonPotCost, setBostonPotCost] = useState('10');
@@ -104,6 +110,31 @@ const TournamentManagement: React.FC = () => {
     setEditPaymentModel('four_way');
     setEditAllowPrepay(false);
     setEditRotationType('standard');
+  };
+
+  const handleResetSeason = async () => {
+    setResetting(true);
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const del = async (table: string, col: string) => {
+        const { error } = await supabase.from(table).delete().not(col, 'is', null);
+        if (error) throw new Error(`${table}: ${error.message}`);
+      };
+      await del('games', 'id');
+      await del('scores', 'id');
+      await del('matches', 'id');
+      await del('team_registrations', 'team_id');
+      await del('player_tournament', 'id');
+      await del('teams', 'id');
+      await Promise.all([refreshTeams(), refreshSchedules(), refreshGamesFromSupabase()]);
+      setResetConfirm(false);
+      toast({ title: 'Season reset complete', description: 'All teams, schedules, and scores have been cleared. Players and tournaments are untouched.' });
+    } catch (e) {
+      console.error('Reset failed:', e);
+      toast({ title: 'Reset failed', description: String(e), variant: 'destructive' });
+    } finally {
+      setResetting(false);
+    }
   };
 
   return (
@@ -341,6 +372,49 @@ const TournamentManagement: React.FC = () => {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-lg border-red-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-700">
+                <AlertTriangle className="w-5 h-5" />
+                Danger Zone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-gray-600">
+                <strong>Reset Season</strong> — deletes all teams, schedules, scores, and payment records.
+                Players and tournaments are kept.
+              </p>
+              {!resetConfirm ? (
+                <Button
+                  variant="outline"
+                  className="border-red-400 text-red-600 hover:bg-red-50"
+                  onClick={() => setResetConfirm(true)}
+                >
+                  Reset Season
+                </Button>
+              ) : (
+                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-300 rounded-lg">
+                  <span className="text-sm font-semibold text-red-700">This cannot be undone. Are you sure?</span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={resetting}
+                    onClick={handleResetSeason}
+                  >
+                    {resetting ? 'Resetting…' : 'Yes, Reset Everything'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={resetting}
+                    onClick={() => setResetConfirm(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

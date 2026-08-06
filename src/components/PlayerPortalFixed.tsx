@@ -600,8 +600,8 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
       const opponentId = match.teamA === team.id ? match.teamB : match.teamA;
       const opponentTeam = teams.find(t => t.id === opponentId);
       
-      // Find any game for this match
-      const existingGame = games.find(game => game.matchId === match.id);
+      // Find any game for this match (normalize camelCase/snake_case matchId)
+      const existingGame = games.find(game => (game.matchId ?? game.match_id) === match.id);
       
       // Determine card type
       let cardType = 'future'; // Default for future rounds
@@ -649,23 +649,14 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
         statusMessage = 'Click to enter your score';
       }
       
-      // For completed games, calculate result
+      // Calculate result whenever a winner is known (confirmed or submitted-but-pending)
       let gameResult = null;
-      if (cardType === 'completed' && existingGame) {
-        // Determine which team the current team is in the GAME data (not schedule data)
+      if (existingGame?.winner) {
         const isTeamAInGame = String(existingGame.teamA) === String(team.id);
         const myScore = isTeamAInGame ? existingGame.scoreA : existingGame.scoreB;
         const opponentScore = isTeamAInGame ? existingGame.scoreB : existingGame.scoreA;
-        
-        // Use the winner field from the game data, which handles tied scores correctly
         const isWin = (isTeamAInGame && existingGame.winner === 'teamA') || (!isTeamAInGame && existingGame.winner === 'teamB');
-        
-        gameResult = {
-          myScore,
-          opponentScore,
-          isWin,
-          boston: existingGame.boston
-        };
+        gameResult = { myScore, opponentScore, isWin, boston: existingGame.boston };
       }
       
       return {
@@ -874,7 +865,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
         );
         if (partnerSchedMatch) {
           const partnerGame = games.find(
-            (g: any) => g.matchId === partnerSchedMatch.id && (g.status === 'confirmed' || g.confirmed)
+            (g: any) => (g.matchId ?? g.match_id) === partnerSchedMatch.id && (g.status === 'confirmed' || g.confirmed || g.winner)
           );
           if (partnerGame) {
             const partnerId = prevMatch.gameResult.isWin
@@ -1324,11 +1315,14 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                         {match.cardType === 'completed' && match.gameResult && (
                                           <>
                                             <div className="flex items-center justify-between h-16">
-                                              {/* Left side: Round pill */}
-                                              <div className="flex items-center justify-center">
+                                              {/* Left side: Round pill + table */}
+                                              <div className="flex flex-col items-center justify-center gap-1">
                                                 <Badge variant="outline" className="text-xs">
                                                   Round {match.round}
                                                 </Badge>
+                                                {match.table && (
+                                                  <span className="text-xs text-gray-500">Table {match.table}</span>
+                                                )}
                                               </div>
                                               
                                               {/* Middle: Team, team number, and team name all centered */}

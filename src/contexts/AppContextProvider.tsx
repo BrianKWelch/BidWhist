@@ -2513,11 +2513,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const currentRoundMatches = schedule.matches.filter(m => m.round === currentRound && !m.isBye);
         const matchIdToMatch = new Map(currentRoundMatches.map(m => [m.id, m]));
-        const roundGames = games.filter(g => g.matchId && matchIdToMatch.has(g.matchId) && (g.confirmed || g.status === 'confirmed'));
+        const roundGames = games.filter(g => g.matchId && matchIdToMatch.has(g.matchId) && (g.confirmed || g.status === 'confirmed' || g.winner));
+        const confirmedGames = roundGames.filter(g => g.confirmed || g.status === 'confirmed');
 
-        if (roundGames.length < currentRoundMatches.length) {
+        if (confirmedGames.length < currentRoundMatches.length) {
           const proceed = window.confirm(
-            `Only ${roundGames.length} of ${currentRoundMatches.length} Round ${currentRound} games are confirmed. Generate Round ${currentRound + 1} anyway?`
+            `Only ${confirmedGames.length} of ${currentRoundMatches.length} Round ${currentRound} games are fully confirmed. Generate Round ${currentRound + 1} using submitted scores anyway?`
           );
           if (!proceed) return false;
         }

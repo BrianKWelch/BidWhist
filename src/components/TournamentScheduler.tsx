@@ -39,7 +39,12 @@ export const TournamentScheduler: React.FC = () => {
       const existingSchedule = schedules.find(s => s.tournamentId === selectedTournament);
       if (existingSchedule) {
         setCurrentSchedule(existingSchedule);
-        setNumberOfRounds(existingSchedule.rounds ? existingSchedule.rounds.toString() : '4');
+        const t = tournaments.find(t => t.id === selectedTournament);
+        if (t?.rotationType === 'malt' && t.maltRounds) {
+          setNumberOfRounds(t.maltRounds.toString());
+        } else {
+          setNumberOfRounds(existingSchedule.rounds ? existingSchedule.rounds.toString() : '4');
+        }
         setIsScheduleLocked(false);
       } else {
         setCurrentSchedule(null);
@@ -47,7 +52,7 @@ export const TournamentScheduler: React.FC = () => {
         setIsScheduleLocked(false);
       }
     }
-  }, [selectedTournament, schedules]);
+  }, [selectedTournament, schedules, tournaments]);
 
   const generateSchedule = () => {
     if (!selectedTournament || !numberOfRounds) {
@@ -306,9 +311,14 @@ export const TournamentScheduler: React.FC = () => {
   const maltCurrentRound = currentSchedule?.rounds ?? 0;
   const maltCurrentRoundMatches = currentSchedule?.matches.filter(m => m.round === maltCurrentRound && !m.isBye) ?? [];
   const maltRoundComplete = maltCurrentRoundMatches.length > 0 &&
-    maltCurrentRoundMatches.every(m => games.some(g => g.matchId === m.id && g.confirmed));
+    maltCurrentRoundMatches.every(m => games.some(g => g.matchId === m.id && (g.confirmed || g.status === 'confirmed')));
+  const maltRoundHasResults = maltCurrentRoundMatches.length > 0 &&
+    maltCurrentRoundMatches.every(m => games.some(g => g.matchId === m.id && g.winner));
+  const maltConfirmedCount = maltCurrentRoundMatches.filter(m =>
+    games.some(g => g.matchId === m.id && (g.confirmed || g.status === 'confirmed'))
+  ).length;
   const maltHasByes = (currentSchedule?.matches ?? []).some(m => m.isBye);
-  const maltCanGenerateNext = isMalt && !!currentSchedule && maltCurrentRound < numRoundsInt && maltRoundComplete;
+  const maltCanGenerateNext = isMalt && !!currentSchedule && maltCurrentRound < numRoundsInt && maltRoundHasResults;
   const maltCanGenerateMakeup = isMalt && !!currentSchedule && maltCurrentRound >= numRoundsInt && maltRoundComplete && maltHasByes;
 
   const teamsByCity = tournamentTeams.reduce((acc, team) => {
@@ -431,10 +441,18 @@ export const TournamentScheduler: React.FC = () => {
           )}
 
           {isMalt && currentSchedule && (
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex items-center gap-3 pt-1 flex-wrap">
               <Badge variant="outline" className="border-blue-400 text-blue-700 text-sm px-3 py-1">
                 Round {maltCurrentRound} of {numRoundsInt}
               </Badge>
+              {maltCurrentRoundMatches.length > 0 && (
+                <Badge
+                  variant="outline"
+                  className={`text-sm px-3 py-1 ${maltRoundComplete ? 'border-green-500 text-green-700' : 'border-amber-400 text-amber-700'}`}
+                >
+                  {maltConfirmedCount}/{maltCurrentRoundMatches.length} confirmed
+                </Badge>
+              )}
               {maltCanGenerateNext && (
                 <Button
                   size="sm"
@@ -442,7 +460,7 @@ export const TournamentScheduler: React.FC = () => {
                   onClick={async () => {
                     const ok = await generateMaltNextRound(selectedTournament);
                     if (ok) toast({ title: `Round ${maltCurrentRound + 1} generated!` });
-                    else toast({ title: 'Could not generate next round — check that all games are confirmed.', variant: 'destructive' });
+                    else toast({ title: 'Could not generate next round.', variant: 'destructive' });
                   }}
                 >
                   Generate Round {maltCurrentRound + 1}
