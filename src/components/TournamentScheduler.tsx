@@ -18,6 +18,7 @@ export const TournamentScheduler: React.FC = () => {
   const { teams, tournaments, schedules, games, saveSchedule, sendScoreSheetLinks, clearTournamentResults, clearGames, clearScoreSubmissions, getActiveTournament, generateMaltNextRound, generateMaltMakeupRound, refreshTournaments } = useAppContext();
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [numberOfRounds, setNumberOfRounds] = useState<string>('4');
+  const [maltTotalRounds, setMaltTotalRounds] = useState<number>(4);
   const [currentSchedule, setCurrentSchedule] = useState<TournamentSchedule | null>(null);
   const [isScheduleLocked, setIsScheduleLocked] = useState(false);
   const [linksSent, setLinksSent] = useState(false);
@@ -41,8 +42,12 @@ export const TournamentScheduler: React.FC = () => {
         setCurrentSchedule(existingSchedule);
         const t = tournaments.find(t => t.id === selectedTournament);
         if (t?.rotationType === 'malt') {
-          // For MALT: use stored maltRounds if available; otherwise keep whatever the admin typed (default '4')
-          if (t.maltRounds) setNumberOfRounds(t.maltRounds.toString());
+          const stored = Number(t.maltRounds) || 0;
+          if (stored > 0) {
+            setMaltTotalRounds(stored);
+            setNumberOfRounds(stored.toString());
+          }
+          // else: keep maltTotalRounds at its current value (default 4 or user-typed)
         } else {
           setNumberOfRounds(existingSchedule.rounds ? existingSchedule.rounds.toString() : '4');
         }
@@ -309,11 +314,9 @@ export const TournamentScheduler: React.FC = () => {
   const isOdd = tournamentTeams.length % 2 === 1;
 
   const isMalt = tournament?.rotationType === 'malt';
-  // For MALT: read the stored total directly from the tournament record so it
-  // can never be overwritten by the generated round count.
-  const numRoundsInt = isMalt
-    ? (tournament?.maltRounds || parseInt(numberOfRounds) || 4)
-    : (parseInt(numberOfRounds) || 4);
+  // For MALT: use dedicated maltTotalRounds state (defaults to 4, updated from DB or user input).
+  // This prevents the generated round count from ever overwriting the planned total.
+  const numRoundsInt = isMalt ? maltTotalRounds : (parseInt(numberOfRounds) || 4);
   const maltCurrentRound = currentSchedule?.rounds ?? 0;
   const maltCurrentRoundMatches = currentSchedule?.matches.filter(m => m.round === maltCurrentRound && !m.isBye) ?? [];
   const maltRoundComplete = maltCurrentRoundMatches.length > 0 &&
@@ -383,7 +386,11 @@ export const TournamentScheduler: React.FC = () => {
                 id="rounds"
                 type="number"
                 value={numberOfRounds}
-                onChange={(e) => setNumberOfRounds(e.target.value)}
+                onChange={(e) => {
+                  setNumberOfRounds(e.target.value);
+                  const v = parseInt(e.target.value);
+                  if (isMalt && v > 0) setMaltTotalRounds(v);
+                }}
                 placeholder="4"
                 min="1"
                 max="10"
