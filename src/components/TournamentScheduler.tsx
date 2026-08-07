@@ -77,7 +77,10 @@ export const TournamentScheduler: React.FC = () => {
 
     // MALT: generate only Round 1 directly, no dialog
     if (tournament?.rotationType === 'malt') {
-      void generateMaltRound1(tournamentTeams);
+      generateMaltRound1(tournamentTeams).catch(err => {
+        console.error('generateMaltRound1 error:', err);
+        toast({ title: 'Schedule error: ' + (err?.message || String(err)), variant: 'destructive' });
+      });
       return;
     }
 
