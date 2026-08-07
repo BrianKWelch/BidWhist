@@ -174,7 +174,7 @@ export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: nu
   return rounds;
 }
 
-function generateOneRound(
+export function generateOneRound(
   teams: Team[],
   previousMatches: PreviousMatch[],
   round: number,

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { ScheduleDisplay } from './ScheduleDisplay';
 import { ScheduleEditor } from './ScheduleEditor';
-import { generateNRoundsWithByeAndFinal } from '@/lib/scheduler';
+import { generateNRoundsWithByeAndFinal, generateOneRound } from '@/lib/scheduler';
 import type { TournamentSchedule, ScheduleMatch } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -218,8 +218,7 @@ export const TournamentScheduler: React.FC = () => {
       city: team.city
     }));
 
-    const allRounds = generateNRoundsWithByeAndFinal(schedulerTeams, 1);
-    const round1 = allRounds[0];
+    const round1 = generateOneRound(schedulerTeams, [], 1, []);
 
     const matches: ScheduleMatch[] = [];
     let matchId = 1;
