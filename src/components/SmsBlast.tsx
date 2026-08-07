@@ -49,7 +49,7 @@ export const SmsBlast: React.FC = () => {
   }, [functionUrl]);
 
   const phoneEntries = useMemo((): PhoneEntry[] => {
-    const filtered = tournamentId
+    const filtered = (tournamentId && tournamentId !== 'all')
       ? teams.filter(t => t.registeredTournaments?.includes(tournamentId))
       : teams;
     const seen = new Set<string>();
@@ -158,7 +158,7 @@ export const SmsBlast: React.FC = () => {
               <SelectValue placeholder="All tournaments" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All tournaments</SelectItem>
+              <SelectItem value="all">All tournaments</SelectItem>
               {tournaments.map(t => (
                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
               ))}
