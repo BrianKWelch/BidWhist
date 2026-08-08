@@ -39,56 +39,20 @@ export function generateNRoundsWithByeAndFinal(inputTeams: Team[], numRounds: nu
   }
   const cities = Object.keys(cityMap);
 
-  // 2. Find the best split city (minimizes column difference)
-  let bestSplit: { splitCity: string; left: string[]; right: string[]; diff: number } | null = null;
-  for (const splitCity of cities) {
-    const otherCities = cities.filter(c => c !== splitCity);
-    // Try all possible assignments of other cities to left/right
-    const assignments: string[][] = [[]];
-    for (const city of otherCities) {
-      const newAssignments: string[][] = [];
-      for (const assign of assignments) {
-        newAssignments.push([...assign, city]);
-        newAssignments.push(assign);
-      }
-      assignments.push(...newAssignments);
-    }
-    for (const assign of assignments) {
-      const leftCities = assign;
-      const rightCities = otherCities.filter(c => !leftCities.includes(c));
-      const leftCount = leftCities.reduce((sum, c) => sum + cityMap[c].length, 0);
-      const rightCount = rightCities.reduce((sum, c) => sum + cityMap[c].length, 0);
-      const splitCount = cityMap[splitCity].length;
-      // Try all possible splits of splitCity
-      for (let leftSplit = 0; leftSplit <= splitCount; leftSplit++) {
-        const rightSplit = splitCount - leftSplit;
-        const totalLeft = leftCount + leftSplit;
-        const totalRight = rightCount + rightSplit;
-        const diff = Math.abs(totalLeft - totalRight);
-        if (!bestSplit || diff < bestSplit.diff) {
-          bestSplit = {
-            splitCity,
-            left: [...leftCities, ...Array(leftSplit).fill(splitCity)],
-            right: [...rightCities, ...Array(rightSplit).fill(splitCity)],
-            diff,
-          };
-        }
-      }
-    }
-  }
-  if (!bestSplit) throw new Error('Could not find a valid split');
-
-  // 3. Build columns
+  // 2. Greedy city split — assign largest cities first, always to the smaller column
+  const sortedCities = [...cities].sort((a, b) => cityMap[b].length - cityMap[a].length);
   const leftTeams: Team[] = [];
   const rightTeams: Team[] = [];
-  const splitCityTeams = [...cityMap[bestSplit.splitCity]];
-  // Assign split city teams to left (bottom) and right (top)
-  const leftSplitCount = bestSplit.left.filter(c => c === bestSplit.splitCity).length;
-  const rightSplitCount = bestSplit.right.filter(c => c === bestSplit.splitCity).length;
-  leftTeams.push(...bestSplit.left.filter(c => c !== bestSplit.splitCity).flatMap(c => cityMap[c]));
-  rightTeams.push(...bestSplit.right.filter(c => c !== bestSplit.splitCity).flatMap(c => cityMap[c]));
-  leftTeams.push(...splitCityTeams.slice(0, leftSplitCount)); // bottom of left
-  rightTeams.unshift(...splitCityTeams.slice(leftSplitCount)); // top of right
+  for (const city of sortedCities) {
+    if (leftTeams.length <= rightTeams.length) {
+      leftTeams.push(...cityMap[city]);
+    } else {
+      rightTeams.push(...cityMap[city]);
+    }
+  }
+  // Balance columns (move individual teams from the larger side)
+  while (leftTeams.length > rightTeams.length + 1) rightTeams.push(leftTeams.pop()!);
+  while (rightTeams.length > leftTeams.length + 1) leftTeams.push(rightTeams.pop()!);
 
   // 4. Add BYE if needed - always put BYE on the left side (static side)
   let totalTeams = leftTeams.length + rightTeams.length;

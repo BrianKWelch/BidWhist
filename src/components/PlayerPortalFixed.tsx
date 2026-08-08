@@ -968,7 +968,8 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
         {/* Team info */}
         <div className="py-2 px-4">
           <div className="text-center">
-            <span className="text-lg font-bold text-black">Team {team.id}: {team.player1FirstName}/{team.player2FirstName}</span>
+            <div className="text-4xl font-black text-black tracking-tight">TEAM #{team.id}</div>
+            <div className="text-sm text-gray-600 mt-0.5">{team.player1FirstName} / {team.player2FirstName}</div>
           </div>
         </div>
         
@@ -1116,7 +1117,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                               
                                               {/* Middle: Team, team number, and team name all centered */}
                                               <div className="flex flex-col items-center justify-center">
-                                                <span className="text-xs text-gray-600">Team</span>
+                                                <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">vs. Team</span>
                                                 <span className="font-bold text-lg">{match.opponentTeam?.id || match.opponentId}</span>
                                                 <span className="text-xs text-gray-600">
                                                   {match.opponentTeam?.player1FirstName || ''}/{match.opponentTeam?.player2FirstName || ''}
@@ -1146,7 +1147,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                               
                                               {/* Middle: Team, team number, and team name all centered */}
                                               <div className="flex flex-col items-center justify-center">
-                                                <span className="text-xs text-gray-600">Team</span>
+                                                <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">vs. Team</span>
                                                 <span className="font-bold text-lg">{match.opponentTeam?.id || match.opponentId}</span>
                                                 <span className="text-xs text-gray-600">
                                                   {match.opponentTeam?.player1FirstName || ''}/{match.opponentTeam?.player2FirstName || ''}
@@ -1327,7 +1328,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                               
                                               {/* Middle: Team, team number, and team name all centered */}
                                               <div className="flex flex-col items-center justify-center">
-                                                <span className="text-xs text-gray-600">Team</span>
+                                                <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">vs. Team</span>
                                                 <span className="font-bold text-lg">{match.opponentTeam?.id || match.opponentId}</span>
                                                 <span className="text-xs text-gray-600">
                                                   {match.opponentTeam?.player1FirstName || ''}/{match.opponentTeam?.player2FirstName || ''}
