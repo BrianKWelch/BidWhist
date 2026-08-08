@@ -469,6 +469,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
   const [enteringTeamId, setEnteringTeamId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showRotationChart, setShowRotationChart] = useState(false);
+  const [isStartingEntry, setIsStartingEntry] = useState(false);
   const { teams, schedules, games, tournaments, getActiveTournament, submitGame, confirmScore, beginScoreEntry, releaseScoreEntryLock, retractScore, refreshGamesFromSupabase, getActiveMessages } = useAppContext();
 
   const cleanPhoneNumber = (phone: string) => {
@@ -501,6 +502,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
 
     if (foundTeam) {
       setTeam(foundTeam);
+      localStorage.setItem('portal_team_id', String(foundTeam.id));
     } else {
       setLoginError('Team not found. Please check your phone number.');
     }
@@ -536,6 +538,15 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
       setLoginError(`No team found with number ${teamNumber.trim()}`);
     }
   };
+
+  // Restore login from localStorage when teams load
+  useEffect(() => {
+    if (team) return;
+    const savedTeamId = localStorage.getItem('portal_team_id');
+    if (!savedTeamId || teams.length === 0) return;
+    const savedTeam = teams.find(t => String(t.id) === savedTeamId);
+    if (savedTeam) setTeam(savedTeam);
+  }, [teams]);
 
   // Force re-render when games change
   useEffect(() => {
@@ -936,6 +947,7 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                 if (enteringTeamId && selectedMatch) {
                   await releaseScoreEntryLock({ matchId: selectedMatch.id, teamId: enteringTeamId });
                 }
+                localStorage.removeItem('portal_team_id');
                 setSelectedMatch(null);
                 setEnteringTeamId(null);
                 setTeam(null);
@@ -1168,33 +1180,38 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                                       <div className="text-xs text-gray-500">Admin Managed</div>
                                                     </div>
                                                   ) : (
-                                                    <Button 
-                                                      size="sm" 
+                                                    <Button
+                                                      size="sm"
                                                       className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-2 py-1 text-xs rounded-md shadow-sm animate-pulse"
+                                                      disabled={isStartingEntry}
                                                       onClick={() => {
                                                         (async () => {
-                                                          const result = await beginScoreEntry({
-                                                            matchId: match.id,
-                                                            teamId: String(team.id),
-                                                            teamA: String(match.teamA),
-                                                            teamB: String(match.teamB),
-                                                            round: match.round,
-                                                          });
-                                                          if (result.ok) {
-                                                            setEnteringTeamId(team.id);
-                                                            setSelectedMatch(match);
-                                                            // setCurrentStep(0); // Removed as per edit hint
-                                                          } else {
-                                                            if (result.reason === 'teammate_entering') {
-                                                              toast({ 
-                                                                title: 'Partner is entering score', 
-                                                                description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.', 
-                                                                variant: 'destructive' 
-                                                              });
+                                                          setIsStartingEntry(true);
+                                                          try {
+                                                            const result = await beginScoreEntry({
+                                                              matchId: match.id,
+                                                              teamId: String(team.id),
+                                                              teamA: String(match.teamA),
+                                                              teamB: String(match.teamB),
+                                                              round: match.round,
+                                                            });
+                                                            if (result.ok) {
+                                                              setEnteringTeamId(team.id);
+                                                              setSelectedMatch(match);
                                                             } else {
-                                                              toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                              if (result.reason === 'teammate_entering') {
+                                                                toast({
+                                                                  title: 'Partner is entering score',
+                                                                  description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.',
+                                                                  variant: 'destructive'
+                                                                });
+                                                              } else {
+                                                                toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                              }
+                                                              await refreshGamesFromSupabase();
                                                             }
-                                                            await refreshGamesFromSupabase();
+                                                          } finally {
+                                                            setIsStartingEntry(false);
                                                           }
                                                         })();
                                                       }}
@@ -1245,32 +1262,38 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
                                                      </button>
                                                    </div>
                                                  ) : match.status === 'Score disputed - re-enter' ? (
-                                                   <Button 
-                                                     size="sm" 
+                                                   <Button
+                                                     size="sm"
                                                      className="bg-red-600 hover:bg-red-700 text-white font-medium px-2 py-1 text-xs rounded-md shadow-sm"
+                                                     disabled={isStartingEntry}
                                                      onClick={() => {
                                                        (async () => {
-                                                         const result = await beginScoreEntry({
-                                                           matchId: match.id,
-                                                           teamId: String(team.id),
-                                                           teamA: String(match.teamA),
-                                                           teamB: String(match.teamB),
-                                                           round: match.round,
-                                                         });
-                                                         if (result.ok) {
-                                                           setEnteringTeamId(team.id);
-                                                           setSelectedMatch(match);
-                                                         } else {
-                                                           if (result.reason === 'teammate_entering') {
-                                                             toast({ 
-                                                               title: 'Partner is entering score', 
-                                                               description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.', 
-                                                               variant: 'destructive' 
-                                                             });
+                                                         setIsStartingEntry(true);
+                                                         try {
+                                                           const result = await beginScoreEntry({
+                                                             matchId: match.id,
+                                                             teamId: String(team.id),
+                                                             teamA: String(match.teamA),
+                                                             teamB: String(match.teamB),
+                                                             round: match.round,
+                                                           });
+                                                           if (result.ok) {
+                                                             setEnteringTeamId(team.id);
+                                                             setSelectedMatch(match);
                                                            } else {
-                                                             toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                             if (result.reason === 'teammate_entering') {
+                                                               toast({
+                                                                 title: 'Partner is entering score',
+                                                                 description: 'Your partner is currently the score keeper. If you want to enter the score, ask your partner to logout first.',
+                                                                 variant: 'destructive'
+                                                               });
+                                                             } else {
+                                                               toast({ title: 'Opponent entering score', description: 'Please wait and try again in a moment.', variant: 'destructive' });
+                                                             }
+                                                             await refreshGamesFromSupabase();
                                                            }
-                                                           await refreshGamesFromSupabase();
+                                                         } finally {
+                                                           setIsStartingEntry(false);
                                                          }
                                                        })();
                                                      }}
