@@ -321,6 +321,24 @@ git push          # GitHub Pages auto-serves from docs/
 
 ---
 
+## Feed the Fat Man (standalone side project)
+
+A self-contained arcade game, unrelated to tournament management. Lives at
+`public/fatman.html` (Vite copies `public/` verbatim into `docs/`, so
+`docs/fatman.html` is the deployed copy — keep the two in sync if you edit it
+without running a build).
+
+- URL: `https://briankwelch.github.io/BidWhist/fatman.html`
+- Deliberately **outside** the React app: it does not import React, Tailwind,
+  Supabase or `AppContextProvider`, so it loads instantly on a phone and cannot
+  affect the live tournament app. Do not "fix" this by porting it into `src/`.
+- Not linked from any admin or portal screen — it is reached by URL only.
+- One file, plain HTML/CSS/JS in an IIFE. State machine: `title → intro → play → clear → over`.
+- Round types live in the `TYPES` map; `pickType(round)` picks one and
+  `tuned(type, round)` layers the per-round difficulty creep on top.
+
+---
+
 ## Gotchas & Known Quirks
 
 1. **`games` table has mixed camelCase/snake_case columns** — always handle both: `g.teamA ?? g.team_a`, `g.handsA ?? g.hands_a`
