@@ -323,19 +323,32 @@ git push          # GitHub Pages auto-serves from docs/
 
 ## Feed the Fat Man (standalone side project)
 
-A self-contained arcade game, unrelated to tournament management. Lives at
-`public/fatman.html` (Vite copies `public/` verbatim into `docs/`, so
-`docs/fatman.html` is the deployed copy — keep the two in sync if you edit it
-without running a build).
+A self-contained arcade game, unrelated to tournament management. Source of
+truth is `public/fatman/`; Vite copies `public/` verbatim into `docs/`, so
+`docs/fatman/` is the deployed copy — keep the two in sync if you edit it
+without running a build.
 
-- URL: `https://briankwelch.github.io/BidWhist/fatman.html`
+- URL: `https://briankwelch.github.io/BidWhist/fatman/`
+  (`/fatman.html` is a redirect stub kept for older links.)
 - Deliberately **outside** the React app: it does not import React, Tailwind,
   Supabase or `AppContextProvider`, so it loads instantly on a phone and cannot
   affect the live tournament app. Do not "fix" this by porting it into `src/`.
-- Not linked from any admin or portal screen — it is reached by URL only.
-- One file, plain HTML/CSS/JS in an IIFE. State machine: `title → intro → play → clear → over`.
-- Round types live in the `TYPES` map; `pickType(round)` picks one and
-  `tuned(type, round)` layers the per-round difficulty creep on top.
+- Not linked from any admin or portal screen — reached by URL only.
+- `index.html` is one file, plain HTML/CSS/JS in an IIFE. State machine:
+  `title → intro → play → clear → over`. Round types live in the `TYPES` map;
+  `pickType(round)` picks one and `tuned(type, round)` layers the per-round
+  difficulty creep on top.
+
+### Why it lives in a subfolder (important)
+
+It is an installable PWA: `sw.js` precaches the game so it plays fully offline.
+A service worker's default scope is its own directory, so a worker at
+`/fatman.html` would have claimed **all of `/BidWhist/`** and started
+intercepting and caching the tournament app. Keeping the game in `/fatman/`
+seals the worker's scope to that folder. Never move `sw.js` up a level.
+
+**Bump `CACHE` in `sw.js` whenever you change the game**, or installed phones
+will keep serving the old cached copy.
 
 ---
 
