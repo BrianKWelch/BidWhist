@@ -72,6 +72,13 @@
   #stage{
     flex:1;min-height:0;position:relative;padding:4px 0;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  /* Sized from whatever height is left after the bubble, so a 9-food board
+     can never be covered. The 88% leaves room for the grow-on-feed scale. */
+  #guywrap{
+    flex:1;min-height:0;width:100%;
+    display:flex;align-items:center;justify-content:center;
   }
   #bubble{
     position:relative;flex:none;
@@ -90,7 +97,7 @@
   #wantEmoji{font-size:clamp(30px,9vh,52px);line-height:1.12;margin-bottom:1px;}
   #wantName{font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.07em;opacity:.72;}
 
-  #guy{flex:none;width:min(62vw,min(34vh,260px));margin-top:-2px;transition:transform .12s ease-out;}
+  #guy{height:88%;width:auto;max-width:62vw;transition:transform .12s ease-out;}
   #guy.chew #mouth{ry:13;}
   #guy.hit{animation:shake .3s;}
   @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
@@ -182,6 +189,7 @@
       <div id="wantEmoji">🍩</div>
       <div id="wantName">DONUT</div>
     </div>
+    <div id="guywrap">
     <svg id="guy" viewBox="0 0 220 215">
       <!-- shadow -->
       <ellipse cx="110" cy="204" rx="88" ry="10" fill="rgba(0,0,0,.3)"/>
@@ -223,6 +231,7 @@
       <!-- mouth -->
       <ellipse id="mouth" cx="110" cy="110" rx="17" ry="6" fill="#802c2c"/>
     </svg>
+    </div>
   </div>
 
   <!-- Food buttons -->
@@ -284,8 +293,8 @@
       <div class="stat"><b id="overRound">0</b><span>ROUNDS</span></div>
       <div class="stat"><b id="overBest">0</b><span>BEST</span></div>
     </div>
-    <button class="btn" id="againBtn">PLAY AGAIN</button>
-    <button class="btn ghost" id="menuBtn" style="padding:10px 22px;font-size:15px;">MENU</button>
+    <button class="btn" id="againBtn">RETRY ROUND</button>
+    <button class="btn ghost" id="menuBtn" style="padding:10px 22px;font-size:15px;">START OVER</button>
   </div>
 
 </div>
@@ -306,17 +315,19 @@ var FOODS = [
 ];
 
 /* choices = how many food buttons; crave = ms per craving;
-   goal = bites needed; time = round seconds; shuffle = reposition on mind-change */
+   goal = bites needed; time = round seconds.
+   Food positions are fixed for the whole round on purpose — the hard rounds
+   are hard enough on speed alone without the board moving under your thumb. */
 var TYPES = {
-  easy:  {label:"EASY",       color:"#4ade80", choices:4, crave:2500, goal:8,  time:24, shuffle:false,
+  easy:  {label:"EASY",       color:"#4ade80", choices:4, crave:2500, goal:8,  time:24,
           desc:"He's picky but slow. Catch your breath."},
-  norm:  {label:"NORMAL",     color:"#7cc6ff", choices:6, crave:1850, goal:12, time:24, shuffle:false,
+  norm:  {label:"NORMAL",     color:"#7cc6ff", choices:6, crave:1850, goal:12, time:24,
           desc:"Standard appetite. Keep the bites coming."},
-  hard:  {label:"HARD",       color:"#ffd23f", choices:8, crave:1350, goal:16, time:24, shuffle:false,
+  hard:  {label:"HARD",       color:"#ffd23f", choices:8, crave:1350, goal:16, time:24,
           desc:"More on the menu and he's getting impatient."},
-  super: {label:"SUPER HARD", color:"#ff8a3d", choices:9, crave:1020, goal:20, time:24, shuffle:true,
-          desc:"The food keeps moving around. Good luck."},
-  ultra: {label:"ULTRA HARD", color:"#ff5a5a", choices:9, crave:780,  goal:24, time:24, shuffle:true,
+  super: {label:"SUPER HARD", color:"#ff8a3d", choices:9, crave:1020, goal:20, time:24,
+          desc:"Nine foods and barely a second each. Good luck."},
+  ultra: {label:"ULTRA HARD", color:"#ff5a5a", choices:9, crave:780,  goal:24, time:24,
           desc:"He's ravenous, scatterbrained and fast. Survive it."}
 };
 
@@ -333,6 +344,7 @@ var G = {
   score:0, best:0,
   lives:5, fed:0, goal:0,
   pool:[], target:-1, prevTarget:-1,
+  roundStartScore:0,
   craveStart:0, craveEnd:0,
   roundStart:0, roundEnd:0,
   hiddenAt:0
@@ -410,8 +422,7 @@ function tuned(typeKey, round){
     choices: t.choices,
     crave: Math.round(t.crave * speed),
     goal: t.goal + Math.floor((round-1)/2),
-    time: t.time,
-    shuffle: t.shuffle
+    time: t.time
   };
 }
 
@@ -456,8 +467,6 @@ function newCraving(now){
   wantName.textContent  = FOODS[next].n.toUpperCase();
   bubble.classList.remove("pop"); void bubble.offsetWidth; bubble.classList.add("pop");
 
-  if(G.type.shuffle){ shuffle(G.pool); buildGrid(); }
-
   // ULTRA fake-outs: every so often he flips his mind almost immediately.
   var dur = G.type.crave;
   if(G.type.key==="ultra" && Math.random()<0.25) dur = Math.round(dur*0.55);
@@ -496,7 +505,7 @@ function onTap(ev){
     // chew + grow
     guy.classList.add("chew");
     setTimeout(function(){ guy.classList.remove("chew"); }, 90);
-    var grow = 1 + Math.min(0.22, (G.fed / Math.max(1,G.goal)) * 0.22);
+    var grow = 1 + Math.min(0.12, (G.fed / Math.max(1,G.goal)) * 0.12);
     guy.style.transform = "scale(" + grow.toFixed(3) + ")";
 
     floatText("+1", "#4ade80", x, box.height - 26);
@@ -519,11 +528,7 @@ function onTap(ev){
 grid.addEventListener("pointerdown", onTap);
 
 /* ============ Round flow ============ */
-function startRoundIntro(){
-  G.round++;
-  G.type = tuned(pickType(G.round), G.round);
-  G.goal = G.type.goal;
-
+function showIntro(){
   $("introRound").textContent = "ROUND " + G.round;
   $("introType").textContent  = G.type.label;
   $("introType").style.color  = G.type.color;
@@ -536,7 +541,23 @@ function startRoundIntro(){
   show("introScreen");
 }
 
+function nextRound(){
+  G.round++;
+  G.type = tuned(pickType(G.round), G.round);
+  G.goal = G.type.goal;
+  showIntro();
+}
+
+/* Losing never sends you back to round 1 — you retry the round you died on,
+   with the same type, and your score rewinds to what it was when it started. */
+function retryRound(){
+  G.score = G.roundStartScore;
+  drawHud();
+  showIntro();
+}
+
 function beginRound(){
+  G.roundStartScore = G.score;
   G.lives = 5;
   G.fed = 0;
   G.target = -1;
@@ -587,6 +608,7 @@ function gameOver(ranOutOfTime){
   $("overScore").textContent = G.score;
   $("overRound").textContent = G.round;
   $("overBest").textContent  = G.best;
+  $("againBtn").textContent  = "RETRY ROUND " + G.round;
   beep(300,0.16,"sawtooth",0.06);
   setTimeout(function(){ beep(190,0.3,"sawtooth",0.06); }, 150);
   buzz([60,60,120]);
@@ -594,8 +616,8 @@ function gameOver(ranOutOfTime){
 }
 
 function newGame(){
-  G.round = 0; G.score = 0;
-  startRoundIntro();
+  G.round = 0; G.score = 0; G.roundStartScore = 0;
+  nextRound();
 }
 
 /* ============ Loop ============ */
@@ -631,8 +653,8 @@ $("playBtn").addEventListener("click", function(){ audio(); newGame(); });
 $("howBtn").addEventListener("click",  function(){ show("howScreen"); });
 $("backBtn").addEventListener("click", function(){ show("titleScreen"); });
 $("goBtn").addEventListener("click",   function(){ beginRound(); });
-$("nextBtn").addEventListener("click", function(){ startRoundIntro(); });
-$("againBtn").addEventListener("click",function(){ newGame(); });
+$("nextBtn").addEventListener("click", function(){ nextRound(); });
+$("againBtn").addEventListener("click",function(){ retryRound(); });
 $("menuBtn").addEventListener("click", function(){
   G.phase="title";
   $("bestTag").textContent = "BEST: " + G.best;
