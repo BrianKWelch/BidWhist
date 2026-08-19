@@ -325,10 +325,10 @@ var TYPES = {
           desc:"Standard appetite. Keep the bites coming."},
   hard:  {label:"HARD",       color:"#ffd23f", choices:8, crave:1350, goal:16, time:24,
           desc:"More on the menu and he's getting impatient."},
-  super: {label:"SUPER HARD", color:"#ff8a3d", choices:9, crave:1020, goal:20, time:24,
-          desc:"Nine foods and barely a second each. Good luck."},
-  ultra: {label:"ULTRA HARD", color:"#ff5a5a", choices:9, crave:780,  goal:24, time:24,
-          desc:"He's ravenous, scatterbrained and fast. Survive it."}
+  super: {label:"SUPER HARD", color:"#ff8a3d", choices:9, crave:1350, goal:20, time:24,
+          desc:"Nine foods on the board. Pick fast."},
+  ultra: {label:"ULTRA HARD", color:"#ff5a5a", choices:9, crave:1100, goal:24, time:24,
+          desc:"Nine foods, no mercy. As fast as he gets."}
 };
 
 /* ============ DOM ============ */
@@ -415,7 +415,7 @@ function pickType(round){
 /* Difficulty creeps up every round on top of the round type. */
 function tuned(typeKey, round){
   var t = TYPES[typeKey];
-  var speed = Math.max(0.62, 1 - (round-1)*0.028);  // cravings get shorter
+  var speed = Math.max(0.80, 1 - (round-1)*0.028);  // cravings get shorter, floored at 80%
   return {
     key: typeKey,
     label: t.label, color: t.color, desc: t.desc,
@@ -467,9 +467,7 @@ function newCraving(now){
   wantName.textContent  = FOODS[next].n.toUpperCase();
   bubble.classList.remove("pop"); void bubble.offsetWidth; bubble.classList.add("pop");
 
-  // ULTRA fake-outs: every so often he flips his mind almost immediately.
   var dur = G.type.crave;
-  if(G.type.key==="ultra" && Math.random()<0.25) dur = Math.round(dur*0.55);
 
   G.craveStart = now;
   G.craveEnd   = now + dur;

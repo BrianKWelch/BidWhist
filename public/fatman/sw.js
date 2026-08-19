@@ -2,7 +2,7 @@
    Registered from ./index.html, so its scope is /BidWhist/fatman/ only.
    It never sees requests for the tournament app. */
 
-var CACHE = "ftfm-v2";
+var CACHE = "ftfm-v3";
 var ASSETS = [
   "./",
   "./index.html",
