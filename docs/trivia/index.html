@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Quick Draw Trivia</title>
+<meta name="description" content="Two phones, one local network, ten questions. Fastest right answer wins.">
+<meta name="theme-color" content="#16143a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quick Draw">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" href="./icon-192.png">
+<style>
+:root{
+  --bg:#16143a; --bg2:#1e1b4d; --card:#262260; --line:#3a3480;
+  --ink:#f4f3ff; --dim:#a5a0d8;
+  --me:#3ddc97; --them:#ffd43b; --wrong:#ff6b6b; --blue:#4dabf7;
+  --A:#3ddc97; --B:#4dabf7; --C:#ffd43b; --D:#ff6b6b;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  font-size:17px;line-height:1.4;overscroll-behavior:none;
+  -webkit-user-select:none;user-select:none;
+}
+#app{min-height:100%;display:flex;flex-direction:column;
+  padding:calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 14px);max-width:560px;margin:0 auto}
+.screen{display:none}
+.screen.on{display:flex;flex:1;flex-direction:column}
+h1{font-size:34px;line-height:1.05;margin:0 0 4px;letter-spacing:-.02em;font-weight:800}
+h2{font-size:21px;margin:0 0 10px;font-weight:700}
+p{margin:0 0 12px}
+.dim{color:var(--dim);font-size:15px}
+.tiny{font-size:13px;color:var(--dim);line-height:1.45}
+.grow{flex:1}
+.center{justify-content:center;align-items:center;text-align:center}
+
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.btn{
+  display:block;width:100%;padding:17px 18px;border-radius:16px;background:var(--card);
+  border:1.5px solid var(--line);font-weight:700;font-size:17px;text-align:center;
+  margin-bottom:11px;transition:transform .08s ease,filter .15s ease;
+}
+.btn:active{transform:scale(.975)}
+.btn.primary{background:linear-gradient(180deg,#4ee6a6,#2fc182);border-color:#2fc182;color:#08281c}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.45}
+.row{display:flex;gap:11px}
+.row>.btn{margin-bottom:11px}
+
+input[type=text]{
+  width:100%;padding:15px 16px;border-radius:14px;background:#100e2e;color:var(--ink);
+  border:1.5px solid var(--line);font:inherit;-webkit-user-select:text;user-select:text;
+}
+input[type=text]::placeholder{color:#6f68ad}
+
+/* ---- scoreboard ---- */
+.board{display:flex;gap:10px;margin-bottom:14px}
+.pcard{
+  flex:1;background:var(--card);border:2px solid var(--line);border-radius:15px;
+  padding:9px 12px;min-width:0;transition:border-color .2s,background .2s;
+}
+.pcard .nm{font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .sc{font-size:27px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.pcard.me{border-color:var(--me)} .pcard.me .sc{color:var(--me)}
+.pcard.them{border-color:var(--them)} .pcard.them .sc{color:var(--them)}
+.pcard .lock{font-size:12px;font-weight:700;height:15px;color:var(--dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard.locked{animation:pop .35s ease}
+@keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.055)}100%{transform:scale(1)}}
+
+.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.meta .qn{font-size:13px;font-weight:800;letter-spacing:.09em;color:var(--dim);text-transform:uppercase}
+.meta .cat{font-size:13px;font-weight:700;color:var(--blue)}
+
+.tbar{height:7px;border-radius:99px;background:#100e2e;overflow:hidden;margin-bottom:16px}
+.tbar>i{display:block;height:100%;width:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--me),var(--C));transform-origin:left center}
+.tbar.low>i{background:var(--wrong)}
+
+.qtext{font-size:22px;font-weight:700;line-height:1.28;margin:10px 0;letter-spacing:-.01em}
+
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  padding:15px 14px;border-radius:15px;background:var(--card);
+  border:2px solid var(--line);font-weight:600;font-size:16.5px;line-height:1.25;
+  transition:transform .08s,border-color .2s,background .2s,opacity .2s;
+}
+.opt:active{transform:scale(.985)}
+.opt .k{
+  flex:none;width:31px;height:31px;border-radius:9px;display:grid;place-items:center;
+  font-weight:800;font-size:15px;color:#12102e;
+}
+.opt:nth-child(1) .k{background:var(--A)} .opt:nth-child(2) .k{background:var(--B)}
+.opt:nth-child(3) .k{background:var(--C)} .opt:nth-child(4) .k{background:var(--D)}
+.opt .lbl{flex:1;min-width:0}
+.opt .chips{flex:none;display:flex;gap:4px}
+.chip{font-size:10px;font-weight:800;padding:3px 6px;border-radius:6px;letter-spacing:.05em;
+  text-transform:uppercase;color:#12102e}
+.chip.me{background:var(--me)} .chip.them{background:var(--them)}
+.opt.picked{border-color:var(--ink)}
+.opt.right{background:#12472f;border-color:var(--me)}
+.opt.wrong{background:#4a1c22;border-color:var(--wrong)}
+.opt.muted{opacity:.5}
+.opts.locked .opt{pointer-events:none}
+
+.status{min-height:44px;margin-top:14px;text-align:center;font-weight:700;font-size:15px}
+.status .pts{font-size:19px;font-weight:800}
+.gain{color:var(--me)} .miss{color:var(--wrong)}
+
+/* ---- pairing ---- */
+.step{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:6px}
+#qrwrap{background:#fff;border-radius:18px;padding:11px;margin:4px auto 10px;
+  width:min(300px,72vw);aspect-ratio:1;display:grid;place-items:center}
+#qrwrap canvas{width:100%;height:100%;image-rendering:pixelated}
+#cam{width:min(340px,84vw);aspect-ratio:1;border-radius:18px;object-fit:cover;background:#000;
+  margin:6px auto 12px;display:block;transform:scaleX(1)}
+.camwrap{position:relative;width:min(340px,84vw);margin:0 auto}
+.reticle{position:absolute;inset:12%;border:3px solid rgba(255,255,255,.55);border-radius:14px;pointer-events:none}
+details{margin:2px 0 12px}
+summary{font-size:14px;color:var(--blue);font-weight:700;padding:8px 0;list-style:none}
+summary::-webkit-details-marker{display:none}
+textarea{
+  width:100%;min-height:78px;border-radius:12px;background:#100e2e;color:var(--dim);
+  border:1.5px solid var(--line);padding:11px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  -webkit-user-select:text;user-select:text;resize:vertical;
+}
+.note{background:#100e2e;border:1.5px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:14px}
+.note ol{margin:8px 0 0;padding-left:20px} .note li{margin-bottom:6px;font-size:14.5px;color:var(--dim)}
+.warn{border-color:#7a5a20;background:#2a2010}
+
+.spin{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);
+  border-top-color:var(--me);animation:sp .8s linear infinite;margin:12px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.banner{background:#4a1c22;border:1.5px solid var(--wrong);border-radius:13px;
+  padding:11px 14px;margin-bottom:12px;font-size:14.5px;font-weight:600}
+.banner.ok{background:#12472f;border-color:var(--me)}
+.hide{display:none!important}
+
+/* ---- results ---- */
+.trophy{font-size:58px;line-height:1;margin-bottom:6px}
+.final{display:flex;gap:12px;width:100%;margin:16px 0 18px}
+.fcard{flex:1;border-radius:17px;padding:15px 12px;border:2.5px solid var(--line);background:var(--card)}
+.fcard.win{border-color:var(--me);background:#12472f}
+.fcard .fn{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcard .fs{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.fcard .fx{font-size:13px;color:var(--dim);font-weight:600}
+.strip{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
+.pip{width:26px;border-radius:7px;padding:5px 0;text-align:center;font-size:11px;font-weight:800;
+  background:var(--card);border:1.5px solid var(--line)}
+.pip.w{background:var(--me);color:#08281c;border-color:var(--me)}
+.pip.l{background:#4a1c22;border-color:var(--wrong);color:var(--wrong)}
+.pip.t{background:var(--line)}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== HOME ===== -->
+  <section class="screen on center" id="s-home">
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;align-items:center">
+      <img src="./icon-192.png" alt="" width="86" height="86" style="border-radius:22px;margin-bottom:16px">
+      <h1>Quick Draw</h1>
+      <p class="dim" style="margin-bottom:26px">Ten questions. Fastest right answer wins.</p>
+      <input type="text" id="myname" placeholder="Your name" maxlength="14" autocomplete="off"
+             autocapitalize="words" spellcheck="false" style="margin-bottom:18px">
+      <div style="width:100%">
+        <button class="btn primary" id="b-friend">Play with a friend</button>
+        <button class="btn" id="b-solo">Play solo</button>
+      </div>
+    </div>
+    <p class="tiny" style="text-align:center">
+      Two phones connect directly over a shared Wi-Fi network — no internet, no account, no server.
+      <button id="b-how" style="color:var(--blue);font-weight:700;text-decoration:underline">How it works</button>
+    </p>
+  </section>
+
+  <!-- ===== HOW IT WORKS ===== -->
+  <section class="screen" id="s-how">
+    <h2>How the two-phone game works</h2>
+    <div class="note">
+      <strong style="font-size:15px">You both need to be on the same network.</strong>
+      <ol>
+        <li>Any shared Wi-Fi works — home, café, hotel, or one phone's Personal Hotspot with the other joined to it.</li>
+        <li>The network does <em>not</em> need internet access. Nothing is sent to a server. Your phones talk straight to each other.</li>
+        <li>One of you hosts and shows a QR code. The other scans it, then shows a reply code back. That's the whole setup.</li>
+      </ol>
+    </div>
+    <div class="note warn">
+      <strong style="font-size:15px">On a plane</strong>
+      <ol>
+        <li>iPhone Personal Hotspot needs the cellular radio, so it can't be switched on in Airplane Mode. Android varies by model — some allow it, many don't.</li>
+        <li>If the plane has Wi-Fi, both of you joining it usually works even without buying an internet pass. Some airlines block phone-to-phone traffic, in which case pairing will fail.</li>
+        <li>If neither works, <strong>Play solo</strong> still runs with no network at all.</li>
+      </ol>
+    </div>
+    <div class="grow"></div>
+    <button class="btn" id="b-how-back">Back</button>
+  </section>
+
+  <!-- ===== PAIR: pick a role ===== -->
+  <section class="screen" id="s-role">
+    <h2>Connect two phones</h2>
+    <p class="dim">Get both phones onto the same Wi-Fi first, then pick a side. One hosts, one joins.</p>
+    <div id="pair-err"></div>
+    <div class="grow"></div>
+    <button class="btn primary" id="b-host">I'll host</button>
+    <button class="btn" id="b-join">I'll join</button>
+    <button class="btn ghost" id="b-role-back">Back</button>
+  </section>
+
+  <!-- ===== PAIR: show my code ===== -->
+  <section class="screen" id="s-show">
+    <div class="step" id="show-step">Step 1 of 2</div>
+    <h2 id="show-title">Have them scan this</h2>
+    <p class="dim" id="show-sub">Turn your screen brightness up and hold it steady.</p>
+    <div id="qrwrap"><canvas id="qr"></canvas></div>
+    <details>
+      <summary>Camera not working? Show the code as text</summary>
+      <textarea id="mycode" readonly></textarea>
+      <button class="btn ghost" id="b-copy" style="margin-top:8px">Copy code</button>
+    </details>
+    <div class="grow"></div>
+    <button class="btn primary" id="b-show-next">Scan their reply</button>
+    <button class="btn ghost" id="b-show-cancel">Cancel</button>
+  </section>
+
+  <!-- ===== PAIR: scan ===== -->
+  <section class="screen" id="s-scan">
+    <div class="step" id="scan-step">Step 2 of 2</div>
+    <h2 id="scan-title">Scan their code</h2>
+    <div id="scan-err"></div>
+    <div class="camwrap"><video id="cam" playsinline muted autoplay></video><div class="reticle"></div></div>
+    <p class="dim" style="text-align:center" id="scan-sub">Point at the other phone's screen.</p>
+    <details>
+      <summary>Camera not working? Paste their code instead</summary>
+      <textarea id="pastecode" placeholder="Paste the code from the other phone"></textarea>
+      <button class="btn ghost" id="b-paste" style="margin-top:8px">Use this code</button>
+    </details>
+    <div class="grow"></div>
+    <button class="btn ghost" id="b-scan-cancel">Cancel</button>
+  </section>
+
+  <!-- ===== PAIR: connecting ===== -->
+  <section class="screen center" id="s-wait">
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;align-items:center">
+      <div class="spin"></div>
+      <h2 id="wait-title">Connecting…</h2>
+      <p class="dim" id="wait-sub">Finding the other phone on your network.</p>
+      <div id="wait-err" style="width:100%"></div>
+    </div>
+    <button class="btn ghost" id="b-wait-cancel">Cancel</button>
+  </section>
+
+  <!-- ===== LOBBY ===== -->
+  <section class="screen center" id="s-lobby">
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;align-items:center;width:100%">
+      <div class="banner ok" style="width:100%;text-align:center">Connected</div>
+      <div class="final" style="margin-top:10px">
+        <div class="fcard"><div class="fn" id="lob-me">You</div><div class="fx">ready</div></div>
+        <div class="fcard"><div class="fn" id="lob-them">Them</div><div class="fx">ready</div></div>
+      </div>
+      <p class="dim" id="lob-sub">Ten questions, fifteen seconds each. Answer fast — points drop the longer you take.</p>
+    </div>
+    <button class="btn primary" id="b-start">Start game</button>
+    <button class="btn ghost" id="b-lobby-quit">Disconnect</button>
+  </section>
+
+  <!-- ===== PLAY ===== -->
+  <section class="screen" id="s-play">
+    <div id="drop"></div>
+    <div class="board">
+      <div class="pcard me" id="pc-me">
+        <div class="nm" id="nm-me">You</div><div class="sc" id="sc-me">0</div><div class="lock" id="lk-me"></div>
+      </div>
+      <div class="pcard them" id="pc-them">
+        <div class="nm" id="nm-them">Them</div><div class="sc" id="sc-them">0</div><div class="lock" id="lk-them"></div>
+      </div>
+    </div>
+    <div class="meta"><span class="qn" id="qnum">Question 1 of 10</span><span class="cat" id="qcat"></span></div>
+    <div class="tbar" id="tbar"><i id="tfill"></i></div>
+    <div class="grow"></div>
+    <div class="qtext" id="qtext"></div>
+    <div class="grow"></div>
+    <div class="opts" id="opts"></div>
+    <div class="status" id="status"></div>
+  </section>
+
+  <!-- ===== RESULTS ===== -->
+  <section class="screen center" id="s-end">
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;align-items:center;width:100%">
+      <div class="trophy" id="trophy">🏆</div>
+      <h1 id="endline" style="font-size:29px;text-align:center">You win</h1>
+      <div class="final">
+        <div class="fcard" id="fc-me"><div class="fn" id="fn-me">You</div><div class="fs" id="fs-me">0</div><div class="fx" id="fx-me"></div></div>
+        <div class="fcard" id="fc-them"><div class="fn" id="fn-them">Them</div><div class="fs" id="fs-them">0</div><div class="fx" id="fx-them"></div></div>
+      </div>
+      <div class="strip" id="strip"></div>
+    </div>
+    <button class="btn primary" id="b-again">Play again</button>
+    <button class="btn ghost" id="b-home">Home</button>
+  </section>
+
+</div>
+
+<script src="./questions.js"></script>
+<script src="./qrcode.js"></script>
+<script src="./jsQR.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

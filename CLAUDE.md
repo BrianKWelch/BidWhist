@@ -352,6 +352,80 @@ will keep serving the old cached copy.
 
 ---
 
+## Quick Draw Trivia (standalone side project)
+
+A two-player speed-trivia game. Same rules as Feed the Fat Man: source of truth
+is `public/trivia/`, `docs/trivia/` is the deployed copy, keep the two in sync.
+
+- URL: `https://briankwelch.github.io/BidWhist/trivia/`
+- Deliberately **outside** the React app — no React, Tailwind, Supabase or
+  `AppContextProvider`. Not linked from any admin or portal screen.
+- Its `sw.js` scope is sealed to `/BidWhist/trivia/` for the same reason
+  fatman's is. Never move it up a level, and **bump `CACHE` on every change**.
+
+### How two phones connect (the important part)
+
+There is no server and no internet. The two phones talk over a **WebRTC data
+channel** carried by whatever local network they share — home Wi-Fi, a hotspot,
+a hotel AP. What a signalling server normally does (swap session descriptions)
+is done by the **cameras**: each phone renders its description as a QR code and
+scans the other's.
+
+- `packSdp()` / `unpackSdp()` in `app.js` are the reason this works. A raw
+  data-channel SDP is ~1.5 KB — too dense to scan. `packSdp` keeps only the
+  five fields that actually vary (ICE ufrag, ICE pwd, DTLS fingerprint, DTLS
+  role, candidate list) and `unpackSdp` rebuilds the rest from a fixed
+  template. Payload lands around 100 chars.
+- **If you change the SDP template, change both sides together.** They are a
+  matched pair; a field added to one and not the other silently breaks pairing.
+- IPv6 candidates are filtered out on purpose — they roughly double the QR
+  density for a case a LAN or hotspot never needs.
+- The app asks for the camera *before* creating the offer. That is not just for
+  scanning: once a page holds a media permission Chrome stops masking host
+  candidates behind mDNS `.local` names, which makes the direct connection much
+  more likely to come up.
+
+### Known environment limits
+
+- **iPhone Personal Hotspot cannot run in Airplane Mode** (it needs the cellular
+  radio), so the "play it on a plane" case depends on the aircraft's own Wi-Fi,
+  and many airline APs enable client isolation which blocks phone-to-phone
+  traffic. Solo mode is the documented fallback; the in-app "How it works"
+  screen says all of this.
+- Both phones must precache the PWA *before* going offline.
+
+### Game rules
+
+10 questions, 4 options, 15s each. `points = max(100, 1000 x (1 - elapsed/15s))`
+when correct, 0 otherwise. Both phones derive the identical question list and
+option shuffle from one seed the host broadcasts, so scoring is computed locally
+on each side rather than round-tripped. Each phone times its own player from
+when *it* rendered the question, so LAN latency cannot skew the result.
+
+### Vendored libraries
+
+`jsQR.js` (Apache-2.0) decodes, `qrcode.js` (MIT) encodes. Both are minified
+upstream releases; attributions are in `VENDOR-LICENSES.txt`.
+
+### Tests
+
+`tools/trivia-selftest.cjs` drives two real browser contexts through the full
+pairing handshake (via the app's paste fallback, so no camera is needed) and
+plays a complete round, asserting both phones agree on every score. It is not
+wired into npm scripts because Playwright is not a project dependency:
+
+```bash
+npm i --no-save playwright && npx playwright install chromium
+node tools/trivia-selftest.cjs
+```
+
+`window.__qd` exposes `packSdp`, `unpackSdp`, `buildRound`, `points` and the
+live `G`/`P` state so the harness can drive the game without a camera. Chromium
+needs `--disable-features=WebRtcHideLocalIpsWithMdns` (the harness passes it)
+for candidates to resolve in a container.
+
+---
+
 ## Gotchas & Known Quirks
 
 1. **`games` table has mixed camelCase/snake_case columns** — always handle both: `g.teamA ?? g.team_a`, `g.handsA ?? g.hands_a`

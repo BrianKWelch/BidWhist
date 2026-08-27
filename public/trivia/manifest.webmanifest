@@ -1,0 +1,17 @@
+{
+  "name": "Quick Draw Trivia",
+  "short_name": "Quick Draw",
+  "description": "Two phones, one local network, ten questions. Fastest right answer wins.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "portrait",
+  "background_color": "#16143a",
+  "theme_color": "#16143a",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
