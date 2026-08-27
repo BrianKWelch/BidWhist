@@ -21,7 +21,15 @@ var GRACE_MS = 2500;    // extra wait for a straggling opponent message
 /* ------------------------------------------------------------------ *
  *  Screens
  * ------------------------------------------------------------------ */
-var SCREENS = ['home', 'how', 'role', 'show', 'scan', 'wait', 'lobby', 'play', 'end'];
+var SCREENS = ['home', 'how', 'role', 'show', 'scan', 'wait', 'lobby', 'pick', 'wheel', 'play', 'end'];
+
+/* Wheel order is also the segment order, so it must stay stable: both phones
+   animate the same wheel to the same landing angle from the shared seed. */
+var CATS = ['Geography', 'History', 'Science', 'Music', 'Screen',
+            'Sports', 'Food', 'Books', 'Odds & Ends'];
+var MIXED = 'Mixed';
+var WHEEL_COLORS = ['#3ddc97', '#4dabf7', '#ffd43b', '#ff6b6b', '#b197fc',
+                    '#63e6be', '#ffa94d', '#74c0fc', '#f783ac'];
 function go(name) {
   SCREENS.forEach(function (s) { $('s-' + s).classList.toggle('on', s === name); });
   window.scrollTo(0, 0);
@@ -56,9 +64,18 @@ function shuffle(arr, r) {
   return arr;
 }
 
-function buildRound(seed) {
+function buildRound(seed, cat) {
   var bank = window.QUESTIONS, r = rng(seed);
-  var idx = shuffle(bank.map(function (_, i) { return i; }), r).slice(0, ROUND_LEN);
+
+  // Pool order derives from bank order, so both phones filter identically.
+  var pool = [];
+  bank.forEach(function (q, i) { if (!cat || cat === MIXED || q[3] === cat) pool.push(i); });
+  // Defensive: a category thinner than a full round tops up from the whole bank.
+  if (pool.length < ROUND_LEN) {
+    bank.forEach(function (q, i) { if (pool.indexOf(i) < 0) pool.push(i); });
+  }
+
+  var idx = shuffle(pool, r).slice(0, ROUND_LEN);
   return idx.map(function (qi) {
     var q = bank[qi];
     var order = shuffle([0, 1, 2, 3], r);
@@ -236,6 +253,7 @@ function pairFailed() {
 
 function teardown() {
   clearTimeout(P.watchdog);
+  clearTimers();
   stopScan();
   if (P.dc) { try { P.dc.onclose = null; P.dc.close(); } catch (e) { } }
   if (P.pc) { try { P.pc.onconnectionstatechange = null; P.pc.close(); } catch (e) { } }
@@ -405,7 +423,7 @@ function onConnected() {
   $('b-start').classList.toggle('hide', P.role !== 'host');
   $('lob-sub').textContent = P.role === 'host'
     ? 'Ten questions, fifteen seconds each. Answer fast — points drop the longer you take.'
-    : 'Waiting for the host to start…';
+    : 'Waiting for ' + G.them.name + ' to pick a category…';
   go('lobby');
 }
 
@@ -428,7 +446,7 @@ function onDrop() {
  * ------------------------------------------------------------------ */
 var G = {
   mode: 'solo', me: { name: 'You', score: 0 }, them: { name: 'Them', score: 0 },
-  qs: [], i: 0, myAns: null, theirAns: null, t0: 0, results: [],
+  qs: [], cat: MIXED, i: 0, myAns: null, theirAns: null, t0: 0, results: [],
   qTimer: 0, graceTimer: 0, revealTimer: 0, lowTimer: 0, revealed: false
 };
 
@@ -438,9 +456,13 @@ function handleMsg(m) {
     $('lob-them').textContent = G.them.name;
     $('nm-them').textContent = G.them.name;
     $('fn-them').textContent = G.them.name;
+  } else if (m.t === 'cat') {
+    var waiting = G.them.name + ' is picking a category…';
+    $('lob-sub').textContent = waiting;
+    $('end-wait').textContent = waiting;
   } else if (m.t === 'start') {
     G.mode = 'duo';
-    beginGame(m.seed);
+    beginGame(m.seed, m.cat, m.spin);
   } else if (m.t === 'ans') {
     if (m.i !== G.i || G.theirAns) return;
     G.theirAns = { choice: m.choice, ms: m.ms };
@@ -461,10 +483,12 @@ function clearTimers() {
   clearTimeout(G.revealTimer); clearTimeout(G.lowTimer);
 }
 
-function beginGame(seed) {
+function beginGame(seed, cat, spin) {
   clearTimers();
   banner('drop', '');
-  G.qs = buildRound(seed);
+  $('end-wait').textContent = '';
+  G.cat = cat || MIXED;
+  G.qs = buildRound(seed, G.cat);
   G.i = 0;
   G.me.score = 0; G.them.score = 0;
   G.results = [];
@@ -472,8 +496,97 @@ function beginGame(seed) {
   $('nm-them').textContent = G.them.name;
   $('pc-them').classList.toggle('hide', G.mode === 'solo');
   $('sc-me').textContent = '0'; $('sc-them').textContent = '0';
-  go('play');
-  renderQuestion();
+
+  presentCategory(seed, G.cat, spin, function () {
+    go('play');
+    renderQuestion();
+  });
+}
+
+/* The wheel screen doubles as the category reveal: a direct pick just holds the
+   name for a beat so the other phone sees what is coming, a random pick spins
+   first. Both phones drive it from the same seed, so they stay in step. */
+function presentCategory(seed, cat, spin, done) {
+  var box = $('wheelbox'), label = $('catbig');
+  go('wheel');
+  label.classList.remove('pop');
+
+  if (!spin) {
+    box.classList.add('hide');
+    label.textContent = cat === MIXED ? 'Mixed bag' : cat;
+    void label.offsetWidth;
+    label.classList.add('pop');
+    G.revealTimer = setTimeout(done, 1900);
+    return;
+  }
+
+  box.classList.remove('hide');
+  drawWheel();
+  label.textContent = '';
+
+  var idx = CATS.indexOf(cat);
+  if (idx < 0) idx = 0;
+  var seg = 360 / CATS.length;
+  var r = rng(seed ^ 0x5bf03635);
+  var turns = 5 + Math.floor(r() * 3);
+  var jitter = (r() - 0.5) * seg * 0.55;   // don't always stop dead centre
+  var target = 360 * turns - (idx * seg + seg / 2) + jitter;
+
+  var cv = $('wheel');
+  cv.style.transition = 'none';
+  cv.style.transform = 'rotate(0deg)';
+  void cv.offsetWidth;
+  cv.style.transition = 'transform 4200ms cubic-bezier(.15,.86,.24,1)';
+  cv.style.transform = 'rotate(' + target + 'deg)';
+
+  G.revealTimer = setTimeout(function () {
+    label.textContent = cat;
+    void label.offsetWidth;
+    label.classList.add('pop');
+    G.revealTimer = setTimeout(done, 1500);
+  }, 4300);
+}
+
+function drawWheel() {
+  var cv = $('wheel'), g = cv.getContext('2d');
+  var n = CATS.length, seg = Math.PI * 2 / n;
+  var cx = cv.width / 2, cy = cv.height / 2, rad = cx - 4;
+  g.clearRect(0, 0, cv.width, cv.height);
+  for (var i = 0; i < n; i++) {
+    // -90deg puts segment 0 at the top, under the pointer.
+    var a0 = -Math.PI / 2 + i * seg, a1 = a0 + seg;
+    g.beginPath();
+    g.moveTo(cx, cy);
+    g.arc(cx, cy, rad, a0, a1);
+    g.closePath();
+    g.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+    g.fill();
+    g.strokeStyle = 'rgba(22,20,58,.55)';
+    g.lineWidth = 3;
+    g.stroke();
+
+    g.save();
+    g.translate(cx, cy);
+    var mid = a0 + seg / 2;
+    g.rotate(mid);
+    // Labels in the left half would come out upside down; spin them round and
+    // run the text inward from the rim instead.
+    var flipped = Math.cos(mid) < 0;
+    if (flipped) g.rotate(Math.PI);
+    g.fillStyle = '#16143a';
+    g.textAlign = flipped ? 'left' : 'right';
+    g.textBaseline = 'middle';
+    var label = CATS[i], size = 42;
+    // Shrink anything too long for the wedge rather than letting it overflow.
+    // Track the size in a variable: parseInt on a font string returns the
+    // weight, not the pixel size, which would make this loop never end.
+    do {
+      g.font = '700 ' + size + 'px ui-rounded,-apple-system,"Segoe UI",Roboto,system-ui,sans-serif';
+      size -= 2;
+    } while (g.measureText(label).width > rad - 78 && size > 20);
+    g.fillText(label, flipped ? -(rad - 26) : rad - 26, 0);
+    g.restore();
+  }
 }
 
 function renderQuestion() {
@@ -682,11 +795,57 @@ function myName() {
   return v || 'You';
 }
 
+function buildPicker() {
+  var box = $('cats');
+  if (box.childNodes.length) return;
+
+  function add(label, note, cls, onTap) {
+    var b = document.createElement('button');
+    b.className = 'cat' + (cls ? ' ' + cls : '');
+    b.innerHTML = '<span class="cl"></span><span class="cn"></span>';
+    b.querySelector('.cl').textContent = label;
+    b.querySelector('.cn').textContent = note;
+    b.onclick = onTap;
+    box.appendChild(b);
+    return b;
+  }
+
+  var counts = {};
+  window.QUESTIONS.forEach(function (q) { counts[q[3]] = (counts[q[3]] || 0) + 1; });
+
+  add('Surprise me', 'spin the wheel', 'wide rand', function () {
+    startRound(CATS[Math.floor(Math.random() * CATS.length)], true);
+  });
+  add('Mixed bag', 'all ' + window.QUESTIONS.length + ' questions', 'wide mixed', function () {
+    startRound(MIXED, false);
+  });
+  CATS.forEach(function (c) {
+    add(c, counts[c] + ' questions', '', function () { startRound(c, false); });
+  });
+}
+
+function openPicker() {
+  buildPicker();
+  $('pick-title').textContent = G.mode === 'solo' ? 'Pick a category' : 'Pick a category';
+  $('pick-sub').textContent = G.mode === 'solo'
+    ? 'Ten questions from whichever you choose.'
+    : 'Whatever you pick, ' + G.them.name + ' plays the same ten questions.';
+  if (G.mode === 'duo') send({ t: 'cat' });
+  go('pick');
+}
+
+function startRound(cat, spin) {
+  var seed = (Math.random() * 0xffffffff) >>> 0;
+  if (G.mode === 'duo') send({ t: 'start', seed: seed, cat: cat, spin: spin });
+  beginGame(seed, cat, spin);
+}
+
 $('b-friend').onclick = function () { G.me.name = myName(); banner('pair-err', ''); go('role'); };
 $('b-solo').onclick = function () {
   G.me.name = myName(); G.mode = 'solo'; P.role = null;
-  beginGame((Math.random() * 0xffffffff) >>> 0);
+  openPicker();
 };
+$('b-pick-back').onclick = function () { go(G.mode === 'solo' ? 'home' : 'lobby'); };
 $('b-how').onclick = function () { go('how'); };
 $('b-how-back').onclick = function () { go('home'); };
 $('b-role-back').onclick = function () { teardown(); go('home'); };
@@ -704,18 +863,8 @@ $('b-copy').onclick = function () {
   $('b-copy').textContent = 'Copied';
   setTimeout(function () { $('b-copy').textContent = 'Copy code'; }, 1500);
 };
-$('b-start').onclick = function () {
-  var seed = (Math.random() * 0xffffffff) >>> 0;
-  G.mode = 'duo';
-  send({ t: 'start', seed: seed });
-  beginGame(seed);
-};
-$('b-again').onclick = function () {
-  if (G.mode === 'solo') { beginGame((Math.random() * 0xffffffff) >>> 0); return; }
-  var seed = (Math.random() * 0xffffffff) >>> 0;
-  send({ t: 'start', seed: seed });
-  beginGame(seed);
-};
+$('b-start').onclick = function () { G.mode = 'duo'; openPicker(); };
+$('b-again').onclick = function () { openPicker(); };
 $('b-home').onclick = function () { teardown(); go('home'); };
 
 try {
@@ -735,7 +884,8 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 /* Exposed so the Playwright harness can drive a two-context handshake without
    a camera; the UI itself never calls these. */
 window.__qd = {
-  packSdp: packSdp, unpackSdp: unpackSdp, buildRound: buildRound, points: points, G: G, P: P
+  packSdp: packSdp, unpackSdp: unpackSdp, buildRound: buildRound, points: points,
+  CATS: CATS, MIXED: MIXED, G: G, P: P
 };
 
 })();

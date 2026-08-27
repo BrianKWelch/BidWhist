@@ -97,6 +97,31 @@ function ok(name, cond, extra) {
   ok('no duplicate questions in a round',
      new Set(rA.map(q => q.prompt)).size === 10);
 
+  // --- category filtering ---
+  const cats = await A.evaluate(() => window.__qd.CATS);
+  ok('nine categories on the wheel', cats.length === 9, cats.join(', '));
+
+  const catRounds = await A.evaluate(cs => cs.map(c => ({
+    cat: c,
+    qs: window.__qd.buildRound(99, c).map(q => q.cat),
+  })), cats);
+  ok('every category yields a full round drawn only from that category',
+     catRounds.every(r => r.qs.length === 10 && r.qs.every(c => c === r.cat)),
+     catRounds.filter(r => r.qs.some(c => c !== r.cat)).map(r => r.cat).join(',') || 'all clean');
+
+  const catBoth = await Promise.all([A, B].map(pg =>
+    pg.evaluate(() => JSON.stringify(window.__qd.buildRound(2024, 'Sports').map(q => q.prompt)))));
+  ok('a category round is identical on both phones', catBoth[0] === catBoth[1]);
+
+  const mixed = await A.evaluate(() => {
+    const M = window.__qd.MIXED;
+    return new Set(window.__qd.buildRound(7, M).map(q => q.cat)).size;
+  });
+  ok('mixed bag draws across categories', mixed > 1, mixed + ' categories in one mixed round');
+
+  const bogus = await A.evaluate(() => window.__qd.buildRound(5, 'NotARealCategory').length);
+  ok('an unknown category still produces a full round', bogus === 10, String(bogus));
+
   // --- scoring curve ---
   const pts = await A.evaluate(() => ({
     instant: window.__qd.points(2, 0, 2),
@@ -163,10 +188,50 @@ function ok(name, cond, extra) {
   ok('only the host gets the start button',
      !(await A.locator('#b-start').isHidden()) && (await B.locator('#b-start').isHidden()));
 
-  // --- play a full round: Ana answers correctly and fast, Bo slower ---
+  // --- host picks a category; both phones must land on the same one ---
   await A.click('#b-start');
-  await A.waitForSelector('#s-play.on', { timeout: 10000 });
-  await B.waitForSelector('#s-play.on', { timeout: 10000 });
+  await A.waitForSelector('#s-pick.on', { timeout: 10000 });
+  const tiles = await A.locator('#cats .cat').count();
+  ok('picker offers surprise + mixed + every category', tiles === cats.length + 2, tiles + ' tiles');
+  await B.waitForFunction(() => /picking a category/.test(document.getElementById('lob-sub').textContent),
+    null, { timeout: 6000 });
+  ok('joiner is told the host is choosing', true, await B.textContent('#lob-sub'));
+
+  // "Surprise me" is the first tile — it must spin the wheel on BOTH phones.
+  await A.locator('#cats .cat').first().click();
+  await A.waitForSelector('#s-wheel.on', { timeout: 8000 });
+  await B.waitForSelector('#s-wheel.on', { timeout: 8000 });
+  ok('random pick shows the wheel on both phones', true);
+
+  // Compare the declared target, not getComputedStyle(): the latter reports the
+  // interpolated matrix mid-spin, which two phones milliseconds apart never match.
+  const rot = await Promise.all([A, B].map(pg => pg.evaluate(() =>
+    document.getElementById('wheel').style.transform)));
+  ok('both wheels spin to the identical target angle',
+     rot[0] === rot[1] && /rotate\(-?\d/.test(rot[0]) && rot[0] !== 'rotate(0deg)', rot[0]);
+  ok('wheel is visible for a random pick',
+     !(await A.locator('#wheelbox').isHidden()));
+
+  await A.waitForSelector('#s-play.on', { timeout: 20000 });
+  await B.waitForSelector('#s-play.on', { timeout: 20000 });
+
+  const chosen = await Promise.all([A, B].map(pg => pg.evaluate(() => window.__qd.G.cat)));
+  ok('both phones agree on the spun category', chosen[0] === chosen[1], chosen.join(' / '));
+  ok('the spun category is a real wheel segment', cats.includes(chosen[0]), chosen[0]);
+
+  const allSame = await A.evaluate(() =>
+    window.__qd.G.qs.every(q => q.cat === window.__qd.G.cat));
+  ok('every question in the round matches the spun category', allSame);
+
+  // The picker tiles and the in-game category label are both .cat; guard
+  // against the picker's styling leaking onto the label.
+  const chipStyle = await A.evaluate(() => {
+    const cs = getComputedStyle(document.getElementById('qcat'));
+    return { bg: cs.backgroundColor, pad: cs.paddingTop, border: cs.borderTopWidth };
+  });
+  ok('in-game category label is not styled as a picker tile',
+     chipStyle.bg === 'rgba(0, 0, 0, 0)' && chipStyle.pad === '0px' && chipStyle.border === '0px',
+     JSON.stringify(chipStyle));
 
   const seedsMatch = await A.evaluate(() => JSON.stringify(window.__qd.G.qs.map(q => q.prompt)))
     === await B.evaluate(() => JSON.stringify(window.__qd.G.qs.map(q => q.prompt)));

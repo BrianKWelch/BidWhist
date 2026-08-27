@@ -6,7 +6,7 @@
    old copy. Offline is the whole point here: the game is meant to be played on
    a plane, so everything it needs must be precached before takeoff. */
 
-var CACHE = "qdt-v1";
+var CACHE = "qdt-v2";
 var ASSETS = [
   "./",
   "./index.html",

@@ -164,6 +164,11 @@ window.QUESTIONS = [
 ["Gouda is a type of what?", ["Cheese", "Sausage", "Bread", "Wine"], 0, "Food"],
 ["Which fruit carries its seeds on the outside?", ["Strawberry", "Blueberry", "Raspberry", "Cherry"], 0, "Food"],
 ["A classic French roux is made from fat and what?", ["Flour", "Cream", "Egg", "Cornstarch"], 0, "Food"],
+["Paella is a traditional dish of which country?", ["Spain", "Portugal", "Mexico", "Italy"], 0, "Food"],
+["Which vegetable gives borscht its deep red colour?", ["Beetroot", "Red cabbage", "Tomato", "Radish"], 0, "Food"],
+["Which spice gives curry powder its yellow colour?", ["Turmeric", "Cumin", "Coriander", "Paprika"], 0, "Food"],
+["Which pastry is used to make profiteroles and éclairs?", ["Choux", "Puff", "Filo", "Shortcrust"], 0, "Food"],
+["Which fruit is nicknamed the king of fruits for its powerful smell?", ["Durian", "Jackfruit", "Mango", "Papaya"], 0, "Food"],
 
 /* ---- Books ---- */
 ["Who wrote 'Romeo and Juliet'?", ["William Shakespeare", "Christopher Marlowe", "Ben Jonson", "John Donne"], 0, "Books"],
@@ -181,6 +186,11 @@ window.QUESTIONS = [
 ["Who wrote 'Things Fall Apart'?", ["Chinua Achebe", "Wole Soyinka", "Ngũgĩ wa Thiong'o", "Ben Okri"], 0, "Books"],
 ["How many lines are in a traditional sonnet?", ["14", "12", "16", "10"], 0, "Books"],
 ["Who wrote 'The Color Purple'?", ["Alice Walker", "Toni Morrison", "Terry McMillan", "Octavia Butler"], 0, "Books"],
+["Who wrote 'Moby-Dick'?", ["Herman Melville", "Nathaniel Hawthorne", "Washington Irving", "James Fenimore Cooper"], 0, "Books"],
+["Who wrote 'The Adventures of Huckleberry Finn'?", ["Mark Twain", "Jack London", "O. Henry", "Stephen Crane"], 0, "Books"],
+["Who wrote 'Little Women'?", ["Louisa May Alcott", "Willa Cather", "Kate Chopin", "Edith Wharton"], 0, "Books"],
+["Who wrote 'Brave New World'?", ["Aldous Huxley", "George Orwell", "Yevgeny Zamyatin", "Kurt Vonnegut"], 0, "Books"],
+["Who wrote the 1952 novel 'Invisible Man'?", ["Ralph Ellison", "Richard Wright", "James Baldwin", "Langston Hughes"], 0, "Books"],
 
 /* ---- Odds & Ends ---- */
 ["Who painted the 'Mona Lisa'?", ["Leonardo da Vinci", "Michelangelo", "Raphael", "Donatello"], 0, "Odds & Ends"],
@@ -200,6 +210,8 @@ window.QUESTIONS = [
 ["How many cards are in a standard deck without jokers?", ["52", "54", "48", "50"], 0, "Odds & Ends"],
 ["In Bid Whist, how many cards go into the kitty?", ["Six", "Four", "Five", "Eight"], 0, "Odds & Ends"],
 ["How many continents are there?", ["Seven", "Six", "Five", "Eight"], 0, "Odds & Ends"],
-["What is the only even prime number?", ["Two", "Zero", "Four", "One"], 0, "Odds & Ends"]
+["What is the only even prime number?", ["Two", "Zero", "Four", "One"], 0, "Odds & Ends"],
+["How many squares are on a chessboard?", ["64", "81", "100", "49"], 0, "Odds & Ends"],
+["What is the currency of the United Kingdom?", ["The pound sterling", "The euro", "The krona", "The franc"], 0, "Odds & Ends"]
 
 ];

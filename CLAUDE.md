@@ -394,6 +394,30 @@ scans the other's.
   screen says all of this.
 - Both phones must precache the PWA *before* going offline.
 
+### Categories and the wheel
+
+The host picks what the round is about before it starts; the joiner waits in the
+lobby and is told a pick is happening. `CATS` in `app.js` is the nine-category
+list **and** the wheel's segment order, so changing it changes where the wheel
+lands — keep it stable. `MIXED` draws from the whole bank.
+
+- `buildRound(seed, cat)` filters the bank by category before shuffling. The
+  pool is built in bank order so both phones filter identically. A category
+  thinner than a full round tops up from the whole bank rather than short-
+  changing the round, so every category needs 10+ questions (all currently have
+  20+; keep it that way when editing).
+- "Surprise me" spins a wheel on **both** phones. The host decides the landing
+  category, then sends `{t:'start', seed, cat, spin:true}`; both sides derive
+  the turn count and jitter from that same seed, so the animation matches.
+  Nothing about the spin is negotiated after the fact.
+- `presentCategory()` doubles as the reveal for a direct pick — it holds the
+  category name for a beat so the other phone sees what is coming.
+
+Two CSS class names are load-bearing here and have bitten once each: the picker
+tiles are scoped as `.cats .cat` because `.cat` is also the in-game category
+label inside `.meta`, and the random tile is `.cat.rand` because `.spin` is
+already the loading spinner. Both collisions rendered visibly wrong.
+
 ### Game rules
 
 10 questions, 4 options, 15s each. `points = max(100, 1000 x (1 - elapsed/15s))`

@@ -145,6 +145,37 @@ textarea{
 .banner.ok{background:#12472f;border-color:var(--me)}
 .hide{display:none!important}
 
+/* ---- category picker ---- */
+.cats{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.cats .cat{
+  padding:16px 12px;border-radius:15px;background:var(--card);border:2px solid var(--line);
+  font-weight:700;font-size:15.5px;text-align:center;line-height:1.2;
+  transition:transform .08s,border-color .2s,background .2s;
+}
+.cats .cat:active{transform:scale(.97)}
+.cats .cn{font-size:11px;font-weight:700;color:var(--dim);display:block;margin-top:3px;letter-spacing:.04em}
+.cats .cat.wide{grid-column:1 / -1}
+.cats .cat.mixed{border-color:var(--blue)}
+.cats .cat.rand{background:linear-gradient(180deg,#4ee6a6,#2fc182);border-color:#2fc182;color:#08281c}
+.cats .cat.rand .cn{color:#0b3a28}
+
+/* ---- wheel ---- */
+#wheelbox{position:relative;width:min(330px,82vw);aspect-ratio:1;margin:0 auto 18px}
+#wheel{width:100%;height:100%;display:block;border-radius:50%;
+  box-shadow:0 0 0 6px var(--line),0 14px 40px rgba(0,0,0,.45)}
+#wheelbox .ptr{
+  position:absolute;top:-13px;left:50%;transform:translateX(-50%);z-index:2;
+  width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;
+  border-top:26px solid var(--ink);filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));
+}
+#wheelbox .hub{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:17%;height:17%;border-radius:50%;background:var(--bg);border:4px solid var(--line);z-index:2;
+}
+.catbig{font-size:31px;font-weight:800;letter-spacing:-.02em;margin-top:6px;min-height:38px;
+  text-align:center;line-height:1.1}
+.catbig.pop{animation:pop .45s ease}
+
 /* ---- results ---- */
 .trophy{font-size:58px;line-height:1;margin-bottom:6px}
 .final{display:flex;gap:12px;width:100%;margin:16px 0 18px}
@@ -271,8 +302,26 @@ textarea{
       </div>
       <p class="dim" id="lob-sub">Ten questions, fifteen seconds each. Answer fast — points drop the longer you take.</p>
     </div>
-    <button class="btn primary" id="b-start">Start game</button>
+    <button class="btn primary" id="b-start">Pick a category</button>
     <button class="btn ghost" id="b-lobby-quit">Disconnect</button>
+  </section>
+
+  <!-- ===== CATEGORY PICKER ===== -->
+  <section class="screen" id="s-pick">
+    <h2 id="pick-title">Pick a category</h2>
+    <p class="dim" id="pick-sub">Ten questions from whichever you choose.</p>
+    <div class="cats" id="cats"></div>
+    <div class="grow"></div>
+    <button class="btn ghost" id="b-pick-back">Back</button>
+  </section>
+
+  <!-- ===== WHEEL / CATEGORY REVEAL ===== -->
+  <section class="screen center" id="s-wheel">
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;align-items:center;width:100%">
+      <div id="wheelbox"><div class="ptr"></div><canvas id="wheel" width="620" height="620"></canvas><div class="hub"></div></div>
+      <div class="catbig" id="catbig"></div>
+      <p class="dim" id="catsub">10 questions · 15 seconds each</p>
+    </div>
   </section>
 
   <!-- ===== PLAY ===== -->
@@ -305,6 +354,7 @@ textarea{
         <div class="fcard" id="fc-them"><div class="fn" id="fn-them">Them</div><div class="fs" id="fs-them">0</div><div class="fx" id="fx-them"></div></div>
       </div>
       <div class="strip" id="strip"></div>
+      <p class="dim" id="end-wait"></p>
     </div>
     <button class="btn primary" id="b-again">Play again</button>
     <button class="btn ghost" id="b-home">Home</button>
