@@ -385,6 +385,40 @@ scans the other's.
   candidates behind mDNS `.local` names, which makes the direct connection much
   more likely to come up.
 
+### Version skew is a first-class hazard
+
+Both phones must build byte-identical rounds, which holds only if they run the
+same round-building code *and* the same question bank. A phone serving a stale
+cached build once paired happily and then played an entirely different set of
+questions from the one the wheel landed on — silently, with no error.
+
+Guards now in place, all covered by the self-test:
+
+- `APP_VERSION` = `'p' + PROTO + '.' + bankVersion()`. `PROTO` is bumped by hand
+  whenever round building or the message shape changes; the bank half hashes
+  every question tuple, so editing `questions.js` changes it automatically.
+- It is exchanged in the `hi` message. A build old enough to send no `v` field
+  reads as `'legacy'` and mismatches. On mismatch both the category picker and
+  the inbound `start` handler refuse, so neither side can begin a round —
+  important because the *older* phone knows nothing about any of this and will
+  still try to host.
+- `start` also carries `roundSum()` of the host's built round; the joiner
+  rebuilds and compares, catching any divergence two equal-versioned builds
+  might still manage.
+- The lobby offers "Update this phone", which deletes the caches, unregisters
+  the worker and reloads — a guaranteed way out of a stale build.
+
+**So: bump `CACHE` in `sw.js` on every change, and bump `PROTO` whenever round
+building or the wire format changes.**
+
+### Service worker update path
+
+`register()` passes `updateViaCache:'none'` so `sw.js` is never served from HTTP
+cache. When a new worker reaches `activated` the page reloads once to pick up
+the new scripts, guarded by a `wasControlled` flag captured at load time —
+`clients.claim()` sets `navigator.serviceWorker.controller` during a *first*
+install too, so checking it later would reload every new visitor.
+
 ### Known environment limits
 
 - **iPhone Personal Hotspot cannot run in Airplane Mode** (it needs the cellular

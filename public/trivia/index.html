@@ -212,6 +212,7 @@ textarea{
     <p class="tiny" style="text-align:center">
       Two phones connect directly over a shared Wi-Fi network — no internet, no account, no server.
       <button id="b-how" style="color:var(--blue);font-weight:700;text-decoration:underline">How it works</button>
+      <br><span id="ver" style="opacity:.55;font-size:11px"></span>
     </p>
   </section>
 
@@ -295,7 +296,11 @@ textarea{
   <!-- ===== LOBBY ===== -->
   <section class="screen center" id="s-lobby">
     <div class="grow" style="display:flex;flex-direction:column;justify-content:center;align-items:center;width:100%">
-      <div class="banner ok" style="width:100%;text-align:center">Connected</div>
+      <div class="banner ok" id="lob-ok" style="width:100%;text-align:center">Connected</div>
+      <div id="lobby-err" class="hide" style="width:100%">
+        <div class="banner" id="lobby-err-msg"></div>
+        <button class="btn" id="b-reload">Update this phone</button>
+      </div>
       <div class="final" style="margin-top:10px">
         <div class="fcard"><div class="fn" id="lob-me">You</div><div class="fx">ready</div></div>
         <div class="fcard"><div class="fn" id="lob-them">Them</div><div class="fx">ready</div></div>

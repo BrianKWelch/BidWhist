@@ -183,6 +183,17 @@ function ok(name, cond, extra) {
 
   const stateA = await A.evaluate(() => window.__qd.P.pc.connectionState);
   ok('peer connection is connected', stateA === 'connected', stateA);
+  const vers = await Promise.all([A, B].map(pg => pg.evaluate(() => window.__qd.APP_VERSION)));
+  ok('both phones report the same app version', vers[0] === vers[1], vers[0]);
+  ok('app version covers protocol and bank', /^p\d+\.\d+-/.test(vers[0]), vers[0]);
+  ok('matched versions are not flagged as a mismatch',
+     !(await A.evaluate(() => window.__qd.P.mismatch)));
+  ok('start button is enabled when versions match', !(await A.locator('#b-start').isDisabled()));
+
+  const sums = await Promise.all([A, B].map(pg => pg.evaluate(() =>
+    window.__qd.roundSum(window.__qd.buildRound(4242, 'Science')))));
+  ok('round fingerprint agrees across phones', sums[0] === sums[1], sums[0]);
+
   ok('host sees the joiner name', (await A.textContent('#lob-them')).trim() === 'Bo');
   ok('joiner sees the host name', (await B.textContent('#lob-them')).trim() === 'Ana');
   ok('only the host gets the start button',
@@ -291,6 +302,24 @@ function ok(name, cond, extra) {
   ok('result strip has one pip per question',
      (await A.locator('#strip .pip').count()) === 10);
   ok('live opponent feedback was exercised', liveSeen);
+
+  // --- version-skew guard: a peer on a different build must be refused ---
+  // This is the bug where a phone serving a stale cached build paired happily
+  // and then played an entirely different set of questions.
+  await B.evaluate(() => window.__qd.P.dc.send(
+    JSON.stringify({ t: 'hi', name: 'Bo', v: 'p1.180-stale' })));
+  await A.waitForFunction(() => window.__qd.P.mismatch === true, null, { timeout: 6000 });
+  ok('a peer on a different build is detected', true);
+  ok('mismatch warning is shown to the user',
+     !(await A.locator('#lobby-err').isHidden()));
+  ok('category picker is disabled on mismatch', await A.locator('#b-start').isDisabled());
+  ok('self-heal button is offered', await A.locator('#b-reload').isVisible());
+
+  await B.evaluate(() => window.__qd.P.dc.send(JSON.stringify({ t: 'start', seed: 999 })));
+  await A.waitForTimeout(900);
+  ok('a mismatched peer cannot force a round to start',
+     !(await A.locator('#s-play').evaluate(el => el.classList.contains('on'))));
+
   ok('no page errors anywhere', errs.length === 0, errs.slice(0, 5).join(' / '));
 
   await browser.close();

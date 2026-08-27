@@ -14,6 +14,34 @@
 
 var $ = function (id) { return document.getElementById(id); };
 var ROUND_LEN = 10;
+
+/* Two phones must build byte-identical rounds. That holds only if they run the
+   same round-building logic AND the same question bank, so both are folded into
+   one string that is exchanged at connect time and checked before play. Bump
+   PROTO whenever round building or the message shape changes; the bank half
+   updates itself. A phone serving a stale cached build previously paired fine
+   and then silently played a different game — that is what this prevents. */
+var PROTO = 2;
+
+function hashStr(str, h) {
+  h = h || 5381;
+  for (var i = 0; i < str.length; i++) h = (h * 33 ^ str.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function bankVersion() {
+  var b = window.QUESTIONS, h = 5381;
+  for (var i = 0; i < b.length; i++) h = hashStr(JSON.stringify(b[i]), h);
+  return b.length + '-' + h.toString(36);
+}
+
+var APP_VERSION = 'p' + PROTO + '.' + bankVersion();
+
+/* Fingerprint of an actual built round, so a divergence is caught even if two
+   builds somehow agree on APP_VERSION. */
+function roundSum(qs) {
+  return hashStr(qs.map(function (q) { return q.prompt + '|' + q.correct; }).join('~')).toString(36);
+}
 var LIMIT = 15000;      // ms allowed per question
 var REVEAL_MS = 4500;   // how long the answer stays on screen
 var GRACE_MS = 2500;    // extra wait for a straggling opponent message
@@ -182,7 +210,8 @@ function unpackSdp(code, type) {
 /* ------------------------------------------------------------------ *
  *  Peer connection
  * ------------------------------------------------------------------ */
-var P = { pc: null, dc: null, role: null, stream: null, watchdog: 0 };
+var P = { pc: null, dc: null, role: null, stream: null, watchdog: 0,
+          theirVersion: null, mismatch: false };
 
 function gatherDone(pc) {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
@@ -220,7 +249,7 @@ function wireChannel(dc) {
   P.dc = dc;
   dc.onopen = function () {
     clearTimeout(P.watchdog);
-    send({ t: 'hi', name: G.me.name });
+    send({ t: 'hi', name: G.me.name, v: APP_VERSION });
     onConnected();
   };
   dc.onmessage = function (e) {
@@ -258,6 +287,7 @@ function teardown() {
   if (P.dc) { try { P.dc.onclose = null; P.dc.close(); } catch (e) { } }
   if (P.pc) { try { P.pc.onconnectionstatechange = null; P.pc.close(); } catch (e) { } }
   P.pc = P.dc = null; P.role = null;
+  P.theirVersion = null; P.mismatch = false;
 }
 
 /* ------------------------------------------------------------------ *
@@ -416,6 +446,42 @@ function joinFlow() {
   }
 }
 
+function checkVersions() {
+  P.mismatch = P.theirVersion !== APP_VERSION;
+  if (P.mismatch) showMismatch();
+  else {
+    $('lobby-err').classList.add('hide');
+    $('b-start').disabled = false;
+  }
+}
+
+function showMismatch() {
+  $('lobby-err-msg').textContent =
+    'These two phones are running different versions of the game, so they would ' +
+    'get different questions. Update whichever phone is out of date, then pair again.';
+  $('lobby-err').classList.remove('hide');
+  $('b-start').disabled = true;
+  go('lobby');
+}
+
+/* Clears the precache and the worker outright, so the next load is guaranteed
+   to come from the network rather than a stale cached build. */
+function hardReload() {
+  var step = Promise.resolve();
+  if (window.caches) {
+    step = caches.keys().then(function (keys) {
+      return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+    }).catch(function () { });
+  }
+  step.then(function () {
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      return navigator.serviceWorker.getRegistrations().then(function (regs) {
+        return Promise.all(regs.map(function (r) { return r.unregister(); }));
+      }).catch(function () { });
+    }
+  }).then(function () { location.reload(); }, function () { location.reload(); });
+}
+
 function onConnected() {
   stopScan();
   $('lob-me').textContent = G.me.name;
@@ -456,13 +522,24 @@ function handleMsg(m) {
     $('lob-them').textContent = G.them.name;
     $('nm-them').textContent = G.them.name;
     $('fn-them').textContent = G.them.name;
+    // A build with no version field at all is an older one, and mismatches.
+    P.theirVersion = m.v || 'legacy';
+    checkVersions();
   } else if (m.t === 'cat') {
     var waiting = G.them.name + ' is picking a category…';
     $('lob-sub').textContent = waiting;
     $('end-wait').textContent = waiting;
   } else if (m.t === 'start') {
+    if (P.mismatch) { showMismatch(); return; }
     G.mode = 'duo';
     beginGame(m.seed, m.cat, m.spin);
+    // Belt and braces: if our locally built round somehow differs from the
+    // host's, stop rather than play a divergent game.
+    if (m.sum && roundSum(G.qs) !== m.sum) {
+      P.mismatch = true;
+      clearTimers();
+      showMismatch();
+    }
   } else if (m.t === 'ans') {
     if (m.i !== G.i || G.theirAns) return;
     G.theirAns = { choice: m.choice, ms: m.ms };
@@ -835,8 +912,11 @@ function openPicker() {
 }
 
 function startRound(cat, spin) {
+  if (G.mode === 'duo' && P.mismatch) { showMismatch(); return; }
   var seed = (Math.random() * 0xffffffff) >>> 0;
-  if (G.mode === 'duo') send({ t: 'start', seed: seed, cat: cat, spin: spin });
+  if (G.mode === 'duo') {
+    send({ t: 'start', seed: seed, cat: cat, spin: spin, sum: roundSum(buildRound(seed, cat)) });
+  }
   beginGame(seed, cat, spin);
 }
 
@@ -877,15 +957,41 @@ try {
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('./sw.js').catch(function () { });
+    // updateViaCache:'none' keeps the browser from serving sw.js from HTTP
+    // cache, which is what lets a stale build linger for days.
+    // Whether a worker was ALREADY driving this page decides update vs first
+    // install. Reading controller later is no good: clients.claim() sets it
+    // during a first install too, which would reload every new visitor once.
+    var wasControlled = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(function (reg) {
+      reg.addEventListener('updatefound', function () {
+        var fresh = reg.installing;
+        if (!fresh) return;
+        fresh.addEventListener('statechange', function () {
+          // The worker calls skipWaiting/claim, so it takes over at once — but
+          // this page still holds the old scripts. Reload once to pick them up.
+          if (fresh.state === 'activated' && wasControlled) {
+            try {
+              if (!sessionStorage.getItem('qd.updated')) {
+                sessionStorage.setItem('qd.updated', '1');
+                location.reload();
+              }
+            } catch (e) { location.reload(); }
+          }
+        });
+      });
+    }).catch(function () { });
   });
 }
+
+$('ver').textContent = 'v' + APP_VERSION;
+$('b-reload').onclick = hardReload;
 
 /* Exposed so the Playwright harness can drive a two-context handshake without
    a camera; the UI itself never calls these. */
 window.__qd = {
   packSdp: packSdp, unpackSdp: unpackSdp, buildRound: buildRound, points: points,
-  CATS: CATS, MIXED: MIXED, G: G, P: P
+  CATS: CATS, MIXED: MIXED, APP_VERSION: APP_VERSION, roundSum: roundSum, G: G, P: P
 };
 
 })();
