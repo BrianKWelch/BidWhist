@@ -35,7 +35,7 @@ function bankVersion() {
   return b.length + '-' + h.toString(36);
 }
 
-var APP_VERSION = 'p' + PROTO + '.' + bankVersion();
+var APP_VERSION;   // assigned below, once CATS exists
 
 /* Fingerprint of an actual built round, so a divergence is caught even if two
    builds somehow agree on APP_VERSION. */
@@ -54,10 +54,15 @@ var SCREENS = ['home', 'how', 'role', 'show', 'scan', 'wait', 'lobby', 'pick', '
 /* Wheel order is also the segment order, so it must stay stable: both phones
    animate the same wheel to the same landing angle from the shared seed. */
 var CATS = ['Geography', 'History', 'Science', 'Music', 'Screen',
-            'Sports', 'Food', 'Books', 'Odds & Ends'];
+            'Sports', 'Food', 'Books', 'Odds & Ends', 'R&B Lyrics'];
 var MIXED = 'Mixed';
 var WHEEL_COLORS = ['#3ddc97', '#4dabf7', '#ffd43b', '#ff6b6b', '#b197fc',
-                    '#63e6be', '#ffa94d', '#74c0fc', '#f783ac'];
+                    '#63e6be', '#ffa94d', '#74c0fc', '#f783ac', '#a9e34b'];
+
+/* CATS is folded into the version because its order decides where the wheel
+   lands: two builds sharing a bank but ordering categories differently would
+   spin to different segments, which the bank hash alone would not catch. */
+APP_VERSION = 'p' + PROTO + '.' + bankVersion() + '.' + hashStr(CATS.join('|')).toString(36);
 function go(name) {
   SCREENS.forEach(function (s) { $('s-' + s).classList.toggle('on', s === name); });
   window.scrollTo(0, 0);
@@ -991,7 +996,8 @@ $('b-reload').onclick = hardReload;
    a camera; the UI itself never calls these. */
 window.__qd = {
   packSdp: packSdp, unpackSdp: unpackSdp, buildRound: buildRound, points: points,
-  CATS: CATS, MIXED: MIXED, APP_VERSION: APP_VERSION, roundSum: roundSum, G: G, P: P
+  CATS: CATS, MIXED: MIXED, APP_VERSION: APP_VERSION, roundSum: roundSum,
+  drawWheel: drawWheel, G: G, P: P
 };
 
 })();

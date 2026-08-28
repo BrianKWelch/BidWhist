@@ -435,6 +435,14 @@ lobby and is told a pick is happening. `CATS` in `app.js` is the nine-category
 list **and** the wheel's segment order, so changing it changes where the wheel
 lands — keep it stable. `MIXED` draws from the whole bank.
 
+- The **R&B Lyrics** category is finish-the-line. Quoted fragments are kept
+  deliberately short — the hook or title line, a handful of words — and answers
+  are one word wherever possible. Reproducing verses or full choruses would be
+  a licensing problem; a short identifying fragment in a quiz is not. Keep to
+  that discipline when adding to it. (Playing clips of commercial recordings is
+  a different matter entirely and is not something this game can ship: there is
+  no legal source of recognisable R&B audio, and anything added to the repo is
+  published by GitHub Pages.)
 - `buildRound(seed, cat)` filters the bank by category before shuffling. The
   pool is built in bank order so both phones filter identically. A category
   thinner than a full round tops up from the whole bank rather than short-
@@ -444,6 +452,10 @@ lands — keep it stable. `MIXED` draws from the whole bank.
   category, then sends `{t:'start', seed, cat, spin:true}`; both sides derive
   the turn count and jitter from that same seed, so the animation matches.
   Nothing about the spin is negotiated after the fact.
+- `CATS` is folded into `APP_VERSION` alongside the bank hash, because its
+  order decides which wheel segment a category maps to. Reordering it without
+  touching `questions.js` would otherwise pass the skew check and send the two
+  phones to different segments.
 - `presentCategory()` doubles as the reveal for a direct pick — it holds the
   category name for a beat so the other phone sees what is coming.
 

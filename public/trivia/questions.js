@@ -212,6 +212,34 @@ window.QUESTIONS = [
 ["How many continents are there?", ["Seven", "Six", "Five", "Eight"], 0, "Odds & Ends"],
 ["What is the only even prime number?", ["Two", "Zero", "Four", "One"], 0, "Odds & Ends"],
 ["How many squares are on a chessboard?", ["64", "81", "100", "49"], 0, "Odds & Ends"],
-["What is the currency of the United Kingdom?", ["The pound sterling", "The euro", "The krona", "The franc"], 0, "Odds & Ends"]
+["What is the currency of the United Kingdom?", ["The pound sterling", "The euro", "The krona", "The franc"], 0, "Odds & Ends"],
+
+/* ---- R&B Lyrics ----
+   Quoted fragments are deliberately kept to a few words — the hook or title
+   line — rather than verses. Answers are one word wherever possible. */
+["Boyz II Men, 1992 \u2014 finish the line: 'We've come to the end of the ___'", ["Road", "Night", "Story", "Line"], 0, "R&B Lyrics"],
+["The Temptations, 1965 \u2014 finish the line: 'I've got sunshine on a cloudy ___'", ["Day", "Morning", "Street", "Sunday"], 0, "R&B Lyrics"],
+["Otis Redding, 1968 \u2014 finish the line: 'Sittin' on the dock of the ___'", ["Bay", "Boat", "Shore", "Pier"], 0, "R&B Lyrics"],
+["Bill Withers, 1972 \u2014 finish the line: 'Lean on me, when you're not ___'", ["Strong", "Home", "Sure", "Well"], 0, "R&B Lyrics"],
+["Stevie Wonder, 1972 \u2014 finish the line: 'Very superstitious, writing's on the ___'", ["Wall", "Door", "Page", "Floor"], 0, "R&B Lyrics"],
+["Michael Jackson, 1983 \u2014 finish the line: 'Billie Jean is not my ___'", ["Lover", "Sister", "Problem", "Girlfriend"], 0, "R&B Lyrics"],
+["Lionel Richie, 1984 \u2014 finish the line: 'Hello, is it me you're looking ___'", ["For", "At", "To", "With"], 0, "R&B Lyrics"],
+["Al Green, 1972 \u2014 finish the line: 'Whether times are good or bad, happy or ___'", ["Sad", "Blue", "Low", "Cold"], 0, "R&B Lyrics"],
+["Aretha Franklin, 1967 \u2014 finish the line: 'R-E-S-P-E-C-T, find out what it means to ___'", ["Me", "You", "Us", "We"], 0, "R&B Lyrics"],
+["Marvin Gaye, 1971 \u2014 finish the line: 'Mother, mother, there's too many of you ___'", ["Crying", "Trying", "Sighing", "Lying"], 0, "R&B Lyrics"],
+["Sam Cooke, 1964 \u2014 finish the line: 'It's been a long time coming, but I know a change gon' ___'", ["Come", "Show", "Go", "Grow"], 0, "R&B Lyrics"],
+["Gladys Knight & the Pips, 1973 \u2014 finish the line: 'He's leaving on that midnight train to ___'", ["Georgia", "Memphis", "Carolina", "Alabama"], 0, "R&B Lyrics"],
+["The O'Jays, 1972 \u2014 finish the line: 'People all over the world, join ___'", ["Hands", "Us", "In", "Now"], 0, "R&B Lyrics"],
+["Earth, Wind & Fire, 1978 \u2014 finish the line: 'Do you remember the 21st night of ___'", ["September", "December", "November", "Summer"], 0, "R&B Lyrics"],
+["The Supremes, 1965 \u2014 finish the line: 'Stop! In the name of ___'", ["Love", "Peace", "Mine", "Pride"], 0, "R&B Lyrics"],
+["TLC, 1995 \u2014 finish the line: 'Don't go chasing ___'", ["Waterfalls", "Rainbows", "Shadows", "Daydreams"], 0, "R&B Lyrics"],
+["Blackstreet, 1996 \u2014 finish the line: 'I like the way you work it, no ___'", ["Diggity", "Question", "Kidding", "Doubt"], 0, "R&B Lyrics"],
+["SWV, 1993 \u2014 finish the line: 'I get so weak in the knees I can hardly ___'", ["Speak", "Breathe", "Stand", "Think"], 0, "R&B Lyrics"],
+["Toni Braxton, 1996 \u2014 finish the line: 'Un-break my ___'", ["Heart", "Promise", "Love", "Soul"], 0, "R&B Lyrics"],
+["Lauryn Hill, 1998 \u2014 finish the line: 'Guys you know you better watch out, some girls are only about that ___'", ["Thing", "Money", "Fling", "Bling"], 0, "R&B Lyrics"],
+["Aaliyah, 2000 \u2014 finish the line: 'Dust yourself off and try ___'", ["Again", "Harder", "Later", "Twice"], 0, "R&B Lyrics"],
+["Ne-Yo, 2006 \u2014 finish the line: 'Why can't I turn off the ___'", ["Radio", "Lights", "Phone", "Music"], 0, "R&B Lyrics"],
+["Whitney Houston, 1987 \u2014 finish the line: 'I wanna dance with somebody who ___ me'", ["Loves", "Holds", "Wants", "Knows"], 0, "R&B Lyrics"],
+["Luther Vandross, 1981 \u2014 finish the line: 'A thousand kisses from you is never too ___'", ["Much", "Late", "Long", "Soon"], 0, "R&B Lyrics"]
 
 ];

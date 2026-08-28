@@ -99,7 +99,18 @@ function ok(name, cond, extra) {
 
   // --- category filtering ---
   const cats = await A.evaluate(() => window.__qd.CATS);
-  ok('nine categories on the wheel', cats.length === 9, cats.join(', '));
+  ok('wheel has categories and no duplicates',
+     cats.length >= 2 && new Set(cats).size === cats.length, cats.length + ': ' + cats.join(', '));
+
+  // Every wheel segment must be able to fill a round on its own, or it silently
+  // tops up from the whole bank and stops being the category you picked.
+  const thin = await A.evaluate(cs => {
+    const n = {};
+    window.QUESTIONS.forEach(q => { n[q[3]] = (n[q[3]] || 0) + 1; });
+    return cs.filter(c => (n[c] || 0) < 10).map(c => c + '=' + (n[c] || 0));
+  }, cats);
+  ok('every category has enough questions for a full round',
+     thin.length === 0, thin.join(', ') || 'all >= 10');
 
   const catRounds = await A.evaluate(cs => cs.map(c => ({
     cat: c,
