@@ -446,8 +446,11 @@ lands — keep it stable. `MIXED` draws from the whole bank.
 - `buildRound(seed, cat)` filters the bank by category before shuffling. The
   pool is built in bank order so both phones filter identically. A category
   thinner than a full round tops up from the whole bank rather than short-
-  changing the round, so every category needs 10+ questions (all currently have
-  20+; keep it that way when editing).
+  changing the round, and silently stops being the category that was picked.
+  **Every category carries 50 questions; keep them balanced when editing.** At
+  50, two back-to-back rounds of the same category share about 2 questions of
+  10 — at 20 it was 5 of 10, which players noticed as repetition. The self-test
+  fails any category that drops below a full round's worth.
 - "Surprise me" spins a wheel on **both** phones. The host decides the landing
   category, then sends `{t:'start', seed, cat, spin:true}`; both sides derive
   the turn count and jitter from that same seed, so the animation matches.
