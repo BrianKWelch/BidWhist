@@ -7,13 +7,15 @@ plugins {
 
 android {
     namespace = "com.brianwelch.smsvault"
-    // API 37 == Android 17. Confirm the platform is installed in the SDK Manager.
-    compileSdk = 37
+    // Built against the newest shipping platform (API 35 / Android 15) so it
+    // compiles today; Android 17 / API 37 is not yet downloadable. No API-37-only
+    // symbols are used. When the Android 17 SDK is public, bump both to 37.
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.brianwelch.smsvault"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
