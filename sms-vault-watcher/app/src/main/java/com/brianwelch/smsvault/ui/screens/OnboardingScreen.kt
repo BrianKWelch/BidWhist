@@ -53,14 +53,14 @@ fun OnboardingScreen(
     onManageNumbers: () -> Unit
 ) {
     val context = LocalContext.current
-    // A counter we bump to force re-evaluation of the (non-observable) grant checks.
+    // A counter we bump to force re-evaluation of the (non-observable) grant
+    // checks; each derived value recomputes when it changes.
     var refresh by remember { mutableIntStateOf(0) }
-    @Suppress("UNUSED_EXPRESSION") refresh
 
-    val smsGranted = PermissionState.smsPermissionsGranted(context)
-    val notifGranted = PermissionState.notificationAccessGranted(context)
-    val batteryOk = PermissionState.batteryUnrestricted(context)
-    val biometricOk = PermissionState.biometricEnrolled(activity)
+    val smsGranted = remember(refresh) { PermissionState.smsPermissionsGranted(context) }
+    val notifGranted = remember(refresh) { PermissionState.notificationAccessGranted(context) }
+    val batteryOk = remember(refresh) { PermissionState.batteryUnrestricted(context) }
+    val biometricOk = remember(refresh) { PermissionState.biometricEnrolled(activity) }
     val allGood = smsGranted && notifGranted && biometricOk
 
     val permissionLauncher = rememberLauncherForActivityResult(

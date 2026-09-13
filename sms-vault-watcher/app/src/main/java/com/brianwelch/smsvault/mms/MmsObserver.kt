@@ -119,9 +119,9 @@ class MmsObserver(
     }
 
     /**
-     * Read the parts for one MMS. text/plain becomes the body; image/* and video/*
-     * are streamed straight into EncryptedFile via the repository — the stream is
-     * opened here and consumed downstream, never fully buffered.
+     * Read the parts for one MMS. text/plain becomes the body; image and video
+     * parts are streamed straight into EncryptedFile via the repository — the
+     * stream is opened here and consumed downstream, never fully buffered.
      */
     private fun readParts(mmsId: Long): Pair<String?, List<VaultRepository.PendingAttachment>> {
         val partUri = Uri.parse("content://mms/part")
