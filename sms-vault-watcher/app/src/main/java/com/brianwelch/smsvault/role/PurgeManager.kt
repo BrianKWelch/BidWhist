@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.provider.Telephony
+import com.brianwelch.smsvault.data.VaultMessage
 import com.brianwelch.smsvault.data.VaultRepository
 import com.brianwelch.smsvault.util.PhoneMatch
 
@@ -62,7 +63,13 @@ object PurgeManager {
         val failures = ArrayList<Failure>()
 
         for (msg in pending) {
-            val rowId = msg.provider_row_id ?: continue
+            // SMS captured from the broadcast may have no provider_row_id yet (the
+            // default app had not written the row when we looked). Resolve it now.
+            val rowId = msg.provider_row_id ?: resolveRowId(context, msg)
+            if (rowId == null) {
+                failures += Failure(msg.id, -1, msg.source, "row not found in telephony provider")
+                continue
+            }
             val uri = if (msg.source == "mms") Telephony.Mms.CONTENT_URI else Telephony.Sms.CONTENT_URI
             val count = try {
                 context.contentResolver.delete(uri, "_id = ?", arrayOf(rowId.toString()))
@@ -79,6 +86,37 @@ object PurgeManager {
             }
         }
         return SweepResult(deleted, failures)
+    }
+
+    /**
+     * Look up the telephony-provider row id for a vaulted message that was stored
+     * without one (SMS via broadcast). Match SMS on body + a time window; MMS is
+     * matched by its date (its _id is normally already stored).
+     */
+    private fun resolveRowId(context: Context, msg: VaultMessage): Long? {
+        return try {
+            if (msg.source == "mms") {
+                // date in content://mms is in SECONDS.
+                val sec = msg.received_at / 1000
+                context.contentResolver.query(
+                    Telephony.Mms.CONTENT_URI,
+                    arrayOf(Telephony.Mms._ID),
+                    "date BETWEEN ? AND ?",
+                    arrayOf((sec - 120).toString(), (sec + 120).toString()),
+                    "${Telephony.Mms._ID} DESC"
+                )?.use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+            } else {
+                context.contentResolver.query(
+                    Telephony.Sms.CONTENT_URI,
+                    arrayOf(Telephony.Sms._ID),
+                    "${Telephony.Sms.BODY} = ? AND ${Telephony.Sms.DATE} BETWEEN ? AND ?",
+                    arrayOf(msg.body ?: "", (msg.received_at - 120_000).toString(), (msg.received_at + 120_000).toString()),
+                    "${Telephony.Sms.DATE} DESC"
+                )?.use { c -> if (c.moveToFirst()) c.getLong(0) else null }
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /** Step 6: hand the role back. There is no programmatic return path. */

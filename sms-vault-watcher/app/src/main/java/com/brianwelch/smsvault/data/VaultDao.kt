@@ -72,10 +72,10 @@ interface VaultDao {
 
     // ---- purge sweep -------------------------------------------------------
 
-    @Query("SELECT * FROM vault_message WHERE provider_deleted = 0 AND provider_row_id IS NOT NULL")
+    @Query("SELECT * FROM vault_message WHERE provider_deleted = 0")
     suspend fun pendingProviderDeletes(): List<VaultMessage>
 
-    @Query("SELECT COUNT(*) FROM vault_message WHERE provider_deleted = 0 AND provider_row_id IS NOT NULL")
+    @Query("SELECT COUNT(*) FROM vault_message WHERE provider_deleted = 0")
     fun observePendingDeleteCount(): Flow<Int>
 
     @Query("UPDATE vault_message SET provider_deleted = 1 WHERE id = :id")
