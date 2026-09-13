@@ -21,6 +21,11 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        // The target device (Galaxy Z Fold) is arm64. Packaging only arm64-v8a
+        // native libs (SQLCipher) keeps the APK small; add other ABIs back here
+        // if you ever sideload onto a 32-bit or x86 device/emulator.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     buildTypes {
