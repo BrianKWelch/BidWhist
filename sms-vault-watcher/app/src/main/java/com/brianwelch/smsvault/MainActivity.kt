@@ -11,9 +11,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.window.layout.WindowInfoTracker
+import com.brianwelch.smsvault.mms.ObserverService
 import com.brianwelch.smsvault.ui.AppViewModel
 import com.brianwelch.smsvault.ui.VaultNavHost
 import com.brianwelch.smsvault.ui.theme.VaultTheme
+import com.brianwelch.smsvault.util.PermissionState
 import com.brianwelch.smsvault.util.VaultLock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -95,7 +97,11 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Verify we did not get left as the default SMS app after a sweep (spec 7.7).
-        // The Purge screen surfaces the prompt; here we just make sure state is fresh.
+        // Start (or restart) the MMS observer from a guaranteed-foreground context,
+        // so opening the app reliably brings capture up and runs an initial sweep
+        // that retroactively vaults any MMS received while it was down.
+        runCatching {
+            if (PermissionState.smsPermissionsGranted(this)) ObserverService.start(this)
+        }
     }
 }

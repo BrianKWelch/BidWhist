@@ -24,14 +24,14 @@ class ObserverService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        // If the platform refuses the foreground start (background-start limits on
-        // newer Android), stop cleanly instead of crashing the process.
-        val started = runCatching { startInForeground() }.isSuccess
-        if (!started) {
-            stopSelf()
-            return
-        }
-        observer = MmsObserver(applicationContext).also { it.register() }
+        // Register the MMS observer FIRST so capture works even if the platform
+        // refuses to promote us to the foreground. Its register() also runs an
+        // immediate sweep, so any MMS already received is captured retroactively.
+        observer = MmsObserver(applicationContext).also { runCatching { it.register() } }
+        // Then try to become a foreground service for background longevity. If the
+        // platform refuses (e.g. a background start), keep running rather than
+        // stopping — never kill capture just because we could not go foreground.
+        runCatching { startInForeground() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
