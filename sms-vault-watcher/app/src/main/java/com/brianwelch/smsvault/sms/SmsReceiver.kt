@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import com.brianwelch.smsvault.data.VaultRepository
+import com.brianwelch.smsvault.notify.VaultAlerts
 import com.brianwelch.smsvault.util.PhoneMatch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,7 +53,7 @@ class SmsReceiver : BroadcastReceiver() {
                 // notification listener can suppress even before the DB write.
                 RecentSenders.mark(last10)
 
-                repo.storeMessage(
+                val newId = repo.storeMessage(
                     senderRaw = sender ?: "",
                     body = body,
                     receivedAt = receivedAt,
@@ -61,6 +62,11 @@ class SmsReceiver : BroadcastReceiver() {
                     providerRowId = resolveProviderRowId(appContext, sender, body, receivedAt),
                     attachments = emptyList()
                 )
+
+                // Owner-authored arrival alert: shows the number's label only.
+                if (newId != null) {
+                    VaultAlerts.notify(appContext, repo.labelFor(sender))
+                }
             } catch (_: Exception) {
                 // Never crash the broadcast; a missed capture is recoverable via
                 // the historical import.

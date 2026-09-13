@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import com.brianwelch.smsvault.data.VaultRepository
+import com.brianwelch.smsvault.notify.VaultAlerts
 import com.brianwelch.smsvault.sms.RecentSenders
 import com.brianwelch.smsvault.util.PhoneMatch
 import kotlinx.coroutines.CoroutineScope
@@ -86,7 +87,7 @@ class MmsObserver(
                 val subId = if (subCol >= 0) c.getInt(subCol) else -1
                 val (text, media) = readParts(mmsId)
 
-                repo.storeMessage(
+                val newId = repo.storeMessage(
                     senderRaw = sender,
                     body = text,
                     receivedAt = receivedAt,
@@ -95,6 +96,11 @@ class MmsObserver(
                     providerRowId = mmsId,
                     attachments = media
                 )
+
+                // Owner-authored arrival alert: shows the number's label only.
+                if (newId != null) {
+                    VaultAlerts.notify(context, repo.labelFor(sender))
+                }
             }
         }
 

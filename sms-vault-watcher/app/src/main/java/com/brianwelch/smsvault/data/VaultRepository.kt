@@ -35,6 +35,17 @@ class VaultRepository private constructor(
     suspend fun isWatched(sender: String?): Boolean =
         PhoneMatch.matchesAny(sender, storedNumbers())
 
+    /**
+     * The label the user assigned to the number that [sender] matches, or null.
+     * Used to title the private arrival alert (the label is the on-screen text).
+     */
+    suspend fun labelFor(sender: String?): String? {
+        if (sender.isNullOrBlank()) return null
+        val last10 = PhoneMatch.last10(sender)
+        if (last10.isBlank()) return null
+        return dao.allNumbers().firstOrNull { PhoneMatch.last10(it.e164) == last10 }?.label
+    }
+
     private fun threadKeyFor(senderE164: String): String = PhoneMatch.last10(senderE164)
 
     /**

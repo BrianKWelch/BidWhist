@@ -71,6 +71,14 @@ Then the Samsung-specific background steps (also listed in-app):
 
 ---
 
+## Arrival alerts
+
+By default the app is silent when a watched number messages you. Optionally it can
+post one private alert per captured message whose only visible text is the **label
+you gave that number** (e.g. "NEWS Alert"). No sender, number, or message content
+is shown, so nothing sensitive appears on the lock screen. Tapping it opens the
+vault (biometric-gated). Leave a number's label blank to keep it fully silent.
+
 ## How it works (architecture)
 
 | Concern | Mechanism | File |
