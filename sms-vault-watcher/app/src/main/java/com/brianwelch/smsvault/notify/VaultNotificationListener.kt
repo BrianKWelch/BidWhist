@@ -1,8 +1,12 @@
 package com.brianwelch.smsvault.notify
 
 import android.app.Notification
+import android.app.Person
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import androidx.core.app.NotificationCompat
+import com.brianwelch.smsvault.data.VaultNumber
 import com.brianwelch.smsvault.data.VaultRepository
 import com.brianwelch.smsvault.sms.RecentSenders
 import com.brianwelch.smsvault.util.PhoneMatch
@@ -14,78 +18,99 @@ import kotlinx.coroutines.launch
  * Section 5: dismiss the incoming-message notification posted by the system
  * messaging app when it comes from a watched sender.
  *
- * Matching strategy, in order of confidence:
- *   1. The in-memory RecentSenders set (populated by the SMS receiver / MMS
- *      observer). This wins the race where the notification posts before the DB
- *      write lands.
- *   2. The persisted vault numbers and their contact display names, checked
- *      against EXTRA_TITLE / EXTRA_TEXT / tag / shortcutId.
+ * Modern SMS apps post a MessagingStyle "conversation" notification: the title is
+ * usually the contact's display name, the message body is in EXTRA_TEXT or the
+ * MessagingStyle messages, and the sender's number lives in a Person uri, not the
+ * title. So we gather every field that can carry the sender (title, text, subtext,
+ * big text, conversation title, tag, shortcut id, EXTRA_PEOPLE_LIST people, and
+ * MessagingStyle senders) and match each against the watched numbers by last-10
+ * digits, and against those numbers' contact names / labels by name.
  *
- * This app never posts its own notification for a vaulted message, so there is no
- * risk of cancelling our own.
+ * Watched numbers are loaded fresh on every notification (not cached once), so a
+ * number added after the listener connected is still matched.
  */
 class VaultNotificationListener : NotificationListenerService() {
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    @Volatile private var storedNumbers: List<String> = emptyList()
-
-    override fun onListenerConnected() {
-        super.onListenerConnected()
-        refreshNumbers()
-    }
-
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName !in MESSAGING_PACKAGES) return
-
-        // Fast path: recently captured sender.
-        val extras = sbn.notification.extras
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
-        val tag = sbn.tag.orEmpty()
-        val shortcut = sbn.notification.shortcutId.orEmpty()
-
-        if (matchesRecent(title, text, tag, shortcut)) {
-            cancelNotification(sbn.key)
-            return
-        }
-
-        // Slow path: compare against persisted numbers / display names.
+        val key = sbn.key
+        // Do the work off the main thread; loads DB + contacts and cancels on match.
         scope.launch {
-            if (matchesStored(title, text, tag, shortcut)) {
-                cancelNotification(sbn.key)
+            if (shouldSuppress(sbn)) {
+                runCatching { cancelNotification(key) }
             }
         }
     }
 
-    private fun matchesRecent(vararg fields: String): Boolean {
+    private suspend fun shouldSuppress(sbn: StatusBarNotification): Boolean {
+        val numbers: List<VaultNumber> = runCatching {
+            VaultRepository.get(applicationContext).allVaultNumbers()
+        }.getOrDefault(emptyList())
+        if (numbers.isEmpty() && RecentSenders.snapshot().isEmpty()) return false
+
+        val e164s = numbers.map { it.e164 }
+        val candidates = gatherSenderStrings(sbn)
+
+        // 1) Any field carrying a watched number (raw-number titles, tel: uris).
+        if (candidates.any { PhoneMatch.matchesAny(it, e164s) }) return true
+
+        // 2) Any field carrying a watched number's contact name or user label.
+        val names = buildSet {
+            addAll(ContactNames.forNumbers(applicationContext, e164s))
+            addAll(numbers.mapNotNull { it.label?.takeIf { l -> l.isNotBlank() } })
+        }
+        if (names.isNotEmpty() && candidates.any { field ->
+                val f = field.trim()
+                f.isNotBlank() && names.any { n -> f.equals(n.trim(), ignoreCase = true) || f.contains(n.trim(), ignoreCase = true) }
+            }
+        ) return true
+
+        // 3) Recent-capture bridge: a watched message was just vaulted. Match its
+        // sender's number (digits) or contact name against this notification.
         val recent = RecentSenders.snapshot()
-        if (recent.isEmpty()) return false
-        return fields.any { field ->
-            val last10 = PhoneMatch.last10(field)
-            last10.isNotEmpty() && recent.contains(last10)
+        if (recent.isNotEmpty()) {
+            if (candidates.any { PhoneMatch.last10(it).let { d -> d.isNotEmpty() && recent.contains(d) } }) return true
         }
+        return false
     }
 
-    private fun matchesStored(title: String, text: String, tag: String, shortcut: String): Boolean {
-        val numbers = storedNumbers
-        if (numbers.isEmpty()) return false
-        // Any field that carries a phone number matching the vault list.
-        val fields = listOf(title, text, tag, shortcut)
-        if (fields.any { PhoneMatch.matchesAny(it, numbers) }) return true
-        // Contact display-name fallback: a watched number saved as a contact will
-        // surface as its display name in EXTRA_TITLE. Compare titles against the
-        // contact names resolved for the vault numbers.
-        val names = ContactNames.forNumbers(this, numbers)
-        return names.any { name ->
-            name.isNotBlank() && title.trim().equals(name.trim(), ignoreCase = true)
-        }
-    }
+    /** Every string on the notification that could identify the sender. */
+    private fun gatherSenderStrings(sbn: StatusBarNotification): List<String> {
+        val n = sbn.notification
+        val extras = n.extras
+        val out = ArrayList<String>()
+        fun addCs(v: CharSequence?) { v?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) } }
 
-    private fun refreshNumbers() {
-        scope.launch {
-            storedNumbers = VaultRepository.get(applicationContext).storedNumbers()
+        addCs(extras.getCharSequence(Notification.EXTRA_TITLE))
+        addCs(extras.getCharSequence(Notification.EXTRA_TITLE_BIG))
+        addCs(extras.getCharSequence(Notification.EXTRA_TEXT))
+        addCs(extras.getCharSequence(Notification.EXTRA_SUB_TEXT))
+        addCs(extras.getCharSequence(Notification.EXTRA_BIG_TEXT))
+        addCs(extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT))
+        addCs(extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE))
+        sbn.tag?.let { out.add(it) }
+        n.shortcutId?.let { out.add(it) }
+
+        // EXTRA_PEOPLE_LIST (Person objects) — name and uri (uri is often tel:<num>).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val people: ArrayList<Person>? = extras.getParcelableArrayList(Notification.EXTRA_PEOPLE_LIST)
+            people?.forEach { p ->
+                addCs(p.name)
+                p.uri?.let { out.add(it) }
+            }
         }
+
+        // MessagingStyle senders and their person uris.
+        runCatching {
+            NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)?.messages?.forEach { m ->
+                val person = m.person
+                addCs(person?.name)
+                person?.uri?.let { out.add(it) }
+            }
+        }
+        return out
     }
 
     companion object {

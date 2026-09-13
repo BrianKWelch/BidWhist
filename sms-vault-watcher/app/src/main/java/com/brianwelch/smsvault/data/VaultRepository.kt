@@ -23,6 +23,9 @@ class VaultRepository private constructor(
 
     suspend fun storedNumbers(): List<String> = dao.allNumbers().map { it.e164 }
 
+    /** Full watched-number rows (e164 + label), for notification matching. */
+    suspend fun allVaultNumbers(): List<VaultNumber> = dao.allNumbers()
+
     suspend fun addNumber(e164: String, label: String?) {
         val normalized = PhoneMatch.normalizeToE164(e164)
         if (normalized.isBlank()) return
