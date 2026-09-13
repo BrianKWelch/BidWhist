@@ -40,6 +40,29 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
+      # Optional: if the repo has a signing keystore secret, decode it and expose
+      # it to Gradle so builds share one signature (installs without uninstalling).
+      # No key is stored in the repo; without the secret the default debug key is used.
+      - name: Configure signing (optional)
+        env:
+          VAULT_KEYSTORE_B64: ${{ secrets.VAULT_KEYSTORE_B64 }}
+          VAULT_KEYSTORE_PASSWORD: ${{ secrets.VAULT_KEYSTORE_PASSWORD }}
+          VAULT_KEY_ALIAS: ${{ secrets.VAULT_KEY_ALIAS }}
+          VAULT_KEY_PASSWORD: ${{ secrets.VAULT_KEY_PASSWORD }}
+        run: |
+          if [ -n "$VAULT_KEYSTORE_B64" ]; then
+            echo "$VAULT_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/vault.jks"
+            {
+              echo "VAULT_KEYSTORE_FILE=$RUNNER_TEMP/vault.jks"
+              echo "VAULT_KEYSTORE_PASSWORD=$VAULT_KEYSTORE_PASSWORD"
+              echo "VAULT_KEY_ALIAS=${VAULT_KEY_ALIAS:-vault}"
+              echo "VAULT_KEY_PASSWORD=${VAULT_KEY_PASSWORD:-$VAULT_KEYSTORE_PASSWORD}"
+            } >> "$GITHUB_ENV"
+            echo "Signing with shared keystore from secret."
+          else
+            echo "No VAULT_KEYSTORE_B64 secret set; using the default debug key."
+          fi
+
       - name: Build debug APK
         working-directory: sms-vault-watcher
         run: gradle :app:assembleDebug --no-daemon --stacktrace

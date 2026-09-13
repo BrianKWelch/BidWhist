@@ -33,14 +33,26 @@ class VaultNotificationListener : NotificationListenerService() {
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        SuppressionLog.setConnected(true)
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        SuppressionLog.setConnected(false)
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName !in MESSAGING_PACKAGES) return
         val key = sbn.key
+        val title = sbn.notification.extras
+            .getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
         // Do the work off the main thread; loads DB + contacts and cancels on match.
         scope.launch {
-            if (shouldSuppress(sbn)) {
-                runCatching { cancelNotification(key) }
-            }
+            val cancel = shouldSuppress(sbn)
+            if (cancel) runCatching { cancelNotification(key) }
+            SuppressionLog.record(sbn.packageName, title, cancel)
         }
     }
 

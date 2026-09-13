@@ -70,3 +70,14 @@ data class ThreadSummary(
     val last_received_at: Long,
     val last_body: String?
 )
+
+/** Read model for the in-vault gallery: an attachment plus its message context. */
+data class GalleryItem(
+    val id: Long,
+    val message_id: Long,
+    val mime_type: String,
+    val encrypted_filename: String,
+    val byte_size: Long,
+    val received_at: Long,
+    val sender_e164: String
+)

@@ -28,6 +28,24 @@ android {
         ndk { abiFilters += "arm64-v8a" }
     }
 
+    // Optional shared signing key so every build installs over the previous one
+    // (no uninstall). The keystore is provided at build time via env vars that CI
+    // populates from GitHub secrets — nothing is committed. Without them, the
+    // default AGP debug key is used (per-build signature, needs uninstall).
+    val sharedKeystore = System.getenv("VAULT_KEYSTORE_FILE")?.let { file(it) }
+        ?.takeIf { it.exists() && it.length() > 0 }
+    signingConfigs {
+        create("shared") {
+            if (sharedKeystore != null) {
+                storeFile = sharedKeystore
+                storePassword = System.getenv("VAULT_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("VAULT_KEY_ALIAS") ?: "vault"
+                keyPassword = System.getenv("VAULT_KEY_PASSWORD")
+                    ?: System.getenv("VAULT_KEYSTORE_PASSWORD") ?: ""
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -40,6 +58,9 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             isMinifyEnabled = false
+            if (sharedKeystore != null) {
+                signingConfig = signingConfigs.getByName("shared")
+            }
         }
     }
 

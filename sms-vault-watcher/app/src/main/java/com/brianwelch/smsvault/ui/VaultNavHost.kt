@@ -19,6 +19,8 @@ import androidx.fragment.app.FragmentActivity
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.brianwelch.smsvault.ui.screens.DiagnosticScreen
+import com.brianwelch.smsvault.ui.screens.GalleryScreen
 import com.brianwelch.smsvault.ui.screens.OnboardingScreen
 import com.brianwelch.smsvault.ui.screens.PurgeScreen
 import com.brianwelch.smsvault.ui.screens.ThreadScreen
@@ -33,6 +35,8 @@ object Routes {
     const val VAULT = "vault"
     const val THREAD = "thread/{threadKey}"
     const val PURGE = "purge"
+    const val GALLERY = "gallery"
+    const val DIAGNOSTIC = "diagnostic"
     fun thread(threadKey: String) = "thread/$threadKey"
 }
 
@@ -58,8 +62,20 @@ fun VaultNavHost(activity: FragmentActivity, viewModel: AppViewModel) {
                     viewModel = viewModel,
                     onOpenThread = { navController.navigate(Routes.thread(it)) },
                     onManageNumbers = { navController.navigate(Routes.NUMBERS) },
-                    onPurge = { navController.navigate(Routes.PURGE) }
+                    onPurge = { navController.navigate(Routes.PURGE) },
+                    onOpenGallery = { navController.navigate(Routes.GALLERY) },
+                    onOpenDiagnostic = { navController.navigate(Routes.DIAGNOSTIC) }
                 )
+            }
+        }
+        composable(Routes.GALLERY) {
+            BiometricGated(activity) {
+                GalleryScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+        }
+        composable(Routes.DIAGNOSTIC) {
+            BiometricGated(activity) {
+                DiagnosticScreen(onBack = { navController.popBackStack() })
             }
         }
         composable(Routes.THREAD) { entry ->

@@ -20,6 +20,16 @@ class VaultRepository private constructor(
     fun observeThreads(): Flow<List<ThreadSummary>> = dao.observeThreads()
     fun observeThreadMessages(key: String): Flow<List<VaultMessage>> = dao.observeThreadMessages(key)
     fun observePendingDeleteCount(): Flow<Int> = dao.observePendingDeleteCount()
+    fun observeGallery(): Flow<List<GalleryItem>> = dao.observeGallery()
+
+    /** Delete one vaulted message: wipe its encrypted media files, then the row
+     *  (attachment rows cascade). */
+    suspend fun deleteMessage(messageId: Long) {
+        dao.attachmentsForMessage(messageId).forEach { att ->
+            runCatching { MediaCrypto.delete(context, att.encrypted_filename) }
+        }
+        dao.deleteMessage(messageId)
+    }
 
     suspend fun storedNumbers(): List<String> = dao.allNumbers().map { it.e164 }
 

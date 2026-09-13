@@ -14,6 +14,8 @@ import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -43,7 +45,9 @@ fun VaultListScreen(
     viewModel: AppViewModel,
     onOpenThread: (String) -> Unit,
     onManageNumbers: () -> Unit,
-    onPurge: () -> Unit
+    onPurge: () -> Unit,
+    onOpenGallery: () -> Unit = {},
+    onOpenDiagnostic: () -> Unit = {}
 ) {
     val threads by viewModel.threads.collectAsState()
     val pending by viewModel.pendingDeleteCount.collectAsState()
@@ -59,6 +63,12 @@ fun VaultListScreen(
                         Toast.makeText(context, "Rescanning for new messages…", Toast.LENGTH_SHORT).show()
                     }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Rescan")
+                    }
+                    IconButton(onClick = onOpenGallery) {
+                        Icon(Icons.Filled.PhotoLibrary, contentDescription = "Gallery")
+                    }
+                    IconButton(onClick = onOpenDiagnostic) {
+                        Icon(Icons.Filled.MonitorHeart, contentDescription = "Suppression status")
                     }
                     IconButton(onClick = onManageNumbers) {
                         Icon(Icons.Filled.ManageAccounts, contentDescription = "Numbers")

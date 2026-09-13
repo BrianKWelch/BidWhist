@@ -75,6 +75,7 @@ fun ThreadScreen(
 
     var exportTarget by remember { mutableStateOf<VaultAttachment?>(null) }
     var pendingExport by remember { mutableStateOf<VaultAttachment?>(null) }
+    var deleteTarget by remember { mutableStateOf<VaultMessage?>(null) }
 
     val createDoc = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -111,7 +112,12 @@ fun ThreadScreen(
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
             items(withAttachments, key = { it.message.id }) { item ->
                 VaultLock.noteInteraction()
-                Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                Card(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp)
+                        .combinedClickable(onClick = {}, onLongClick = { deleteTarget = item.message })
+                ) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
                             DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
@@ -155,6 +161,26 @@ fun ThreadScreen(
                 }) { Text("Export") }
             },
             dismissButton = { TextButton(onClick = { exportTarget = null }) { Text("Cancel") } }
+        )
+    }
+
+    deleteTarget?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete from vault?") },
+            text = {
+                Text(
+                    "This permanently removes this message and any photo or video it " +
+                        "carries from the vault. It cannot be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteMessage(msg.id)
+                    deleteTarget = null
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
         )
     }
 }

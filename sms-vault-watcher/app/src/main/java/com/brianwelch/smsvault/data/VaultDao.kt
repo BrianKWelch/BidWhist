@@ -63,6 +63,29 @@ interface VaultDao {
     @Query("SELECT * FROM vault_attachment WHERE message_id IN (:messageIds)")
     suspend fun attachmentsFor(messageIds: List<Long>): List<VaultAttachment>
 
+    // ---- gallery + delete --------------------------------------------------
+
+    /** All media newest-first, for the in-vault gallery. */
+    @Query(
+        """
+        SELECT a.id AS id, a.message_id AS message_id, a.mime_type AS mime_type,
+               a.encrypted_filename AS encrypted_filename, a.byte_size AS byte_size,
+               m.received_at AS received_at, m.sender_e164 AS sender_e164
+        FROM vault_attachment a
+        JOIN vault_message m ON a.message_id = m.id
+        ORDER BY m.received_at DESC, a.id DESC
+        """
+    )
+    fun observeGallery(): Flow<List<GalleryItem>>
+
+    @Query("SELECT * FROM vault_attachment WHERE message_id = :messageId")
+    suspend fun attachmentsForMessage(messageId: Long): List<VaultAttachment>
+
+    /** Deletes a message; its attachment rows cascade. Media files are removed
+     *  separately by the repository before this is called. */
+    @Query("DELETE FROM vault_message WHERE id = :messageId")
+    suspend fun deleteMessage(messageId: Long)
+
     @Transaction
     suspend fun threadWithAttachments(messages: List<VaultMessage>): List<MessageWithAttachments> {
         if (messages.isEmpty()) return emptyList()

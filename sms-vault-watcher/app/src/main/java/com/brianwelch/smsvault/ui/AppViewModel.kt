@@ -32,6 +32,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val pendingDeleteCount: StateFlow<Int> =
         repo.observePendingDeleteCount().stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
+    val gallery: StateFlow<List<com.brianwelch.smsvault.data.GalleryItem>> =
+        repo.observeGallery().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun deleteMessage(messageId: Long) = viewModelScope.launch(Dispatchers.IO) {
+        repo.deleteMessage(messageId)
+    }
+
     private val _sweepResult = MutableStateFlow<PurgeManager.SweepResult?>(null)
     val sweepResult: StateFlow<PurgeManager.SweepResult?> = _sweepResult
 
