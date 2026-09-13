@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -27,8 +29,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.brianwelch.smsvault.mms.ObserverService
 import com.brianwelch.smsvault.ui.AppViewModel
 import java.text.DateFormat
 import java.util.Date
@@ -43,12 +47,19 @@ fun VaultListScreen(
 ) {
     val threads by viewModel.threads.collectAsState()
     val pending by viewModel.pendingDeleteCount.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Vault") },
                 actions = {
+                    IconButton(onClick = {
+                        ObserverService.start(context)
+                        Toast.makeText(context, "Rescanning for new messages…", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Rescan")
+                    }
                     IconButton(onClick = onManageNumbers) {
                         Icon(Icons.Filled.ManageAccounts, contentDescription = "Numbers")
                     }

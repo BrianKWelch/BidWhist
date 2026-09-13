@@ -33,14 +33,19 @@ class MmsObserver(
     private val sweepLock = Mutex()
 
     fun register() {
-        context.contentResolver.registerContentObserver(
-            Uri.parse("content://mms-sms/"),
-            /* notifyForDescendants = */ true,
-            this
-        )
+        // Register on several roots; OEMs vary in which URI they notify when an
+        // incoming MMS is written.
+        for (u in listOf("content://mms-sms/", "content://mms", "content://sms")) {
+            runCatching {
+                context.contentResolver.registerContentObserver(Uri.parse(u), true, this)
+            }
+        }
         // Run one sweep at startup to catch anything that arrived while dead.
         onChange(false)
     }
+
+    /** Force an immediate sweep (app open, periodic backstop, manual rescan). */
+    fun triggerSweep() = onChange(false)
 
     fun unregister() {
         try { context.contentResolver.unregisterContentObserver(this) } catch (_: Exception) {}

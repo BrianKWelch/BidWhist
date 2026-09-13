@@ -10,6 +10,13 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import com.brianwelch.smsvault.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Section 8: a FOREGROUND_SERVICE_SPECIAL_USE service that keeps the MMS
@@ -21,6 +28,7 @@ import com.brianwelch.smsvault.R
 class ObserverService : Service() {
 
     private var observer: MmsObserver? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -32,14 +40,33 @@ class ObserverService : Service() {
         // platform refuses (e.g. a background start), keep running rather than
         // stopping — never kill capture just because we could not go foreground.
         runCatching { startInForeground() }
+        startPeriodicSweep()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Every start (including each app open) forces an immediate rescan, so a
+        // missed change-notification does not mean a missed MMS.
+        runCatching { observer?.triggerSweep() }
         // Sticky so the platform restarts us after a kill.
         return START_STICKY
     }
 
+    /**
+     * Backstop poll: One UI does not reliably fire the ContentObserver for an
+     * incoming MMS, so sweep on a fixed interval as well. MMS already lags the
+     * default app by seconds, so a short poll is within the expected latency.
+     */
+    private fun startPeriodicSweep() {
+        scope.launch {
+            while (isActive) {
+                delay(SWEEP_INTERVAL_MS)
+                runCatching { observer?.triggerSweep() }
+            }
+        }
+    }
+
     override fun onDestroy() {
+        scope.cancel()
         observer?.unregister()
         observer = null
         super.onDestroy()
@@ -85,6 +112,7 @@ class ObserverService : Service() {
     companion object {
         private const val CHANNEL_ID = "observer_min"
         private const val NOTIF_ID = 42
+        private const val SWEEP_INTERVAL_MS = 45_000L
 
         fun start(context: Context) {
             val intent = Intent(context, ObserverService::class.java)
