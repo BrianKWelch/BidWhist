@@ -2,6 +2,7 @@ package com.brianwelch.smsvault
 
 import android.os.Build
 import android.os.Bundle
+import android.view.Window
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -35,9 +36,16 @@ class MainActivity : FragmentActivity() {
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         super.onCreate(savedInstanceState)
 
+        // Prevent this activity from surfacing on a DeX / external display.
+        // Window.setShouldDockBigOverlays is not part of the public SDK at this
+        // compile level, so invoke it reflectively; it applies on platforms that
+        // expose it (e.g. the target One UI build) and is a no-op elsewhere.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Prevent this activity from surfacing on a DeX / external display.
-            window.setShouldDockBigOverlays(false)
+            runCatching {
+                Window::class.java
+                    .getMethod("setShouldDockBigOverlays", Boolean::class.javaPrimitiveType)
+                    .invoke(window, false)
+            }
         }
 
         observeFoldChanges()
