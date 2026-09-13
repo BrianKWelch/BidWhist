@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +38,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.brianwelch.smsvault.mms.ObserverService
 import com.brianwelch.smsvault.util.PermissionState
 
@@ -57,6 +62,17 @@ fun OnboardingScreen(
     // checks; each derived value recomputes when it changes.
     var refresh by remember { mutableIntStateOf(0) }
 
+    // Re-check grant status whenever we return to this screen, so permissions
+    // granted manually in Settings are reflected without relaunching the app.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refresh++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val smsGranted = remember(refresh) { PermissionState.smsPermissionsGranted(context) }
     val notifGranted = remember(refresh) { PermissionState.notificationAccessGranted(context) }
     val batteryOk = remember(refresh) { PermissionState.batteryUnrestricted(context) }
@@ -67,11 +83,32 @@ fun OnboardingScreen(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
         refresh++
-        if (PermissionState.smsPermissionsGranted(context)) ObserverService.start(context)
+        // Starting the foreground service can throw on newer Android if the app
+        // is not in an allowed state; never let that crash setup.
+        if (PermissionState.smsPermissionsGranted(context)) {
+            runCatching { ObserverService.start(context) }
+        }
     }
     val settingsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { refresh++ }
+
+    // Launch helpers that never crash the app if an Intent cannot be resolved on
+    // this device (some Settings deep-links vary by OEM / OS build).
+    fun launchSettings(intent: Intent, fallbackMessage: String) {
+        runCatching { settingsLauncher.launch(intent) }
+            .onFailure { Toast.makeText(context, fallbackMessage, Toast.LENGTH_LONG).show() }
+    }
+    fun requestRuntimePermissions() {
+        runCatching { permissionLauncher.launch(PermissionState.RUNTIME_PERMISSIONS) }
+            .onFailure {
+                Toast.makeText(
+                    context,
+                    "Grant SMS, Contacts and Notifications in Settings > Apps > Vault > Permissions.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+    }
 
     Column(
         Modifier
@@ -92,14 +129,17 @@ fun OnboardingScreen(
             title = "SMS, MMS & contacts permissions",
             granted = smsGranted,
             actionLabel = "Grant"
-        ) { permissionLauncher.launch(PermissionState.RUNTIME_PERMISSIONS) }
+        ) { requestRuntimePermissions() }
 
         ChecklistRow(
             title = "Notification access (to dismiss inbound alerts)",
             granted = notifGranted,
             actionLabel = "Open settings"
         ) {
-            settingsLauncher.launch(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            launchSettings(
+                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+                "Open Settings > Notifications > Notification access, then enable Vault."
+            )
         }
 
         ChecklistRow(
@@ -114,7 +154,7 @@ fun OnboardingScreen(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:${context.packageName}"))
             }
-            settingsLauncher.launch(intent)
+            launchSettings(intent, "Open Settings > Apps > Vault > Battery and set Unrestricted.")
         }
 
         ChecklistRow(
@@ -127,7 +167,7 @@ fun OnboardingScreen(
             } else {
                 Intent(Settings.ACTION_SECURITY_SETTINGS)
             }
-            settingsLauncher.launch(enroll)
+            launchSettings(enroll, "Open Settings > Security to enroll a fingerprint or screen lock.")
         }
 
         Spacer(Modifier.height(12.dp))

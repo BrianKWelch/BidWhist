@@ -24,7 +24,13 @@ class ObserverService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startInForeground()
+        // If the platform refuses the foreground start (background-start limits on
+        // newer Android), stop cleanly instead of crashing the process.
+        val started = runCatching { startInForeground() }.isSuccess
+        if (!started) {
+            stopSelf()
+            return
+        }
         observer = MmsObserver(applicationContext).also { it.register() }
     }
 
@@ -82,10 +88,12 @@ class ObserverService : Service() {
 
         fun start(context: Context) {
             val intent = Intent(context, ObserverService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
             }
         }
     }
