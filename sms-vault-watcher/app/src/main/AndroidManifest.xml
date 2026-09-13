@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Section 3: permissions -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_MMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- SEND_SMS / WRITE_SMS are required only to be offered the SMS role during a
+         purge sweep. The app never sends a message. See PurgeManager. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.WRITE_SMS" />
+
+    <application
+        android:name=".VaultApp"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SmsVault"
+        tools:targetApi="37">
+
+        <!-- Section 8: vault UI is locked down. Not resizeable, not in recents. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:resizeableActivity="false"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
+            android:theme="@style/Theme.SmsVault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Section 4.1: real-time SMS capture. SMS_RECEIVED is delivered to any
+             holder of RECEIVE_SMS; it is NOT the default-only SMS_DELIVER. -->
+        <receiver
+            android:name=".sms.SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Section 8: FOREGROUND_SERVICE_SPECIAL_USE keeps the MMS ContentObserver
+             alive under One UI background limits. -->
+        <service
+            android:name=".mms.ObserverService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FOREGROUND_SERVICE_SUBTYPE"
+                android:value="Message archival observer" />
+        </service>
+
+        <!-- Section 5: notification suppression. Access is granted by the user in
+             Settings, not by a runtime prompt. -->
+        <service
+            android:name=".notify.VaultNotificationListener"
+            android:exported="false"
+            android:label="@string/notif_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Section 7: the four standard SMS-handler components. They MUST be
+             declared for RoleManager to offer ROLE_SMS. They are no-op stubs;
+             the app forwards nothing and sends nothing. -->
+
+        <!-- 1) SMS_DELIVER receiver (default-app only; stub) -->
+        <receiver
+            android:name=".role.SmsDeliverReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 2) WAP_PUSH_DELIVER receiver for MMS (stub) -->
+        <receiver
+            android:name=".role.MmsWapPushReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_WAP_PUSH">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 3) ACTION_SENDTO activity for the "send message" system hooks (stub) -->
+        <activity
+            android:name=".role.ComposeSmsActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.SmsVault.Transparent">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </activity>
+
+        <!-- 4) ACTION_SENDTO headless send service (stub) -->
+        <service
+            android:name=".role.HeadlessSmsSendService"
+            android:exported="true"
+            android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>

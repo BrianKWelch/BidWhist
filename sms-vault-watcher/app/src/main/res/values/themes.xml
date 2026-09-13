@@ -1,0 +1,11 @@
+<resources>
+    <!-- Compose supplies the real theming; these are shells so the manifest and
+         the launcher have something to reference before setContent runs. -->
+    <style name="Theme.SmsVault" parent="android:Theme.Material.NoActionBar" />
+
+    <style name="Theme.SmsVault.Transparent" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

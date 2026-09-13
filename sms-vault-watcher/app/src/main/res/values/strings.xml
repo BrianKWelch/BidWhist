@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Vault</string>
+    <string name="notif_listener_label">Vault message filter</string>
+    <string name="observer_channel_name">Background archival</string>
+    <string name="observer_notice">Message archival observer</string>
+</resources>
