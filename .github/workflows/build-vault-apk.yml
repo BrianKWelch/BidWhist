@@ -29,11 +29,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install SDK packages
-        run: yes | sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Install Android SDK packages
+        run: |
+          set -e
+          # Use the runner's preinstalled Android SDK directly. The
+          # android-actions/setup-android action was removed because its v3 tries
+          # to install the legacy 'tools' package, which Google has retired
+          # (sdkmanager now errors with "Failed to find package 'tools'").
+          SDKMGR="$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$SDKMGR" ]; then SDKMGR="$(command -v sdkmanager)"; fi
+          echo "Using sdkmanager at: $SDKMGR"
+          yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+          "$SDKMGR" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
