@@ -32,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.brianwelch.smsvault.notify.AssistantState
 import com.brianwelch.smsvault.notify.SuppressionLog
 import com.brianwelch.smsvault.util.PermissionState
 import kotlinx.coroutines.delay
@@ -62,7 +61,6 @@ fun DiagnosticScreen(onBack: () -> Unit) {
             context, android.Manifest.permission.READ_CONTACTS
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
-    val assistantOn = remember(tick) { AssistantState.connected }
     val entries = remember(tick) { SuppressionLog.snapshot() }
 
     Scaffold(
@@ -79,19 +77,14 @@ fun DiagnosticScreen(onBack: () -> Unit) {
                     StatusLine("Notification access granted", accessOn)
                     StatusLine("Listener connected", connected)
                     StatusLine("Contacts access granted", contactsOn)
-                    StatusLine("Notification assistant connected", assistantOn)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "The listener clears the banner from the tray, but Android still shows " +
-                            "the pop-up peek for a few seconds first. To stop the peek entirely, " +
-                            "turn on the Notification assistant below. If your phone won't let a " +
-                            "third-party assistant turn on, tell me.",
+                        "If notification access or the listener is red, the banner cannot be " +
+                            "dismissed. If Contacts is red, banners for numbers saved as a " +
+                            "contact (shown by name) can still slip through for photo-only " +
+                            "messages; grant Contacts in App info > Permissions.",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Spacer(Modifier.height(6.dp))
-                    TextButton(onClick = { openNotificationSettings(context) }) {
-                        Text("Open notification settings")
-                    }
                 }
             }
 
@@ -151,21 +144,6 @@ private fun dumpLog(entries: List<SuppressionLog.Entry>): String {
             append("  title=").append(e.title.ifBlank { "(none)" })
             if (e.detail.isNotBlank()) append("  | ").append(e.detail)
             append("\n")
-        }
-    }
-}
-
-private fun openNotificationSettings(context: Context) {
-    // No public intent opens the assistant picker directly, so open the phone's
-    // notification settings; the assistant lives under Advanced settings there.
-    val intent = Intent("android.settings.NOTIFICATION_SETTINGS")
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    runCatching { context.startActivity(intent) }.onFailure {
-        runCatching {
-            context.startActivity(
-                Intent(android.provider.Settings.ACTION_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
         }
     }
 }

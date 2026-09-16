@@ -77,21 +77,6 @@
             </intent-filter>
         </service>
 
-        <!-- Section 5b: notification assistant. This is the only hook a non-default
-             app has BEFORE a notification is shown, so it is what actually stops the
-             heads-up peek for a watched sender (the listener above only clears the
-             tray afterwards). Enabled by the user as the device notification
-             assistant; optional but required for a fully silent watched banner. -->
-        <service
-            android:name=".notify.VaultNotificationAssistant"
-            android:exported="false"
-            android:label="@string/notif_listener_label"
-            android:permission="android.permission.BIND_NOTIFICATION_ASSISTANT_SERVICE">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationAssistantService" />
-            </intent-filter>
-        </service>
-
         <!-- Section 7: the four standard SMS-handler components. They MUST be
              declared for RoleManager to offer ROLE_SMS. They are no-op stubs;
              the app forwards nothing and sends nothing. -->
