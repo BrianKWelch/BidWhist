@@ -65,7 +65,15 @@ class MmsObserver(
         if (stored.isEmpty()) return
 
         val lastId = repo.lastProcessedMmsId()
-        var highestSeen = lastId
+        // The bookmark may advance ONLY past rows we have fully handled. An incoming
+        // MMS appears in content://mms as an empty shell first; its sender address
+        // and media parts are filled in a beat later as the default app downloads
+        // it. If we advanced the bookmark past that shell (the old behavior), the
+        // "_id > bookmark" filter would never revisit the row and the picture was
+        // lost forever. So we stop at the first row that is not ready yet and retry
+        // it on the next sweep, unless it is old enough that it never will be.
+        var newBookmark = lastId
+        val now = System.currentTimeMillis()
 
         val mmsUri = Uri.parse("content://mms")
         val projection = arrayOf("_id", "date", "sub_id", "m_type")
@@ -82,20 +90,36 @@ class MmsObserver(
             val subCol = c.getColumnIndex("sub_id")
             while (c.moveToNext()) {
                 val mmsId = c.getLong(idCol)
-                highestSeen = maxOf(highestSeen, mmsId)
-                val sender = senderOf(mmsId) ?: continue
-                if (!PhoneMatch.matchesAny(sender, stored)) continue
+                val receivedAt = if (dateCol >= 0) c.getLong(dateCol) * 1000L else now
+                val stale = now - receivedAt > STALE_MS
+
+                val sender = senderOf(mmsId)
+                if (sender == null) {
+                    // Shell row: address not written yet. Retry next sweep; only give
+                    // up (and advance) once it is stale, so we never permanently skip
+                    // a live message but also never stall on a dead one.
+                    if (stale) { newBookmark = mmsId; continue } else break
+                }
+
+                if (!PhoneMatch.matchesAny(sender, stored)) {
+                    // Fully resolved and not watched: safe to advance past it.
+                    newBookmark = mmsId
+                    continue
+                }
+
+                // Watched. Only capture once the parts have actually landed; storing
+                // an empty shell would let the provider-row de-dupe block the real
+                // capture that arrives moments later.
+                val (text, media) = readParts(mmsId)
+                if (text.isNullOrEmpty() && media.isEmpty() && !stale) {
+                    media.forEach { it.stream.closeQuietly() }
+                    break // media still downloading; retry next sweep
+                }
 
                 RecentSenders.mark(PhoneMatch.last10(sender))
-
-                val receivedAt = if (dateCol >= 0) c.getLong(dateCol) * 1000L else System.currentTimeMillis()
-                val subId = if (subCol >= 0) c.getInt(subCol) else -1
-                val (text, media) = readParts(mmsId)
-
-                // Record any text so the notification listener can match the
-                // messaging banner by content even when it shows a contact name.
                 RecentSenders.markBody(text)
 
+                val subId = if (subCol >= 0) c.getInt(subCol) else -1
                 val newId = repo.storeMessage(
                     senderRaw = sender,
                     body = text,
@@ -105,16 +129,17 @@ class MmsObserver(
                     providerRowId = mmsId,
                     attachments = media
                 )
-
-                // Owner-authored arrival alert: shows the number's label only.
                 if (newId != null) {
                     VaultAlerts.notify(context, repo.labelFor(sender))
                 }
+                newBookmark = mmsId
             }
         }
 
-        if (highestSeen > lastId) repo.setLastProcessedMmsId(highestSeen)
+        if (newBookmark > lastId) repo.setLastProcessedMmsId(newBookmark)
     }
+
+    private fun java.io.InputStream.closeQuietly() = try { close() } catch (_: Exception) {}
 
     /**
      * Resolve the sender by querying content://mms/<id>/addr for type = 137
@@ -189,5 +214,9 @@ class MmsObserver(
 
     companion object {
         private const val FROM_TYPE = 137 // PduHeaders.FROM
+        // How long to keep retrying a not-yet-downloaded MMS before giving up and
+        // advancing past it, so a message that never finishes cannot stall capture
+        // of newer ones. Generous: auto-download normally completes in seconds.
+        private const val STALE_MS = 120_000L
     }
 }
