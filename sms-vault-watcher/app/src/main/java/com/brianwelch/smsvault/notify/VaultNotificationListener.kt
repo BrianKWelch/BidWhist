@@ -103,6 +103,10 @@ class VaultNotificationListener : NotificationListenerService() {
             val flags = buildString {
                 append(if (isSummary) "summary" else "single")
                 append(", fields=").append(candidates.size)
+                if (!cancel && candidates.isNotEmpty()) {
+                    val preview = candidates.joinToString(" | ") { it.take(24) }.take(80)
+                    append(" [").append(preview).append("]")
+                }
             }
             if (cancel) {
                 runCatching { cancelNotification(key) }
@@ -187,6 +191,12 @@ class VaultNotificationListener : NotificationListenerService() {
         if (recent.isNotEmpty()) {
             if (candidates.any { PhoneMatch.last10(it).let { d -> d.isNotEmpty() && recent.contains(d) } }) return true
         }
+
+        // 4) Content bridge: the notification's text is the exact body of a message
+        // we just captured from a watched sender. This catches the common case
+        // where the sender is a saved contact, so the notification shows a name
+        // (no number anywhere) but the message text still matches.
+        if (candidates.any { RecentSenders.matchesBody(it) }) return true
         return false
     }
 

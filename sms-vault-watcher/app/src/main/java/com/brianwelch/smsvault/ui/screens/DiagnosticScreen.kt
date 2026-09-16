@@ -51,6 +51,11 @@ fun DiagnosticScreen(onBack: () -> Unit) {
     // Re-read the (non-observable) status each tick.
     val accessOn = remember(tick) { PermissionState.notificationAccessGranted(context) }
     val connected = remember(tick) { SuppressionLog.listenerConnected }
+    val contactsOn = remember(tick) {
+        androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.READ_CONTACTS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
     val entries = remember(tick) { SuppressionLog.snapshot() }
 
     Scaffold(
@@ -66,10 +71,13 @@ fun DiagnosticScreen(onBack: () -> Unit) {
                 Column(Modifier.padding(14.dp)) {
                     StatusLine("Notification access granted", accessOn)
                     StatusLine("Listener connected", connected)
+                    StatusLine("Contacts access granted", contactsOn)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "If either is red, the Google/Samsung banner cannot be dismissed. " +
-                            "Fix notification access first.",
+                        "If notification access or the listener is red, the banner cannot be " +
+                            "dismissed. If Contacts is red, banners for numbers saved as a " +
+                            "contact (shown by name) can still slip through for photo-only " +
+                            "messages; grant Contacts in App info > Permissions.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

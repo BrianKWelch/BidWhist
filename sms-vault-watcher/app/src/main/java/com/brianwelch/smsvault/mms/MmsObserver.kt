@@ -92,6 +92,10 @@ class MmsObserver(
                 val subId = if (subCol >= 0) c.getInt(subCol) else -1
                 val (text, media) = readParts(mmsId)
 
+                // Record any text so the notification listener can match the
+                // messaging banner by content even when it shows a contact name.
+                RecentSenders.markBody(text)
+
                 val newId = repo.storeMessage(
                     senderRaw = sender,
                     body = text,

@@ -51,7 +51,11 @@ class SmsReceiver : BroadcastReceiver() {
 
                 // Populate the race-condition bridge immediately so the
                 // notification listener can suppress even before the DB write.
+                // Record the body too, so the listener can recognize the messaging
+                // notification by its text even when it shows a saved contact name
+                // instead of the number.
                 RecentSenders.mark(last10)
+                RecentSenders.markBody(body)
 
                 val newId = repo.storeMessage(
                     senderRaw = sender ?: "",
