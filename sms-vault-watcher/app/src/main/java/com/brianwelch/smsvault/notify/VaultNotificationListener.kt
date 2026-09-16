@@ -46,6 +46,14 @@ class VaultNotificationListener : NotificationListenerService() {
     // beat after its child, so a single immediate pass misses it.
     private val sweepDelaysMs = longArrayOf(200L, 700L, 1500L, 3000L, 5000L)
 
+    // When we suppress a watched message from an app, remember that briefly. A
+    // blank group-summary banner that lands during this window belongs to that
+    // suppressed message, so we clear it even without being able to read a sender.
+    private val suppressedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val suppressWindowMs = 20_000L
+    private fun recentlySuppressed(pkg: String) =
+        System.currentTimeMillis() - (suppressedAt[pkg] ?: 0L) < suppressWindowMs
+
     override fun onListenerConnected() {
         super.onListenerConnected()
         SuppressionLog.setConnected(true)
@@ -63,28 +71,47 @@ class VaultNotificationListener : NotificationListenerService() {
         val title = sbn.notification.extras
             .getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
 
+        val isSummary = (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+
         scope.launch {
             // Strings that could identify the sender. gatherSenderStrings only keeps
             // non-blank values, so an empty list means a sender-less "noise"
             // notification (a group summary or a content-hidden placeholder).
             val candidates = gatherSenderStrings(sbn)
             var cancel = false
+            var reason: String
 
             if (candidates.isNotEmpty()) {
                 cancel = shouldSuppressBySender(candidates)
-            } else if (!hasNonWatchedConversation(pkg)) {
-                // Sender-less noise (a group summary). Clear it only when there is
-                // no real, non-watched conversation on screen it could belong to.
+                reason = if (cancel) "sender matched a watched number" else "sender not watched"
+            } else if (isSummary && recentlySuppressed(pkg)) {
+                // Blank group summary right after we suppressed a watched message.
+                // Clearing a summary does not remove any child conversation, so this
+                // is safe even if another thread is also unread: that thread keeps
+                // its own notification. This is the case that kept a banner around.
                 cancel = true
+                reason = "blank group summary during suppression window"
+            } else if (!hasNonWatchedConversation(pkg)) {
+                // Sender-less, not a summary (a content-hidden placeholder), and no
+                // real non-watched conversation is on screen: safe to clear.
+                cancel = true
+                reason = "sender-less placeholder, no other conversation active"
+            } else {
+                reason = "sender-less but a non-watched conversation is active"
             }
 
+            val flags = buildString {
+                append(if (isSummary) "summary" else "single")
+                append(", fields=").append(candidates.size)
+            }
             if (cancel) {
                 runCatching { cancelNotification(key) }
-                SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, true)
+                if (candidates.isNotEmpty()) suppressedAt[pkg] = System.currentTimeMillis()
+                SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, true, "$flags | $reason")
                 // Re-sweep to catch the blank summary that lands just after this.
                 scheduleNoiseSweeps(pkg)
             } else {
-                SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, false)
+                SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, false, "$flags | $reason")
             }
         }
     }
@@ -100,16 +127,20 @@ class VaultNotificationListener : NotificationListenerService() {
         }
     }
 
-    /** Cancel every sender-less notification from [pkg] (group summaries,
-     *  content-hidden placeholders) provided no real non-watched conversation is
-     *  still active — so we never hide a genuine notification from another thread. */
+    /** Re-sweep after a suppression. Blank group summaries are cleared outright
+     *  (removing a summary never hides a child conversation). Blank non-summary
+     *  placeholders are cleared only when no real non-watched conversation is
+     *  active, so we never hide a genuine notification from another thread. */
     private suspend fun clearOrphanNoise(pkg: String) {
-        if (hasNonWatchedConversation(pkg)) return
         val active = runCatching { activeNotifications }.getOrNull() ?: return
+        val nonWatched = hasNonWatchedConversation(pkg)
         active.filter { it.packageName == pkg && gatherSenderStrings(it).isEmpty() }
             .forEach {
-                runCatching { cancelNotification(it.key) }
-                SuppressionLog.record(pkg, "(cleared noise)", true)
+                val isSummary = (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+                if (isSummary || !nonWatched) {
+                    runCatching { cancelNotification(it.key) }
+                    SuppressionLog.record(pkg, "(cleared noise)", true, if (isSummary) "summary sweep" else "placeholder sweep")
+                }
             }
     }
 

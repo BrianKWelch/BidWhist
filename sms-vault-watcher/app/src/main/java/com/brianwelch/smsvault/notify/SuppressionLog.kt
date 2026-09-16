@@ -11,7 +11,8 @@ object SuppressionLog {
         val ts: Long,
         val pkg: String,
         val title: String,
-        val cancelled: Boolean
+        val cancelled: Boolean,
+        val detail: String = ""
     )
 
     @Volatile var listenerConnected: Boolean = false
@@ -23,8 +24,8 @@ object SuppressionLog {
     fun setConnected(connected: Boolean) { listenerConnected = connected }
 
     @Synchronized
-    fun record(pkg: String, title: String, cancelled: Boolean) {
-        entries.addFirst(Entry(System.currentTimeMillis(), pkg, title, cancelled))
+    fun record(pkg: String, title: String, cancelled: Boolean, detail: String = "") {
+        entries.addFirst(Entry(System.currentTimeMillis(), pkg, title, cancelled, detail))
         while (entries.size > MAX) entries.removeLast()
     }
 

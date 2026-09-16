@@ -105,6 +105,9 @@ fun DiagnosticScreen(onBack: () -> Unit) {
                             }
                             Text(e.pkg, style = MaterialTheme.typography.bodySmall)
                             Text("title: ${e.title.ifBlank { "(none)" }}", style = MaterialTheme.typography.bodySmall)
+                            if (e.detail.isNotBlank()) {
+                                Text(e.detail, style = MaterialTheme.typography.labelSmall, color = Color(0xFF555555))
+                            }
                         }
                         Divider()
                     }
