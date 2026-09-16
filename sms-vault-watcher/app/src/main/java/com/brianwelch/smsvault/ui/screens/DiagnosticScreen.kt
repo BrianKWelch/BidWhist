@@ -23,6 +23,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -86,6 +91,8 @@ fun DiagnosticScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth()) {
                 Text("Recent messaging notifications", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = { copyLog(context, entries) }) { Text("Copy") }
+                TextButton(onClick = { shareLog(context, entries) }) { Text("Share") }
                 TextButton(onClick = { SuppressionLog.clear(); tick++ }) { Text("Clear") }
             }
             Spacer(Modifier.height(4.dp))
@@ -123,6 +130,36 @@ fun DiagnosticScreen(onBack: () -> Unit) {
             }
         }
     }
+}
+
+private fun dumpLog(entries: List<SuppressionLog.Entry>): String {
+    if (entries.isEmpty()) return "SMS Vault log: (empty)"
+    val fmt = DateFormat.getTimeInstance(DateFormat.MEDIUM)
+    return buildString {
+        append("SMS Vault suppression log\n")
+        entries.forEach { e ->
+            append(fmt.format(Date(e.ts)))
+            append("  ").append(if (e.cancelled) "DISMISSED" else "left alone")
+            append("  ").append(e.pkg)
+            append("  title=").append(e.title.ifBlank { "(none)" })
+            if (e.detail.isNotBlank()) append("  | ").append(e.detail)
+            append("\n")
+        }
+    }
+}
+
+private fun copyLog(context: Context, entries: List<SuppressionLog.Entry>) {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText("SMS Vault log", dumpLog(entries)))
+    Toast.makeText(context, "Log copied. Paste it into your chat.", Toast.LENGTH_SHORT).show()
+}
+
+private fun shareLog(context: Context, entries: List<SuppressionLog.Entry>) {
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, dumpLog(entries))
+    }
+    context.startActivity(Intent.createChooser(send, "Share log"))
 }
 
 @Composable

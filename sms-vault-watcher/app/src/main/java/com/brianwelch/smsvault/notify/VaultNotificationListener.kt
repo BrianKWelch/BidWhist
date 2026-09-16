@@ -75,9 +75,16 @@ class VaultNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (sbn.packageName !in MESSAGING_PACKAGES) return
+        if (!isMessagingPackage(sbn.packageName)) return
         scope.launch { evaluateAndAct(sbn, attempt = 0) }
     }
+
+    /** Recognize any SMS/MMS/RCS messaging app, not just Google's and Samsung's
+     *  default packages, so a carrier or alternate messenger is covered too. */
+    private fun isMessagingPackage(pkg: String): Boolean =
+        pkg in MESSAGING_PACKAGES ||
+            pkg.contains("messaging") || pkg.contains("messages") ||
+            pkg.contains(".mms") || pkg.endsWith(".sms") || pkg.contains(".sms.")
 
     /**
      * Decide whether to cancel [sbn], act, and log. If we can't yet tell that it is
