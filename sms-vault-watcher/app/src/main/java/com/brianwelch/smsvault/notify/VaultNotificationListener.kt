@@ -64,9 +64,21 @@ class VaultNotificationListener : NotificationListenerService() {
     // match. The capture itself already proved the sender is watched.
     private val CAPTURE_BRIDGE_MS = 9_000L
 
+    // Watched numbers cached in memory (last-10 digits) so onNotificationPosted can
+    // decide and cancel synchronously, in microseconds, WITHOUT opening the
+    // encrypted database. The DB path is fast enough to record and vault, but too
+    // slow to beat the on-screen banner: by the time it returns, Google has already
+    // rendered the notification. This cache is what lets us cancel before it shows.
+    @Volatile private var watchedLast10: Set<String> = emptySet()
+
     override fun onListenerConnected() {
         super.onListenerConnected()
         SuppressionLog.setConnected(true)
+        refreshWatchedCache()
+        // Keep the cache warm so a number added after connect is matched instantly.
+        scope.launch {
+            while (true) { delay(30_000L); refreshWatchedCache() }
+        }
     }
 
     override fun onListenerDisconnected() {
@@ -74,9 +86,54 @@ class VaultNotificationListener : NotificationListenerService() {
         SuppressionLog.setConnected(false)
     }
 
+    private fun refreshWatchedCache() {
+        scope.launch {
+            runCatching {
+                VaultRepository.get(applicationContext).allVaultNumbers()
+                    .map { PhoneMatch.last10(it.e164) }.filter { it.isNotEmpty() }.toSet()
+            }.getOrNull()?.let { watchedLast10 = it }
+        }
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (!isMessagingPackage(sbn.packageName)) return
+
+        // FAST PATH — synchronous, no DB. Cancel immediately if we can already tell
+        // this is a watched message, so the banner is pulled before it renders.
+        val candidates = gatherSenderStrings(sbn)
+        if (fastShouldCancel(sbn, candidates)) {
+            runCatching { cancelNotification(sbn.key) }
+            suppressedAt[sbn.packageName] = System.currentTimeMillis()
+            val title = sbn.notification.extras
+                .getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+            SuppressionLog.record(sbn.packageName, title.ifBlank { "(no title)" }, true, "fast cancel")
+            scheduleNoiseSweeps(sbn.packageName)
+            return
+        }
+
+        // SLOW PATH — the thorough check (DB read, contact names, retries) for the
+        // cases the fast in-memory check couldn't decide yet.
         scope.launch { evaluateAndAct(sbn, attempt = 0) }
+    }
+
+    /** In-memory, synchronous decision using only the watched-number cache and the
+     *  recent-capture bridges. No database, so it is safe to run on the posting
+     *  thread and fast enough to beat the banner. */
+    private fun fastShouldCancel(sbn: StatusBarNotification, candidates: List<String>): Boolean {
+        val isSummary = (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+        if (candidates.isNotEmpty()) {
+            // A field carries a watched number, or matches a just-captured sender/body.
+            if (candidates.any { c ->
+                    val d = PhoneMatch.last10(c)
+                    (d.isNotEmpty() && (watchedLast10.contains(d) || RecentSenders.contains(d)))
+                }) return true
+            if (candidates.any { RecentSenders.matchesBody(it) }) return true
+            // A single conversation banner arriving right after a watched capture.
+            if (!isSummary && RecentSenders.capturedWithin(CAPTURE_BRIDGE_MS)) return true
+            return false
+        }
+        // Blank summary right after we suppressed / captured a watched message.
+        return isSummary && (recentlySuppressed(sbn.packageName) || RecentSenders.capturedWithin(CAPTURE_BRIDGE_MS))
     }
 
     /** Recognize any SMS/MMS/RCS messaging app, not just Google's and Samsung's
