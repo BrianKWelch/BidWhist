@@ -52,70 +52,73 @@ class VaultNotificationListener : NotificationListenerService() {
         if (sbn.packageName !in MESSAGING_PACKAGES) return
         val key = sbn.key
         val pkg = sbn.packageName
-        val group = sbn.notification.group
-        val isSummary = (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
         val title = sbn.notification.extras
             .getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
 
         scope.launch {
+            // Strings that could identify the sender. gatherSenderStrings only keeps
+            // non-blank values, so an empty list means a sender-less "noise"
+            // notification (a group summary or a content-hidden placeholder).
+            val candidates = gatherSenderStrings(sbn)
             var cancel = false
-            if (isSummary) {
-                // A blank conversation-summary wrapper. Clear it only if a watched
-                // message from this app was just suppressed AND no other (non-watched)
-                // conversation is still showing under the same group.
-                if (recentlySuppressed(pkg) && !hasOtherChildren(pkg, group, key)) {
-                    cancel = true
-                }
-            } else {
-                cancel = shouldSuppress(sbn)
+
+            if (candidates.isNotEmpty()) {
+                cancel = shouldSuppressBySender(candidates)
                 if (cancel) suppressedAt[pkg] = System.currentTimeMillis()
+            } else {
+                // Sender-less noise: clear it only if a watched message from this app
+                // was just suppressed AND no other real (sender-bearing) conversation
+                // is showing, so we never hide a genuine notification from a
+                // different, non-watched thread.
+                if (recentlySuppressed(pkg) && !hasSenderBearingActive(pkg)) cancel = true
             }
 
             if (cancel) {
                 runCatching { cancelNotification(key) }
-                if (!isSummary) cancelOrphanSummaries(pkg, group, key)
+                if (candidates.isNotEmpty()) cancelOrphanNoise(pkg)
             }
-            SuppressionLog.record(pkg, if (isSummary && title.isBlank()) "(group summary)" else title, cancel)
+            SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, cancel)
         }
     }
 
     private fun recentlySuppressed(pkg: String): Boolean =
         System.currentTimeMillis() - (suppressedAt[pkg] ?: 0L) < summaryWindowMs
 
-    /** True if another non-summary notification (a different conversation) from the
-     *  same app+group is still active, so its summary must stay. */
-    private fun hasOtherChildren(pkg: String, group: String?, exceptKey: String): Boolean {
+    /** Any active notification from [pkg] that carries a sender (a non-blank title):
+     *  a real conversation notification for some, possibly non-watched, thread. */
+    private fun hasSenderBearingActive(pkg: String): Boolean {
         val active = runCatching { activeNotifications }.getOrNull() ?: return false
         return active.any {
             it.packageName == pkg &&
-                it.key != exceptKey &&
                 (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
-                it.notification.group == group
+                !it.notification.extras.getCharSequence(Notification.EXTRA_TITLE)
+                    ?.toString().isNullOrBlank()
         }
     }
 
-    /** After cancelling a watched child, cancel its now-orphaned group summary. */
-    private fun cancelOrphanSummaries(pkg: String, group: String?, exceptKey: String) {
-        if (hasOtherChildren(pkg, group, exceptKey)) return
+    /** After suppressing a watched conversation, clear any sender-less noise
+     *  (summaries/placeholders) from the same app when nothing sender-bearing
+     *  remains active. */
+    private fun cancelOrphanNoise(pkg: String) {
+        if (hasSenderBearingActive(pkg)) return
         val active = runCatching { activeNotifications }.getOrNull() ?: return
         active.filter {
             it.packageName == pkg &&
-                (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0 &&
-                it.notification.group == group
+                it.notification.extras.getCharSequence(Notification.EXTRA_TITLE)
+                    ?.toString().isNullOrBlank()
         }.forEach {
             runCatching { cancelNotification(it.key) }
-            SuppressionLog.record(pkg, "(group summary)", true)
+            SuppressionLog.record(pkg, "(cleared noise)", true)
         }
     }
 
-    private suspend fun shouldSuppress(sbn: StatusBarNotification): Boolean {
+    private suspend fun shouldSuppressBySender(candidates: List<String>): Boolean {
         val numbers: List<VaultNumber> = runCatching {
             VaultRepository.get(applicationContext).allVaultNumbers()
         }.getOrDefault(emptyList())
         if (numbers.isEmpty() && RecentSenders.snapshot().isEmpty()) return false
 
         val e164s = numbers.map { it.e164 }
-        val candidates = gatherSenderStrings(sbn)
 
         // 1) Any field carrying a watched number (raw-number titles, tel: uris).
         if (candidates.any { PhoneMatch.matchesAny(it, e164s) }) return true
@@ -132,7 +135,7 @@ class VaultNotificationListener : NotificationListenerService() {
         ) return true
 
         // 3) Recent-capture bridge: a watched message was just vaulted. Match its
-        // sender's number (digits) or contact name against this notification.
+        // sender's number against this notification.
         val recent = RecentSenders.snapshot()
         if (recent.isNotEmpty()) {
             if (candidates.any { PhoneMatch.last10(it).let { d -> d.isNotEmpty() && recent.contains(d) } }) return true

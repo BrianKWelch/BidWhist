@@ -16,8 +16,10 @@ android {
         applicationId = "com.brianwelch.smsvault"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // Auto-increment from the CI run number so each build is a proper upgrade
+        // (installs over the previous one); falls back to 1 for a local build.
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
