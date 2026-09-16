@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import com.brianwelch.smsvault.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,7 @@ class ObserverService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        active = this
         // Register the MMS observer FIRST so capture works even if the platform
         // refuses to promote us to the foreground. Its register() also runs an
         // immediate sweep, so any MMS already received is captured retroactively.
@@ -65,7 +67,31 @@ class ObserverService : Service() {
         }
     }
 
+    /**
+     * Fast MMS capture: the moment a messaging notification posts, sweep for the
+     * new MMS repeatedly over the next ~18s. A short wake lock keeps the CPU alive
+     * so the sweeps still run with the screen off, and the retries catch the media
+     * as soon as the default app finishes downloading it from the carrier.
+     */
+    private fun runSweepBurst() {
+        val obs = observer ?: return
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "smsvault:mmssweep")
+        runCatching { wl.acquire(BURST_WAKELOCK_MS) }
+        scope.launch {
+            try {
+                for (d in BURST_DELAYS_MS) {
+                    if (d > 0) delay(d)
+                    runCatching { obs.triggerSweep() }
+                }
+            } finally {
+                runCatching { if (wl.isHeld) wl.release() }
+            }
+        }
+    }
+
     override fun onDestroy() {
+        if (active === this) active = null
         scope.cancel()
         observer?.unregister()
         observer = null
@@ -112,7 +138,13 @@ class ObserverService : Service() {
     companion object {
         private const val CHANNEL_ID = "observer_min"
         private const val NOTIF_ID = 42
-        private const val SWEEP_INTERVAL_MS = 45_000L
+        private const val SWEEP_INTERVAL_MS = 30_000L
+        // Sweep offsets (ms) after a messaging notification: immediate, then a burst
+        // that spans ~18s to catch the media once the default app has downloaded it.
+        private val BURST_DELAYS_MS = longArrayOf(0L, 1500L, 2000L, 3000L, 4000L, 7000L, 18000L)
+        private const val BURST_WAKELOCK_MS = 25_000L
+
+        @Volatile private var active: ObserverService? = null
 
         fun start(context: Context) {
             val intent = Intent(context, ObserverService::class.java)
@@ -123,6 +155,14 @@ class ObserverService : Service() {
                     context.startService(intent)
                 }
             }
+        }
+
+        /** Trigger an immediate MMS sweep burst. Called by the notification listener
+         *  when a messaging notification posts. Starts the service if it isn't
+         *  running (its own startup sweep then covers the capture). */
+        fun sweepBurst(context: Context) {
+            val svc = active
+            if (svc != null) svc.runSweepBurst() else start(context)
         }
     }
 }

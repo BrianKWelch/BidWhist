@@ -8,6 +8,7 @@ import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import com.brianwelch.smsvault.data.VaultNumber
 import com.brianwelch.smsvault.data.VaultRepository
+import com.brianwelch.smsvault.mms.ObserverService
 import com.brianwelch.smsvault.sms.RecentSenders
 import com.brianwelch.smsvault.util.PhoneMatch
 import kotlinx.coroutines.CoroutineScope
@@ -97,6 +98,11 @@ class VaultNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (!isMessagingPackage(sbn.packageName)) return
+
+        // A messaging notification is our fastest signal that a message (possibly an
+        // MMS) has arrived. Kick an immediate MMS sweep burst so picture messages are
+        // captured in seconds instead of waiting on the slow background poll.
+        runCatching { ObserverService.sweepBurst(applicationContext) }
 
         // FAST PATH — synchronous, no DB. Cancel immediately if we can already tell
         // this is a watched message, so the banner is pulled before it renders.
