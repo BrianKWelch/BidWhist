@@ -48,28 +48,68 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      # Optional: if the repo has a signing keystore secret, decode it and expose
-      # it to Gradle so builds share one signature (installs without uninstalling).
-      # No key is stored in the repo; without the secret the default debug key is used.
-      - name: Configure signing (optional)
+      # Self-bootstrapping shared signing key. The whole point of a stable
+      # signature here is that each build installs over the previous one (no
+      # uninstall); it is NOT a secret (the vault is protected by biometrics +
+      # SQLCipher, not by the APK signature). So the build manages the key itself:
+      #   1. Reuse the shared keystore from the orphan `vault-signing` branch.
+      #   2. If it doesn't exist yet, generate one and publish it there.
+      # After the first signed build, every later build reuses the same key with
+      # zero manual steps. A pasted VAULT_KEYSTORE_B64 secret, if present, still
+      # wins as an override.
+      - name: Configure signing
         env:
           VAULT_KEYSTORE_B64: ${{ secrets.VAULT_KEYSTORE_B64 }}
           VAULT_KEYSTORE_PASSWORD: ${{ secrets.VAULT_KEYSTORE_PASSWORD }}
           VAULT_KEY_ALIAS: ${{ secrets.VAULT_KEY_ALIAS }}
           VAULT_KEY_PASSWORD: ${{ secrets.VAULT_KEY_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+          KS="$RUNNER_TEMP/vault.jks"
           if [ -n "$VAULT_KEYSTORE_B64" ]; then
-            echo "$VAULT_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/vault.jks"
-            {
-              echo "VAULT_KEYSTORE_FILE=$RUNNER_TEMP/vault.jks"
-              echo "VAULT_KEYSTORE_PASSWORD=$VAULT_KEYSTORE_PASSWORD"
-              echo "VAULT_KEY_ALIAS=${VAULT_KEY_ALIAS:-vault}"
-              echo "VAULT_KEY_PASSWORD=${VAULT_KEY_PASSWORD:-$VAULT_KEYSTORE_PASSWORD}"
-            } >> "$GITHUB_ENV"
-            echo "Signing with shared keystore from secret."
+            echo "$VAULT_KEYSTORE_B64" | base64 -d > "$KS"
+            STOREPASS="$VAULT_KEYSTORE_PASSWORD"
+            ALIAS="${VAULT_KEY_ALIAS:-vault}"
+            KEYPASS="${VAULT_KEY_PASSWORD:-$VAULT_KEYSTORE_PASSWORD}"
+            echo "Signing with shared keystore from secret (override)."
           else
-            echo "No VAULT_KEYSTORE_B64 secret set; using the default debug key."
+            STOREPASS="vaultshared"
+            ALIAS="vault"
+            KEYPASS="vaultshared"
+            # Reuse the shared keystore from the signing branch if it exists.
+            if git fetch --quiet origin vault-signing 2>/dev/null; then
+              git show origin/vault-signing:vault.jks > "$KS" 2>/dev/null || true
+            fi
+            if [ ! -s "$KS" ]; then
+              echo "No shared keystore yet; generating one and publishing it to vault-signing."
+              keytool -genkeypair -v -keystore "$KS" \
+                -storepass "$STOREPASS" -keypass "$KEYPASS" \
+                -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Vault, OU=Vault, O=Vault, L=NA, ST=NA, C=US"
+              TMP="$(mktemp -d)"
+              cp "$KS" "$TMP/vault.jks"
+              (
+                cd "$TMP"
+                git init -q
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                git checkout -q --orphan vault-signing
+                git add vault.jks
+                git commit -q -m "Shared signing keystore for vault APK"
+                git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" vault-signing
+              )
+              echo "Published new shared keystore."
+            else
+              echo "Reusing shared keystore from vault-signing branch."
+            fi
           fi
+          {
+            echo "VAULT_KEYSTORE_FILE=$KS"
+            echo "VAULT_KEYSTORE_PASSWORD=$STOREPASS"
+            echo "VAULT_KEY_ALIAS=$ALIAS"
+            echo "VAULT_KEY_PASSWORD=$KEYPASS"
+          } >> "$GITHUB_ENV"
 
       - name: Build debug APK
         working-directory: sms-vault-watcher

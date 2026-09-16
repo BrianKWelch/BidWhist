@@ -12,6 +12,7 @@ import com.brianwelch.smsvault.sms.RecentSenders
 import com.brianwelch.smsvault.util.PhoneMatch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -26,6 +27,13 @@ import kotlinx.coroutines.launch
  * MessagingStyle senders) and match each against the watched numbers by last-10
  * digits, and against those numbers' contact names / labels by name.
  *
+ * Alongside each conversation, the app also posts a "group summary" notification
+ * that carries no sender fields at all (blank title). We can't match a summary by
+ * sender, so we clear it as orphaned noise whenever the ONLY conversations still
+ * on screen from that app are watched ones we are removing (i.e. there is no
+ * non-watched, real conversation the summary could belong to). Because the summary
+ * often arrives after we cancel the child, we also re-sweep a few times on a delay.
+ *
  * Watched numbers are loaded fresh on every notification (not cached once), so a
  * number added after the listener connected is still matched.
  */
@@ -33,10 +41,10 @@ class VaultNotificationListener : NotificationListenerService() {
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    // When we suppress a watched message, remember its app briefly so we can also
-    // clear that app's blank "group summary" wrapper, which carries no sender.
-    private val suppressedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
-    private val summaryWindowMs = 12_000L
+    // Delays (ms) at which we re-scan for orphaned blank summaries after
+    // suppressing a watched conversation. The summary is frequently posted a
+    // beat after its child, so a single immediate pass misses it.
+    private val sweepDelaysMs = longArrayOf(200L, 700L, 1500L, 3000L, 5000L)
 
     override fun onListenerConnected() {
         super.onListenerConnected()
@@ -64,52 +72,60 @@ class VaultNotificationListener : NotificationListenerService() {
 
             if (candidates.isNotEmpty()) {
                 cancel = shouldSuppressBySender(candidates)
-                if (cancel) suppressedAt[pkg] = System.currentTimeMillis()
-            } else {
-                // Sender-less noise: clear it only if a watched message from this app
-                // was just suppressed AND no other real (sender-bearing) conversation
-                // is showing, so we never hide a genuine notification from a
-                // different, non-watched thread.
-                if (recentlySuppressed(pkg) && !hasSenderBearingActive(pkg)) cancel = true
+            } else if (!hasNonWatchedConversation(pkg)) {
+                // Sender-less noise (a group summary). Clear it only when there is
+                // no real, non-watched conversation on screen it could belong to.
+                cancel = true
             }
 
             if (cancel) {
                 runCatching { cancelNotification(key) }
-                if (candidates.isNotEmpty()) cancelOrphanNoise(pkg)
+                SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, true)
+                // Re-sweep to catch the blank summary that lands just after this.
+                scheduleNoiseSweeps(pkg)
+            } else {
+                SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, false)
             }
-            SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, cancel)
         }
     }
 
-    private fun recentlySuppressed(pkg: String): Boolean =
-        System.currentTimeMillis() - (suppressedAt[pkg] ?: 0L) < summaryWindowMs
-
-    /** Any active notification from [pkg] that carries a sender (a non-blank title):
-     *  a real conversation notification for some, possibly non-watched, thread. */
-    private fun hasSenderBearingActive(pkg: String): Boolean {
-        val active = runCatching { activeNotifications }.getOrNull() ?: return false
-        return active.any {
-            it.packageName == pkg &&
-                (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
-                !it.notification.extras.getCharSequence(Notification.EXTRA_TITLE)
-                    ?.toString().isNullOrBlank()
+    /** Fire several delayed passes that clear any orphaned blank summary left
+     *  behind once the watched conversation itself is gone. */
+    private fun scheduleNoiseSweeps(pkg: String) {
+        scope.launch {
+            for (d in sweepDelaysMs) {
+                delay(d)
+                clearOrphanNoise(pkg)
+            }
         }
     }
 
-    /** After suppressing a watched conversation, clear any sender-less noise
-     *  (summaries/placeholders) from the same app when nothing sender-bearing
-     *  remains active. */
-    private fun cancelOrphanNoise(pkg: String) {
-        if (hasSenderBearingActive(pkg)) return
+    /** Cancel every sender-less notification from [pkg] (group summaries,
+     *  content-hidden placeholders) provided no real non-watched conversation is
+     *  still active — so we never hide a genuine notification from another thread. */
+    private suspend fun clearOrphanNoise(pkg: String) {
+        if (hasNonWatchedConversation(pkg)) return
         val active = runCatching { activeNotifications }.getOrNull() ?: return
-        active.filter {
-            it.packageName == pkg &&
-                it.notification.extras.getCharSequence(Notification.EXTRA_TITLE)
-                    ?.toString().isNullOrBlank()
-        }.forEach {
-            runCatching { cancelNotification(it.key) }
-            SuppressionLog.record(pkg, "(cleared noise)", true)
+        active.filter { it.packageName == pkg && gatherSenderStrings(it).isEmpty() }
+            .forEach {
+                runCatching { cancelNotification(it.key) }
+                SuppressionLog.record(pkg, "(cleared noise)", true)
+            }
+    }
+
+    /** True if [pkg] has an active conversation notification (has sender fields)
+     *  that is NOT from a watched number — a real thread whose summary we must
+     *  leave alone. Watched conversations don't count: we are removing those. */
+    private suspend fun hasNonWatchedConversation(pkg: String): Boolean {
+        val active = runCatching { activeNotifications }.getOrNull() ?: return false
+        for (sb in active) {
+            if (sb.packageName != pkg) continue
+            if ((sb.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) continue
+            val cands = gatherSenderStrings(sb)
+            if (cands.isEmpty()) continue // sender-less child is itself noise
+            if (!shouldSuppressBySender(cands)) return true
         }
+        return false
     }
 
     private suspend fun shouldSuppressBySender(candidates: List<String>): Boolean {
