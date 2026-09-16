@@ -33,6 +33,11 @@ class VaultNotificationListener : NotificationListenerService() {
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    // When we suppress a watched message, remember its app briefly so we can also
+    // clear that app's blank "group summary" wrapper, which carries no sender.
+    private val suppressedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val summaryWindowMs = 12_000L
+
     override fun onListenerConnected() {
         super.onListenerConnected()
         SuppressionLog.setConnected(true)
@@ -46,13 +51,60 @@ class VaultNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName !in MESSAGING_PACKAGES) return
         val key = sbn.key
+        val pkg = sbn.packageName
+        val group = sbn.notification.group
+        val isSummary = (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
         val title = sbn.notification.extras
             .getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-        // Do the work off the main thread; loads DB + contacts and cancels on match.
+
         scope.launch {
-            val cancel = shouldSuppress(sbn)
-            if (cancel) runCatching { cancelNotification(key) }
-            SuppressionLog.record(sbn.packageName, title, cancel)
+            var cancel = false
+            if (isSummary) {
+                // A blank conversation-summary wrapper. Clear it only if a watched
+                // message from this app was just suppressed AND no other (non-watched)
+                // conversation is still showing under the same group.
+                if (recentlySuppressed(pkg) && !hasOtherChildren(pkg, group, key)) {
+                    cancel = true
+                }
+            } else {
+                cancel = shouldSuppress(sbn)
+                if (cancel) suppressedAt[pkg] = System.currentTimeMillis()
+            }
+
+            if (cancel) {
+                runCatching { cancelNotification(key) }
+                if (!isSummary) cancelOrphanSummaries(pkg, group, key)
+            }
+            SuppressionLog.record(pkg, if (isSummary && title.isBlank()) "(group summary)" else title, cancel)
+        }
+    }
+
+    private fun recentlySuppressed(pkg: String): Boolean =
+        System.currentTimeMillis() - (suppressedAt[pkg] ?: 0L) < summaryWindowMs
+
+    /** True if another non-summary notification (a different conversation) from the
+     *  same app+group is still active, so its summary must stay. */
+    private fun hasOtherChildren(pkg: String, group: String?, exceptKey: String): Boolean {
+        val active = runCatching { activeNotifications }.getOrNull() ?: return false
+        return active.any {
+            it.packageName == pkg &&
+                it.key != exceptKey &&
+                (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
+                it.notification.group == group
+        }
+    }
+
+    /** After cancelling a watched child, cancel its now-orphaned group summary. */
+    private fun cancelOrphanSummaries(pkg: String, group: String?, exceptKey: String) {
+        if (hasOtherChildren(pkg, group, exceptKey)) return
+        val active = runCatching { activeNotifications }.getOrNull() ?: return
+        active.filter {
+            it.packageName == pkg &&
+                (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0 &&
+                it.notification.group == group
+        }.forEach {
+            runCatching { cancelNotification(it.key) }
+            SuppressionLog.record(pkg, "(group summary)", true)
         }
     }
 
