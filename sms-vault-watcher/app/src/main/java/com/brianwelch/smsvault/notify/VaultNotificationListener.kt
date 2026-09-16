@@ -54,6 +54,16 @@ class VaultNotificationListener : NotificationListenerService() {
     private fun recentlySuppressed(pkg: String) =
         System.currentTimeMillis() - (suppressedAt[pkg] ?: 0L) < suppressWindowMs
 
+    // A sender-bearing banner we couldn't match yet is re-checked at these delays,
+    // to let the SMS/MMS capture that records the sender catch up (it can land just
+    // after the banner is posted). Total added latency is ~4s worst case.
+    private val RETRY_DELAYS_MS = longArrayOf(300L, 600L, 1000L, 2000L)
+
+    // Window after a watched capture during which a single conversation banner is
+    // treated as that message, even if its on-screen number text didn't parse to a
+    // match. The capture itself already proved the sender is watched.
+    private val CAPTURE_BRIDGE_MS = 9_000L
+
     override fun onListenerConnected() {
         super.onListenerConnected()
         SuppressionLog.setConnected(true)
@@ -66,57 +76,70 @@ class VaultNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName !in MESSAGING_PACKAGES) return
+        scope.launch { evaluateAndAct(sbn, attempt = 0) }
+    }
+
+    /**
+     * Decide whether to cancel [sbn], act, and log. If we can't yet tell that it is
+     * a watched message (the SMS/MMS capture that records the sender can land a beat
+     * AFTER the banner is posted), retry a few times on a short delay so the banner
+     * is still dismissed once the capture catches up.
+     */
+    private suspend fun evaluateAndAct(sbn: StatusBarNotification, attempt: Int) {
         val key = sbn.key
         val pkg = sbn.packageName
         val title = sbn.notification.extras
             .getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-
         val isSummary = (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+        val candidates = gatherSenderStrings(sbn)
 
-        scope.launch {
-            // Strings that could identify the sender. gatherSenderStrings only keeps
-            // non-blank values, so an empty list means a sender-less "noise"
-            // notification (a group summary or a content-hidden placeholder).
-            val candidates = gatherSenderStrings(sbn)
-            var cancel = false
-            var reason: String
+        var cancel = false
+        var reason: String
 
-            if (candidates.isNotEmpty()) {
-                cancel = shouldSuppressBySender(candidates)
-                reason = if (cancel) "sender matched a watched number" else "sender not watched"
-            } else if (isSummary && recentlySuppressed(pkg)) {
-                // Blank group summary right after we suppressed a watched message.
-                // Clearing a summary does not remove any child conversation, so this
-                // is safe even if another thread is also unread: that thread keeps
-                // its own notification. This is the case that kept a banner around.
-                cancel = true
-                reason = "blank group summary during suppression window"
-            } else if (!hasNonWatchedConversation(pkg)) {
-                // Sender-less, not a summary (a content-hidden placeholder), and no
-                // real non-watched conversation is on screen: safe to clear.
-                cancel = true
-                reason = "sender-less placeholder, no other conversation active"
-            } else {
-                reason = "sender-less but a non-watched conversation is active"
+        if (candidates.isNotEmpty()) {
+            when {
+                shouldSuppressBySender(candidates) -> { cancel = true; reason = "sender matched a watched number" }
+                // Capture-time bridge: a watched message was captured moments ago and
+                // this is a single conversation banner. The capture already proved the
+                // sender is watched, so dismiss it even if the banner's number text
+                // didn't parse to a match. Summaries are handled separately.
+                !isSummary && RecentSenders.capturedWithin(CAPTURE_BRIDGE_MS) -> { cancel = true; reason = "recent watched capture (time bridge)" }
+                else -> reason = "sender not watched"
             }
+        } else if (isSummary && recentlySuppressed(pkg)) {
+            cancel = true; reason = "blank group summary during suppression window"
+        } else if (!hasNonWatchedConversation(pkg)) {
+            cancel = true; reason = "sender-less placeholder, no other conversation active"
+        } else {
+            reason = "sender-less but a non-watched conversation is active"
+        }
 
-            val flags = buildString {
-                append(if (isSummary) "summary" else "single")
-                append(", fields=").append(candidates.size)
-                if (!cancel && candidates.isNotEmpty()) {
-                    val preview = candidates.joinToString(" | ") { it.take(24) }.take(80)
-                    append(" [").append(preview).append("]")
-                }
+        val flags = buildString {
+            append(if (isSummary) "summary" else "single")
+            append(", fields=").append(candidates.size)
+            if (attempt > 0) append(", try=").append(attempt + 1)
+            if (!cancel && candidates.isNotEmpty()) {
+                val preview = candidates.joinToString(" | ") { it.take(24) }.take(80)
+                append(" [").append(preview).append("]")
             }
-            if (cancel) {
-                runCatching { cancelNotification(key) }
-                if (candidates.isNotEmpty()) suppressedAt[pkg] = System.currentTimeMillis()
-                SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, true, "$flags | $reason")
-                // Re-sweep to catch the blank summary that lands just after this.
-                scheduleNoiseSweeps(pkg)
-            } else {
-                SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, false, "$flags | $reason")
-            }
+        }
+
+        if (cancel) {
+            runCatching { cancelNotification(key) }
+            if (candidates.isNotEmpty()) suppressedAt[pkg] = System.currentTimeMillis()
+            SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, true, "$flags | $reason")
+            scheduleNoiseSweeps(pkg)
+            return
+        }
+
+        // Not cancelled. If this is a sender-bearing conversation we simply couldn't
+        // match yet, re-check shortly in case the capture is still in flight. Only
+        // log the final verdict, so the diagnostic isn't spammed with retries.
+        if (candidates.isNotEmpty() && attempt < RETRY_DELAYS_MS.size) {
+            delay(RETRY_DELAYS_MS[attempt])
+            evaluateAndAct(sbn, attempt + 1)
+        } else {
+            SuppressionLog.record(pkg, if (title.isBlank()) "(no title)" else title, false, "$flags | $reason")
         }
     }
 
