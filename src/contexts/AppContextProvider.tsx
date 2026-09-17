@@ -695,7 +695,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
               prepaidCost: t.prepaid_cost || 40,
-            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
             maltRounds: t.malt_rounds || 0
           }));
           setTournaments(tournaments);
@@ -739,7 +739,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         bostonPotCost: t.boston_pot_cost,
         tracksHands: t.tracks_hands !== false,
         scoringMode: t.scoring_mode || 'team',
-        rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+        rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
         maltRounds: t.malt_rounds || 0
       }));
       setTournaments(mappedTournaments);
@@ -1208,7 +1208,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const regex = /^R\d+[LW]\d+$/;
       return (typeof m.teamA === 'string' && regex.test(m.teamA as string)) || (typeof m.teamB === 'string' && regex.test(m.teamB as string));
     });
-    const isOptionB = schedule.rounds <= 1 || schedule.matches.some(m => m.opponentPlaceholder) || hasStringPlaceholders;
+    // League play never uses placeholders or table-driven next rounds; every week is generated up front.
+    const isLeagueSchedule = tournaments.find(t => String(t.id) === String(tournamentId))?.rotationType === 'league';
+    const isOptionB = !isLeagueSchedule && (schedule.rounds <= 1 || schedule.matches.some(m => m.opponentPlaceholder) || hasStringPlaceholders);
     if (isOptionB) {
       const currentRound = match.round;
       const nextRoundNum = currentRound + 1;
@@ -1887,7 +1889,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         bostonPotCost: t.boston_pot_cost,
         tracksHands: t.tracks_hands !== false,
         scoringMode: t.scoring_mode || 'team',
-        rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+        rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
         maltRounds: t.malt_rounds || 0
       }));
       setTournaments(mappedTournaments);
@@ -2716,7 +2718,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       finishTournament,
       getActiveTournament,
       setActiveTournament,
-      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string, allowPrepay?: boolean, rotationType?: 'standard' | 'malt', maltRounds?: number) => {
+      updateTournament: async (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string, allowPrepay?: boolean, rotationType?: 'standard' | 'malt' | 'league', maltRounds?: number) => {
         const { supabase } = await import('../supabaseClient');
         // Update in Supabase
         const updateData: any = {
@@ -2768,7 +2770,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
               prepaidCost: t.prepaid_cost || 40,
-            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
             maltRounds: t.malt_rounds || 0
           }));
           setTournaments(mappedTournaments);
@@ -2807,7 +2809,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
               prepaidCost: t.prepaid_cost || 40,
-            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
             maltRounds: t.malt_rounds || 0
           }));
           setTournaments(mappedTournaments);
@@ -2842,7 +2844,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
               prepaidCost: t.prepaid_cost || 40,
-            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
             maltRounds: t.malt_rounds || 0
           }));
           setTournaments(mappedTournaments);
@@ -2874,7 +2876,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             paymentModel: t.payment_model || 'four_way',
             sortOrder: t.sort_order || 'wins,hands,points',
               prepaidCost: t.prepaid_cost || 40,
-            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt',
+            rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
             maltRounds: t.malt_rounds || 0
           }));
           setTournaments(mappedTournaments);

@@ -326,6 +326,17 @@ const QuickScoreEntry: React.FC = () => {
   const completedCount = completedMatches.size;
   const pendingCount = Object.keys(pendingScores).length;
 
+  if (activeTournament?.rotationType === 'league') {
+    return (
+      <Card className="m-4">
+        <CardHeader><CardTitle>{activeTournament.name} is a League</CardTitle></CardHeader>
+        <CardContent className="text-sm text-gray-600">
+          League scores are entered per week and per room from the <strong>League</strong> tab.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6 p-4">
       <div className="text-center mb-6">

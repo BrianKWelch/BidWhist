@@ -289,6 +289,19 @@ const CombinedResultsPage = () => {
     );
   }
 
+  if (activeTournament.rotationType === 'league') {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader><CardTitle>{activeTournament.name} is a League</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-gray-600 text-center">League standings, weekly results and score corrections live in the <strong>League</strong> tab.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <ScoreVerifier games={games} teams={teams} schedules={schedules} activeTournamentId={activeTournament?.id ?? null} onRefresh={refreshGamesFromSupabase} />

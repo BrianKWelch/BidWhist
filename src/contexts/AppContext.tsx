@@ -66,7 +66,8 @@ export interface Tournament {
   sortOrder?: string;
   prepaidCost?: number;
   allowPrepay?: boolean;
-  rotationType?: 'standard' | 'malt';
+  rotationType?: 'standard' | 'malt' | 'league';
+  /** MALT: total rounds planned. League: number of weeks in the season. */
   maltRounds?: number;
 }
 
@@ -221,7 +222,7 @@ interface AppContextType {
   updateTeam: (updatedTeam: Team) => void;
   addTournament: (name: string, cost: number, bostonPotCost: number, description?: string, tracksHands?: boolean) => void;
   createTournament: (name: string, status: 'pending' | 'active' | 'finished') => Promise<void>;
-  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string, allowPrepay?: boolean, rotationType?: 'standard' | 'malt') => void;
+  updateTournament: (id: string, name: string, cost: number, bostonPotCost: number, description?: string, status?: string, tracksHands?: boolean, scoringMode?: 'team' | 'admin', paymentModel?: 'four_way' | 'five_way', sortOrder?: string, allowPrepay?: boolean, rotationType?: 'standard' | 'malt' | 'league', maltRounds?: number) => void;
   generateMaltNextRound: (tournamentId: string) => Promise<boolean>;
   generateMaltMakeupRound: (tournamentId: string) => Promise<boolean>;
   updateTournamentStatus: (tournament: Tournament) => Promise<void>;

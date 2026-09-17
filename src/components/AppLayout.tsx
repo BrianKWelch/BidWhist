@@ -17,6 +17,8 @@ import { BracketGenerator } from './BracketGenerator';
 import FinanceManager from './FinanceManager';
 import AdminScoreEntry from './AdminScoreEntry';
 import QuickScoreEntry from './QuickScoreEntry';
+import LeagueManager from './LeagueManager';
+import LeagueIcon from './icons/LeagueIcon';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppContext } from '@/contexts/AppContext';
@@ -87,7 +89,9 @@ const AppLayout = () => {
               scoringMode: t.scoring_mode || 'team',
               paymentModel: t.payment_model || 'four_way',
               sortOrder: t.sort_order || 'wins,hands,points',
-              prepaidCost: t.prepaid_cost || 40
+              prepaidCost: t.prepaid_cost || 40,
+              rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
+              maltRounds: t.malt_rounds || 0
             }));
             setTournaments(mappedTournaments);
           }
@@ -200,6 +204,7 @@ const AppLayout = () => {
                     ['reg-desk', <ClipboardList className="h-6 w-6" />],
                     ['teams', <CommandCenterIcon />],
                     ['schedule', <ScheduleIcon />],
+                    ['league', <LeagueIcon />],
                     ['results', <ResultsIcon />],
                     ['team-report', <FileSpreadsheet />],
                     ['bracket', <BracketIcon />],
@@ -249,6 +254,7 @@ const AppLayout = () => {
 
               <TabsContent value="registration"><PlayerRegistration /></TabsContent>
               <TabsContent value="schedule"><TournamentScheduler /></TabsContent>
+              <TabsContent value="league"><LeagueManager /></TabsContent>
               <TabsContent value="results"><CombinedResultsPage /></TabsContent>
               <TabsContent value="team-report"><TournamentTeamReport /></TabsContent>
               <TabsContent value="bracket"><BracketGenerator /></TabsContent>

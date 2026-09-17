@@ -40,7 +40,8 @@ const TournamentManagement: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [editPaymentModel, setEditPaymentModel] = useState<'four_way' | 'five_way'>('four_way');
   const [editAllowPrepay, setEditAllowPrepay] = useState(false);
-  const [editRotationType, setEditRotationType] = useState<'standard' | 'malt'>('standard');
+  const [editRotationType, setEditRotationType] = useState<'standard' | 'malt' | 'league'>('standard');
+  const [editWeeks, setEditWeeks] = useState('9');
 
 
   const activeTournament = getActiveTournament();
@@ -74,6 +75,7 @@ const TournamentManagement: React.FC = () => {
     setEditPaymentModel(tournament.paymentModel || 'four_way');
     setEditAllowPrepay(tournament.allowPrepay || false);
     setEditRotationType(tournament.rotationType || 'standard');
+    setEditWeeks(String(tournament.maltRounds || 9));
   };
 
   const saveEdit = async () => {
@@ -95,7 +97,8 @@ const TournamentManagement: React.FC = () => {
       editPaymentModel,
       undefined,
       editAllowPrepay,
-      editRotationType
+      editRotationType,
+      editRotationType === 'league' ? (parseInt(editWeeks) || 9) : undefined
     );
 
     cancelEdit();
@@ -110,6 +113,7 @@ const TournamentManagement: React.FC = () => {
     setEditPaymentModel('four_way');
     setEditAllowPrepay(false);
     setEditRotationType('standard');
+    setEditWeeks('9');
   };
 
   const handleResetSeason = async () => {
@@ -306,12 +310,27 @@ const TournamentManagement: React.FC = () => {
                           <select
                             className="border rounded p-1 text-sm w-full mt-1"
                             value={editRotationType}
-                            onChange={(e) => setEditRotationType(e.target.value as 'standard' | 'malt')}
+                            onChange={(e) => setEditRotationType(e.target.value as 'standard' | 'malt' | 'league')}
                           >
                             <option value="standard">Standard (pre-set round-robin)</option>
                             <option value="malt">MALT (win/loss determines next table)</option>
+                            <option value="league">League (weekly Side A / Side B rooms)</option>
                           </select>
                         </div>
+                        {editRotationType === 'league' && (
+                          <div>
+                            <Label className="text-xs text-gray-500">League Weeks</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={52}
+                              value={editWeeks}
+                              onChange={(e) => setEditWeeks(e.target.value)}
+                              className="mt-1"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">Generate the season from the League tab once teams are registered.</div>
+                          </div>
+                        )}
                         <div className="flex gap-2">
                           <Button size="sm" onClick={saveEdit}>
                             <Save className="w-3 h-3" />
@@ -351,6 +370,9 @@ const TournamentManagement: React.FC = () => {
                             </Badge>
                             {tournament.rotationType === 'malt' && (
                               <Badge variant="outline" className="border-blue-400 text-blue-700">MALT</Badge>
+                            )}
+                            {tournament.rotationType === 'league' && (
+                              <Badge variant="outline" className="border-emerald-500 text-emerald-700">League · {tournament.maltRounds || 0} weeks</Badge>
                             )}
                           </div>
                         </div>

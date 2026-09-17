@@ -1,0 +1,591 @@
+/**
+ * League play — season generator, match builder and standings.
+ *
+ * A league is a tournament whose `rotationType` is `'league'`. Every week the
+ * registered teams are split into two rooms (Side A and Side B). Inside a room
+ * every team plays every other team once, plus one extra game against one
+ * designated opponent, so a 10-team room gives each team 10 games. There is no
+ * play order and no table assignment: any two teams in the same room that are
+ * both free play each other.
+ *
+ * Storage (no schema changes): league matches live in the normal `matches`
+ * table with `round` = week number and `table_number` = 1 for Side A or 2 for
+ * Side B. Match ids are `${tournamentId}-s${tag}-w${week}-${side}${n}` where
+ * `tag` is unique per generation, so a regenerated season never reuses an id
+ * that old score rows point at. The number of
+ * weeks is stored in the tournament's `malt_rounds` column (the same "total
+ * rounds planned" slot MALT uses). Scores go through the normal `games` table.
+ */
+
+import type { Game, ScheduleMatch, Team, Tournament, TournamentSchedule } from '@/contexts/AppContext';
+
+export type LeagueSide = 'A' | 'B';
+
+export interface LeaguePairing {
+  teamA: string;
+  teamB: string;
+  side: LeagueSide;
+  /** 1 for the regular game, 2 for the extra "play them twice" game. */
+  gameNo: 1 | 2;
+}
+
+export interface LeagueWeek {
+  week: number;
+  sideA: string[];
+  sideB: string[];
+  pairings: LeaguePairing[];
+}
+
+export interface LeagueSeason {
+  weeks: LeagueWeek[];
+  /** games[i][j] = number of games team i and team j play across the season. */
+  pairGames: Record<string, Record<string, number>>;
+  stats: {
+    minPairGames: number;
+    maxPairGames: number;
+    minRoomShares: number;
+    maxRoomShares: number;
+    sideImbalance: number; // largest |A weeks - B weeks| for any team
+  };
+}
+
+export const SIDE_TABLE: Record<LeagueSide, number> = { A: 1, B: 2 };
+
+export const isLeagueTournament = (t?: Tournament | null): boolean => t?.rotationType === 'league';
+
+export const leagueWeeksOf = (t?: Tournament | null): number => Number(t?.maltRounds) || 0;
+
+/** Parse a league match id / row back into week + side. Works from the ScheduleMatch fields, not the id. */
+export const leagueMatchInfo = (m: ScheduleMatch): { week: number; side: LeagueSide; gameNo: 1 | 2 } => {
+  const side: LeagueSide = m.table === 2 ? 'B' : 'A';
+  const gameNo: 1 | 2 = /-(A|B)\d+x2$/.test(m.id) ? 2 : 1;
+  return { week: m.round, side, gameNo };
+};
+
+// ---------------------------------------------------------------------------
+// Random helpers (seeded so a generation can be reproduced from its seed)
+// ---------------------------------------------------------------------------
+
+const mulberry32 = (seed: number) => {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const shuffle = <T,>(arr: T[], rnd: () => number): T[] => {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+// ---------------------------------------------------------------------------
+// Perfect matchings of a small set (used to pick the "play twice" pairs)
+// ---------------------------------------------------------------------------
+
+/**
+ * Enumerates every way to pair up the indices of `items`. For an odd count one
+ * item is left out (every "leave one out" variant is enumerated). 10 items
+ * gives 945 matchings, cheap to brute force.
+ */
+const allMatchings = (n: number): number[][][] => {
+  const out: number[][][] = [];
+  const rec = (remaining: number[], acc: number[][]) => {
+    if (remaining.length < 2) { out.push(acc); return; }
+    const [first, ...rest] = remaining;
+    for (let i = 0; i < rest.length; i++) {
+      const partner = rest[i];
+      const next = rest.filter((_, k) => k !== i);
+      rec(next, [...acc, [first, partner]]);
+    }
+  };
+  const idx = Array.from({ length: n }, (_, i) => i);
+  if (n % 2 === 0) {
+    rec(idx, []);
+  } else {
+    for (let skip = 0; skip < n; skip++) rec(idx.filter(i => i !== skip), []);
+  }
+  return out;
+};
+
+const matchingCache = new Map<number, number[][][]>();
+const matchingsFor = (n: number) => {
+  if (!matchingCache.has(n)) matchingCache.set(n, allMatchings(n));
+  return matchingCache.get(n)!;
+};
+
+// ---------------------------------------------------------------------------
+// Season generation
+// ---------------------------------------------------------------------------
+//
+// Phase 1 decides the rooms for every week at once. The whole season is one
+// search state (a partition per week); a move swaps one team from Side A with
+// one from Side B in a single week. The cost penalises pairs that share a room
+// far more or far less often than average (quadratic + quartic, so extremes
+// hurt most) plus a strong penalty for teams that sit on one side too often,
+// which keeps every team at 4 or 5 weeks per side over a 9-week season.
+// Deltas are computed exactly in O(n), so hundreds of thousands of moves are
+// cheap. For 20 teams over 9 weeks the arithmetic floor is that some pairs
+// share a room 2 times and some 6; the "play twice" pass below then tops up
+// the pairs that met least.
+//
+// Phase 2 picks the "play twice" pairs. Inside a room every perfect matching
+// is enumerated (945 for 10 teams) and the one that best evens out the total
+// games-between-pairs is kept; a few sweeps over all weeks let later choices
+// improve earlier ones.
+
+interface SeasonState {
+  n: number;
+  weeks: number;
+  sides: number[][];          // sides[w][i] = 0 for A, 1 for B
+  room: number[][];           // room[i][j] = weeks i and j shared a room
+  sideA: number[];            // weeks each team has spent on Side A
+  pen: number[];              // pen[v] = penalty for a pair sharing a room v times
+  sideWeight: number;
+}
+
+/**
+ * Penalty table for pair room-share counts. Quadratic keeps the total spread
+ * down; the quartic term squeezes the extremes (a pair at 7 hurts far more
+ * than two pairs at 5).
+ */
+const penaltyTable = (n: number, weeks: number): number[] => {
+  const mean = (weeks * (n / 2 - 1)) / (n - 1);
+  return Array.from({ length: weeks + 1 }, (_, v) => (v - mean) ** 2 + (v - mean) ** 4);
+};
+
+const initState = (n: number, weeks: number, rnd: () => number): SeasonState => {
+  const half = n / 2;
+  const sides: number[][] = [];
+  const room = Array.from({ length: n }, () => Array(n).fill(0));
+  const sideA = Array(n).fill(0);
+  for (let w = 0; w < weeks; w++) {
+    const order = shuffle(Array.from({ length: n }, (_, i) => i), rnd);
+    const s = Array(n).fill(1);
+    for (let k = 0; k < half; k++) s[order[k]] = 0;
+    sides.push(s);
+    for (let i = 0; i < n; i++) {
+      if (s[i] === 0) sideA[i]++;
+      for (let j = i + 1; j < n; j++) if (s[i] === s[j]) { room[i][j]++; room[j][i]++; }
+    }
+  }
+  return { n, weeks, sides, room, sideA, pen: penaltyTable(n, weeks), sideWeight: SIDE_WEIGHT };
+};
+
+const SIDE_WEIGHT = 30;
+
+/** Exact cost change of swapping x (Side A) with y (Side B) in week w. */
+const swapDelta = (st: SeasonState, w: number, x: number, y: number): number => {
+  const s = st.sides[w];
+  const pen = st.pen;
+  let d = 0;
+  for (let k = 0; k < st.n; k++) {
+    if (k === x || k === y) continue;
+    const rx = st.room[x][k], ry = st.room[y][k];
+    if (s[k] === 0) {
+      // k stays on A: loses x, gains y
+      d += pen[rx - 1] - pen[rx] + pen[ry + 1] - pen[ry];
+    } else {
+      // k stays on B: gains x, loses y
+      d += pen[rx + 1] - pen[rx] + pen[ry - 1] - pen[ry];
+    }
+  }
+  const target = st.weeks / 2;
+  const sx = st.sideA[x], sy = st.sideA[y];
+  d += st.sideWeight * (((sx - 1 - target) ** 2 - (sx - target) ** 2) + ((sy + 1 - target) ** 2 - (sy - target) ** 2));
+  return d;
+};
+
+const applySwap = (st: SeasonState, w: number, x: number, y: number) => {
+  const s = st.sides[w];
+  for (let k = 0; k < st.n; k++) {
+    if (k === x || k === y) continue;
+    if (s[k] === 0) {
+      st.room[x][k]--; st.room[k][x]--;
+      st.room[y][k]++; st.room[k][y]++;
+    } else {
+      st.room[x][k]++; st.room[k][x]++;
+      st.room[y][k]--; st.room[k][y]--;
+    }
+  }
+  s[x] = 1; s[y] = 0;
+  st.sideA[x]--; st.sideA[y]++;
+};
+
+/**
+ * Simulated annealing over the whole season: pick a week, a team on each side,
+ * and swap them; accept improvements always and worsenings with probability
+ * exp(-delta/T) while T cools. Finishes with a pure descent so the result is a
+ * local minimum. `iterations` of ~150k takes well under a second.
+ */
+const optimiseRooms = (st: SeasonState, rnd: () => number, iterations: number) => {
+  const n = st.n;
+  const tStart = 4, tEnd = 0.05;
+  const cool = Math.pow(tEnd / tStart, 1 / Math.max(1, iterations));
+  let temperature = tStart;
+  for (let it = 0; it < iterations; it++) {
+    const w = Math.floor(rnd() * st.weeks);
+    const s = st.sides[w];
+    let x = Math.floor(rnd() * n);
+    let y = Math.floor(rnd() * n);
+    if (s[x] === s[y]) { temperature *= cool; continue; }
+    if (s[x] === 1) { const t = x; x = y; y = t; }
+    const d = swapDelta(st, w, x, y);
+    if (d <= 0 || rnd() < Math.exp(-d / temperature)) applySwap(st, w, x, y);
+    temperature *= cool;
+  }
+  // Final pure descent so we end in a local minimum.
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let w = 0; w < st.weeks; w++) {
+      const s = st.sides[w];
+      for (let x = 0; x < n; x++) {
+        if (s[x] !== 0) continue;
+        for (let y = 0; y < n; y++) {
+          if (s[y] !== 1) continue;
+          if (swapDelta(st, w, x, y) < -1e-9) { applySwap(st, w, x, y); improved = true; }
+        }
+      }
+    }
+  }
+};
+
+const roomCost = (st: SeasonState): number => {
+  let c = 0;
+  for (let i = 0; i < st.n; i++) for (let j = i + 1; j < st.n; j++) c += st.pen[st.room[i][j]];
+  const target = st.weeks / 2;
+  for (let i = 0; i < st.n; i++) c += st.sideWeight * (st.sideA[i] - target) ** 2;
+  return c;
+};
+
+const stateFromSides = (sides: number[][]): SeasonState => {
+  const weeks = sides.length, n = sides[0].length;
+  const room = Array.from({ length: n }, () => Array(n).fill(0));
+  const sideA = Array(n).fill(0);
+  for (const s of sides) {
+    for (let i = 0; i < n; i++) {
+      if (s[i] === 0) sideA[i]++;
+      for (let j = i + 1; j < n; j++) if (s[i] === s[j]) { room[i][j]++; room[j][i]++; }
+    }
+  }
+  return { n, weeks, sides, room, sideA, pen: penaltyTable(n, weeks), sideWeight: SIDE_WEIGHT };
+};
+
+/** Best perfect matching of `room` given current games[][] (lowest sum of squared totals). */
+const bestMatching = (room: number[], games: number[][], rnd: () => number): [number, number][] => {
+  const matchings = matchingsFor(room.length);
+  let bestCost = Infinity;
+  let best: number[][][] = [];
+  for (const m of matchings) {
+    let c = 0;
+    for (const [x, y] of m) c += (games[room[x]][room[y]] + 1) ** 2;
+    if (c < bestCost - 1e-9) { bestCost = c; best = [m]; }
+    else if (Math.abs(c - bestCost) < 1e-9) best.push(m);
+  }
+  const chosen = best[Math.floor(rnd() * best.length)];
+  return chosen.map(([x, y]) => [room[x], room[y]] as [number, number]);
+};
+
+const buildSeasonOnce = (teamIds: string[], weeks: number, seed: number): LeagueSeason => {
+  const n = teamIds.length;
+  const rnd = mulberry32(seed);
+
+  // Phase 1: rooms.
+  const st = initState(n, weeks, rnd);
+  optimiseRooms(st, rnd, 300000);
+
+  const rooms: { a: number[]; b: number[] }[] = st.sides.map(s => {
+    const a: number[] = [], b: number[] = [];
+    for (let i = 0; i < n; i++) (s[i] === 0 ? a : b).push(i);
+    return { a, b };
+  });
+
+  // Phase 2: doubles.
+  const games = st.room.map(r => r.slice());
+  const doubles: [number, number][][][] = rooms.map(() => [[], []]);
+  for (let pass = 0; pass < 4; pass++) {
+    for (let w = 0; w < weeks; w++) {
+      [rooms[w].a, rooms[w].b].forEach((room, side) => {
+        // Remove this room's current doubles, then re-pick given everything else.
+        for (const [x, y] of doubles[w][side]) { games[x][y]--; games[y][x]--; }
+        const m = bestMatching(room, games, rnd);
+        for (const [x, y] of m) { games[x][y]++; games[y][x]++; }
+        doubles[w][side] = m;
+      });
+    }
+  }
+
+  const out: LeagueWeek[] = [];
+  for (let w = 0; w < weeks; w++) {
+    const pairings: LeaguePairing[] = [];
+    const addRoom = (room: number[], side: LeagueSide, dbl: [number, number][]) => {
+      for (let i = 0; i < room.length; i++) {
+        for (let j = i + 1; j < room.length; j++) {
+          pairings.push({ teamA: teamIds[room[i]], teamB: teamIds[room[j]], side, gameNo: 1 });
+        }
+      }
+      for (const [x, y] of dbl) pairings.push({ teamA: teamIds[x], teamB: teamIds[y], side, gameNo: 2 });
+    };
+    addRoom(rooms[w].a, 'A', doubles[w][0]);
+    addRoom(rooms[w].b, 'B', doubles[w][1]);
+    out.push({
+      week: w + 1,
+      sideA: rooms[w].a.map(i => teamIds[i]).sort(byTeamId),
+      sideB: rooms[w].b.map(i => teamIds[i]).sort(byTeamId),
+      pairings,
+    });
+  }
+
+  // Stats
+  let minPair = Infinity, maxPair = -Infinity, minRoom = Infinity, maxRoom = -Infinity;
+  const pairGames: Record<string, Record<string, number>> = {};
+  for (let i = 0; i < n; i++) {
+    pairGames[teamIds[i]] = {};
+    for (let j = 0; j < n; j++) {
+      if (i === j) continue;
+      pairGames[teamIds[i]][teamIds[j]] = games[i][j];
+      if (j > i) {
+        minPair = Math.min(minPair, games[i][j]);
+        maxPair = Math.max(maxPair, games[i][j]);
+        minRoom = Math.min(minRoom, st.room[i][j]);
+        maxRoom = Math.max(maxRoom, st.room[i][j]);
+      }
+    }
+  }
+  let sideImbalance = 0;
+  for (let i = 0; i < n; i++) sideImbalance = Math.max(sideImbalance, Math.abs(st.sideA[i] - (weeks - st.sideA[i])));
+
+  return {
+    weeks: out,
+    pairGames,
+    stats: { minPairGames: minPair, maxPairGames: maxPair, minRoomShares: minRoom, maxRoomShares: maxRoom, sideImbalance },
+  };
+};
+
+const byTeamId = (x: string, y: string) => {
+  const nx = Number(x), ny = Number(y);
+  if (!isNaN(nx) && !isNaN(ny)) return nx - ny;
+  return x.localeCompare(y);
+};
+
+const seasonScore = (s: LeagueSeason): number => {
+  // Lower is better: spread of games between pairs first, then room-share spread, then side balance.
+  const spread = s.stats.maxPairGames - s.stats.minPairGames;
+  const roomSpread = s.stats.maxRoomShares - s.stats.minRoomShares;
+  return spread * 100 + roomSpread * 10 + s.stats.sideImbalance;
+};
+
+/**
+ * Generates a full league season. Runs several randomized attempts and keeps
+ * the most balanced one (smallest spread in games-between-pairs, then in
+ * room-shares, then in A/B side balance).
+ *
+ * Requires an even number of teams so the two sides are the same size. Works
+ * for any even count; with an odd room size (e.g. 18 teams -> 9 per room) one
+ * team per room has no extra game that week.
+ */
+export const generateLeagueSeason = (
+  teamIds: string[],
+  weeks: number,
+  options: { attempts?: number; seed?: number } = {},
+): LeagueSeason => {
+  if (teamIds.length < 4) throw new Error('A league needs at least 4 teams.');
+  if (teamIds.length % 2 !== 0) throw new Error('A league needs an even number of teams so both sides are the same size.');
+  if (weeks < 1) throw new Error('A league needs at least 1 week.');
+
+  const attempts = options.attempts ?? 12;
+  const baseSeed = options.seed ?? (Date.now() & 0x7fffffff);
+  let best: LeagueSeason | null = null;
+  let bestScore = Infinity;
+  for (let k = 0; k < attempts; k++) {
+    const s = buildSeasonOnce(teamIds, weeks, baseSeed + k * 7919);
+    const sc = seasonScore(s);
+    if (sc < bestScore) { bestScore = sc; best = s; }
+  }
+  return best!;
+};
+
+// ---------------------------------------------------------------------------
+// Matches <-> season
+// ---------------------------------------------------------------------------
+
+/** Turns a generated season into `matches` rows for the tournament. */
+export const buildLeagueMatches = (tournamentId: string, season: LeagueSeason, tag: string = Date.now().toString(36)): ScheduleMatch[] => {
+  const out: ScheduleMatch[] = [];
+  for (const wk of season.weeks) {
+    const counter: Record<LeagueSide, number> = { A: 0, B: 0 };
+    for (const p of wk.pairings) {
+      counter[p.side]++;
+      const id = `${tournamentId}-s${tag}-w${wk.week}-${p.side}${counter[p.side]}${p.gameNo === 2 ? 'x2' : ''}`;
+      out.push({
+        id,
+        teamA: p.teamA,
+        teamB: p.teamB,
+        round: wk.week,
+        tournamentId,
+        table: SIDE_TABLE[p.side],
+        isBye: false,
+        isSameCity: false,
+      });
+    }
+  }
+  return out;
+};
+
+/** Rebuilds the week-by-week side grid from stored matches. */
+export const leagueWeeksFromSchedule = (schedule?: TournamentSchedule | null): LeagueWeek[] => {
+  if (!schedule) return [];
+  const byWeek = new Map<number, LeagueWeek>();
+  const sorted = schedule.matches.slice().sort((x, y) => x.round - y.round || x.id.localeCompare(y.id));
+  for (const m of sorted) {
+    const { week, side, gameNo } = leagueMatchInfo(m);
+    if (!byWeek.has(week)) byWeek.set(week, { week, sideA: [], sideB: [], pairings: [] });
+    const wk = byWeek.get(week)!;
+    const list = side === 'A' ? wk.sideA : wk.sideB;
+    for (const t of [m.teamA, m.teamB]) if (!list.includes(t)) list.push(t);
+    wk.pairings.push({ teamA: m.teamA, teamB: m.teamB, side, gameNo });
+  }
+  const weeks = Array.from(byWeek.values()).sort((x, y) => x.week - y.week);
+  for (const wk of weeks) { wk.sideA.sort(byTeamId); wk.sideB.sort(byTeamId); }
+  return weeks;
+};
+
+export const teamSideForWeek = (weeks: LeagueWeek[], teamId: string, week: number): LeagueSide | null => {
+  const wk = weeks.find(w => w.week === week);
+  if (!wk) return null;
+  if (wk.sideA.includes(teamId)) return 'A';
+  if (wk.sideB.includes(teamId)) return 'B';
+  return null;
+};
+
+// ---------------------------------------------------------------------------
+// Standings
+// ---------------------------------------------------------------------------
+
+export interface LeagueStandingRow {
+  teamId: string;
+  teamNumber: number;
+  teamName: string;
+  wins: number;
+  losses: number;
+  played: number;
+  points: number;
+  pointsAgainst: number;
+  hands: number;
+  bostons: number;
+  /** per-week breakdown */
+  weeks: Record<number, { wins: number; losses: number; points: number; side: LeagueSide | null }>;
+  rank: number;
+}
+
+const isConfirmed = (g: Game) => Boolean(g.confirmed) || g.status === 'confirmed';
+
+/** A game row belongs to a match only if it is for the same two teams (guards against stale rows). */
+export const gameBelongsToMatch = (g: Game, m: ScheduleMatch): boolean => {
+  if (String(g.matchId) !== m.id) return false;
+  const a = String(g.teamA), b = String(g.teamB), ma = String(m.teamA), mb = String(m.teamB);
+  return (a === ma && b === mb) || (a === mb && b === ma);
+};
+
+/**
+ * Cumulative standings for a league. Sort: wins, then points, then team number.
+ * Only confirmed games count. `throughWeek` limits the standings to weeks <= N.
+ */
+export const getLeagueStandings = (
+  teams: Team[],
+  games: Game[],
+  schedule: TournamentSchedule | null | undefined,
+  throughWeek?: number,
+): LeagueStandingRow[] => {
+  if (!schedule) return [];
+  const weeks = leagueWeeksFromSchedule(schedule);
+  const matchById = new Map(schedule.matches.map(m => [m.id, m]));
+  const teamIds = new Set<string>();
+  schedule.matches.forEach(m => { teamIds.add(String(m.teamA)); teamIds.add(String(m.teamB)); });
+
+  const rows = new Map<string, LeagueStandingRow>();
+  for (const id of teamIds) {
+    const t = teams.find(tt => String(tt.id) === id);
+    const row: LeagueStandingRow = {
+      teamId: id,
+      teamNumber: Number(t?.teamNumber ?? id) || 0,
+      teamName: t?.name ?? `Team ${id}`,
+      wins: 0, losses: 0, played: 0, points: 0, pointsAgainst: 0, hands: 0, bostons: 0,
+      weeks: {},
+      rank: 0,
+    };
+    for (const wk of weeks) {
+      row.weeks[wk.week] = { wins: 0, losses: 0, points: 0, side: teamSideForWeek(weeks, id, wk.week) };
+    }
+    rows.set(id, row);
+  }
+
+  for (const g of games) {
+    if (!isConfirmed(g) || !g.matchId) continue;
+    const m = matchById.get(String(g.matchId));
+    if (!m || !gameBelongsToMatch(g, m)) continue;
+    if (throughWeek && m.round > throughWeek) continue;
+    const a = rows.get(String(g.teamA));
+    const b = rows.get(String(g.teamB));
+    if (!a || !b) continue;
+    const scoreA = Number(g.scoreA) || 0, scoreB = Number(g.scoreB) || 0;
+    const aWon = g.winner === 'teamA';
+    const apply = (row: LeagueStandingRow, my: number, opp: number, won: boolean, hands: number, bostons: number) => {
+      row.played++;
+      row.points += my;
+      row.pointsAgainst += opp;
+      row.hands += hands;
+      row.bostons += bostons;
+      if (won) row.wins++; else row.losses++;
+      const wk = row.weeks[m.round] ?? (row.weeks[m.round] = { wins: 0, losses: 0, points: 0, side: null });
+      wk.points += my;
+      if (won) wk.wins++; else wk.losses++;
+    };
+    apply(a, scoreA, scoreB, aWon, Number(g.handsA) || 0, Number(g.boston_a) || 0);
+    apply(b, scoreB, scoreA, !aWon, Number(g.handsB) || 0, Number(g.boston_b) || 0);
+  }
+
+  const list = Array.from(rows.values()).sort((x, y) =>
+    y.wins - x.wins || y.points - x.points || x.teamNumber - y.teamNumber,
+  );
+  list.forEach((r, i) => { r.rank = i + 1; });
+  return list;
+};
+
+/** First week that still has an unconfirmed game (for the whole league, or for one team). */
+export const currentLeagueWeek = (schedule: TournamentSchedule | null | undefined, games: Game[], teamId?: string): number => {
+  if (!schedule || schedule.matches.length === 0) return 1;
+  const confirmedMatchIds = new Set(games.filter(isConfirmed).map(g => String(g.matchId)));
+  const weeks = Array.from(new Set(schedule.matches.map(m => m.round))).sort((a, b) => a - b);
+  for (const w of weeks) {
+    const ms = schedule.matches.filter(m => m.round === w && (!teamId || String(m.teamA) === teamId || String(m.teamB) === teamId));
+    if (ms.some(m => !confirmedMatchIds.has(m.id))) return w;
+  }
+  return weeks[weeks.length - 1];
+};
+
+/** CSV of the side grid: one row per team, one column per week. */
+export const leagueGridCsv = (weeks: LeagueWeek[], teams: Team[]): string => {
+  const ids = new Set<string>();
+  weeks.forEach(w => { w.sideA.forEach(t => ids.add(t)); w.sideB.forEach(t => ids.add(t)); });
+  const sorted = Array.from(ids).sort(byTeamId);
+  const header = ['Team #', 'Team', ...weeks.map(w => `Week ${w.week}`)];
+  const lines = [header.join(',')];
+  for (const id of sorted) {
+    const t = teams.find(tt => String(tt.id) === id);
+    const name = (t?.name ?? '').replace(/"/g, '""');
+    lines.push([id, `"${name}"`, ...weeks.map(w => teamSideForWeek(weeks, id, w.week) ?? '')].join(','));
+  }
+  return lines.join('\n');
+};
+
+/** Internal hooks for the balance test harness; not used by the app. */
+export const __leagueDebug = { initState, optimiseRooms, roomCost, swapDelta, applySwap, mulberry32 };

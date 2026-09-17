@@ -47,8 +47,8 @@ Key packages: `recharts`, `react-hook-form`, `zod`, `xlsx`, `tesseract.js`, `dat
 | `sort_order` | `sortOrder` | `'wins,hands,points'` (configurable priority) |
 | `allow_prepay` | `allowPrepay` | boolean |
 | `prepaid_cost` | `prepaidCost` | number, default 40 |
-| `rotation_type` | `rotationType` | `'standard'` or `'malt'` |
-| `malt_rounds` | `maltRounds` | integer — total MALT rounds planned |
+| `rotation_type` | `rotationType` | `'standard'`, `'malt'` or `'league'` |
+| `malt_rounds` | `maltRounds` | integer — total MALT rounds planned, or league weeks |
 | `description` | `description` | string? |
 
 ### `players`
@@ -220,6 +220,73 @@ For ungenerated rounds (beyond what admin has created), the portal projects:
 
 ---
 
+## League Play — Complete Spec
+
+A league is a tournament with `rotation_type = 'league'`. **No schema changes**:
+`malt_rounds` holds the number of weeks, league matches live in `matches` with
+`round` = week and `table_number` = 1 (Side A) / 2 (Side B), and scores use the
+normal `games` table and the normal entry/confirm/dispute flow.
+
+### Rules (as specified by the tournament director)
+- 20 teams, split every week into two rooms: Side A (10) and Side B (10).
+- Inside a room every team plays every other team once, plus one designated
+  opponent a second time, so each team plays 10 games per week (50 per room).
+- No play order and no tables: any two free teams in the same room play.
+- 9 weeks, all generated up front. Standings are cumulative: wins, then points,
+  then team number (owner may revise the tiebreaker).
+- Absent teams are not handled yet (assumed everyone shows up).
+
+### Generator (`src/lib/league.ts` → `generateLeagueSeason(teamIds, weeks)`)
+1. **Rooms**: simulated annealing over the whole season. A move swaps one team
+   from A with one from B in one week. Cost penalises pairs that share a room
+   far more or less often than average (quadratic + quartic) and teams that sit
+   on one side too often. For 20 teams / 9 weeks this lands every team on 4 or 5
+   weeks per side and every pair sharing a room 2 to 6 times (the arithmetic
+   floor; a Hadamard construction was tried and cannot beat it once sides must
+   alternate).
+2. **Doubles**: per room, every perfect matching (945 for 10 teams) is scored
+   and the one that best evens out total games-between-pairs wins; four sweeps
+   over all weeks let later choices fix earlier ones. Result: every pair plays
+   3 to 6 games across the season, most 4 or 5.
+3. `generateLeagueSeason` runs several seeded attempts and keeps the best.
+   Requires an even team count; an odd room size leaves one team per room
+   without a second game that week.
+
+Match ids: `${tournamentId}-w${week}-${side}${n}`, with `x2` appended for the
+second game of a pair (`leagueMatchInfo(match)` reads week/side/gameNo back).
+
+### Admin — League tab (`src/components/LeagueManager.tsx`)
+- Season Schedule: weeks input, Generate / Regenerate (regenerate deletes every
+  league score, two-click confirm), A/B grid per team per week (CSV + print),
+  rooms by week, pair-meeting histogram.
+- Weekly Games: week picker with confirmed counts, per-room match list with
+  status (not played / entering / awaiting confirm / confirmed), inline admin
+  score entry or edit (points, hands if tracked, bostons, tie winner), clear.
+  Admin entry deletes any rows for the match and inserts one `confirmed` row.
+- Standings: cumulative or "through week N", per-week W-L with side badge, CSV.
+
+To create a league: Tournament Setup → edit tournament → Table Rotation =
+League → set League Weeks → register teams → League tab → Generate Season.
+
+### Portal (`src/components/LeaguePortal.tsx`)
+`PlayerPortalFixed` renders `LeaguePortal` after login when the active
+tournament is a league, passing its own `DirectScoreEntry` / `ScoreConfirmation`
+components as props (no import cycle). Shows season record and rank, week picker
+with the team's side, room-mates, one card per game (open games first, "2nd
+game" badge for the double), the same Score / Confirm / Retract / Re-enter flow
+as tournaments, and a collapsible standings table.
+
+### Guards on tournament screens
+`TournamentScheduler`, `CombinedResultsPage` and `QuickScoreEntry` show a
+"this is a league, use the League tab" card when the selected tournament is a
+league. `confirmScore` in the provider skips its placeholder / next-round logic
+for leagues. Everything else in the tournament flow is untouched.
+
+`backend/sql/league-play.sql` is only needed if `rotation_type` turns out to
+have a CHECK constraint that rejects `'league'`.
+
+---
+
 ## Component Map
 
 ### Admin Panel (AppLayout → sidebar tabs)
@@ -228,6 +295,7 @@ For ungenerated rounds (beyond what admin has created), the portal projects:
 | reg-desk | RegistrationDesk | `src/components/RegistrationDesk.tsx` |
 | teams | TeamBuilder | `src/components/TeamBuilder.tsx` |
 | schedule | TournamentScheduler | `src/components/TournamentScheduler.tsx` |
+| league | LeagueManager | `src/components/LeagueManager.tsx` |
 | results | CombinedResultsPage | `src/components/CombinedResultsPage.tsx` |
 | team-report | TournamentTeamReport | `src/components/TournamentTeamReport.tsx` |
 | bracket | BracketGenerator | `src/components/BracketGenerator.tsx` |
@@ -239,6 +307,7 @@ For ungenerated rounds (beyond what admin has created), the portal projects:
 
 ### Player Portal
 - `src/components/PlayerPortalFixed.tsx` — the entire player-facing portal
+- `src/components/LeaguePortal.tsx` — league view, rendered by PlayerPortalFixed when the active tournament is a league
 
 ### Core Context
 - `src/contexts/AppContext.tsx` — all TypeScript interfaces + `useAppContext()` hook
@@ -246,6 +315,7 @@ For ungenerated rounds (beyond what admin has created), the portal projects:
 
 ### Lib
 - `src/lib/maltRotation.ts` — `getMaltNext(numTables, tableNum)`
+- `src/lib/league.ts` — `generateLeagueSeason`, `buildLeagueMatches`, `getLeagueStandings`, `leagueWeeksFromSchedule`
 - `src/lib/scheduler.ts` — `generateNRoundsWithByeAndFinal`, city-aware round-robin
 - `src/lib/utils.ts` — `getSortedTournamentResults`, general utils
 - `src/lib/badgeParser.ts` — OCR text parser (badge scanner feature)

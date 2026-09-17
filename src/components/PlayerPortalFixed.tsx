@@ -11,6 +11,7 @@ import type { Team } from '@/contexts/AppContext';
 import { toast } from '@/hooks/use-toast';
 import MessageBanner from './MessageBanner';
 import { getMaltNext } from '../lib/maltRotation';
+import LeaguePortal from './LeaguePortal';
 
 
 // Direct score entry component without the wrapper UI
@@ -842,6 +843,24 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
            </CardContent>
          </Card>
        </div>
+    );
+  }
+
+  // League play has its own portal view (weekly rooms, unordered opponents, season standings).
+  if (getActiveTournament()?.rotationType === 'league') {
+    return (
+      <LeaguePortal
+        team={team}
+        ScoreEntry={DirectScoreEntry}
+        Confirmation={ScoreConfirmation}
+        onLogout={() => {
+          localStorage.removeItem('portal_team_id');
+          setTeam(null);
+          setTestMode(false);
+          setAdminMode(false);
+          setSelectedTeamId('');
+        }}
+      />
     );
   }
 

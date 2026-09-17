@@ -2706,7 +2706,7 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                 <Label htmlFor="edit_rotation_type">Table Rotation</Label>
                 <Select
                   value={editingTournament.rotationType || 'standard'}
-                  onValueChange={(value: 'standard' | 'malt') => setEditingTournament({
+                  onValueChange={(value: 'standard' | 'malt' | 'league') => setEditingTournament({
                     ...editingTournament,
                     rotationType: value
                   })}
@@ -2717,6 +2717,7 @@ const TeamBuilder: React.FC<TeamBuilderProps> = ({ onTeamPaymentClick, onIndivid
                   <SelectContent>
                     <SelectItem value="standard">Standard (pre-set round-robin)</SelectItem>
                     <SelectItem value="malt">MALT (win/loss determines next table)</SelectItem>
+                    <SelectItem value="league">League (weekly Side A / Side B rooms)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
