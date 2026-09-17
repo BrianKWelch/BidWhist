@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import MessageBanner from './MessageBanner';
 import {
-  currentLeagueWeek,
   getLeagueStandings,
   gameBelongsToMatch,
+  isForfeitGame,
+  leagueLiveWeek,
+  teamMakeupGames,
   leagueMatchInfo,
   leagueSeasonLeaders,
   leagueWeekLeaders,
@@ -44,6 +46,7 @@ interface PortalMatch {
   state: CardState;
   game?: Game;
   result?: { my: number; opp: number; win: boolean };
+  forfeit?: boolean;
 }
 
 type ScoreComponent = React.ComponentType<{ team: Team; match: ScheduleMatch; onComplete: () => void }>;
@@ -65,9 +68,16 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
   const adminScoring = league?.scoringMode === 'admin';
   const myId = String(team.id);
 
-  const myCurrentWeek = useMemo(() => currentLeagueWeek(schedule, games, myId), [schedule, games, myId]);
-  const [week, setWeek] = useState<number>(myCurrentWeek);
-  useEffect(() => { setWeek(myCurrentWeek); }, [myCurrentWeek, league?.id]);
+  // Open on the week the league is playing, not the first week with a loose end,
+  // so makeup games from earlier weeks do not hijack the default view.
+  const liveWeek = useMemo(() => leagueLiveWeek(schedule, games), [schedule, games]);
+  const [week, setWeek] = useState<number>(liveWeek);
+  const [weekTouched, setWeekTouched] = useState(false);
+  useEffect(() => { if (!weekTouched) setWeek(liveWeek); }, [liveWeek, weekTouched]);
+  useEffect(() => { setWeekTouched(false); }, [league?.id]);
+  const pickWeek = (w: number) => { setWeek(w); setWeekTouched(true); };
+  const makeups = useMemo(() => teamMakeupGames(schedule, games, myId, liveWeek), [schedule, games, myId, liveWeek]);
+  const makeupTotal = makeups.reduce((s, m) => s + m.count, 0);
 
   const [selected, setSelected] = useState<PortalMatch | null>(null);
   const [holdingLock, setHoldingLock] = useState(false);
@@ -108,7 +118,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
             };
           }
         }
-        return { match: m, opponent, opponentId, gameNo, state, game, result };
+        return { match: m, opponent, opponentId, gameNo, state, game, result, forfeit: isForfeitGame(game) };
       })
       .sort((x, y) => {
         // Open games first, then pending, then completed; within a group by opponent number.
@@ -207,13 +217,28 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
           <Card><CardContent className="pt-4 text-center text-gray-600">The league schedule has not been generated yet. Check back soon.</CardContent></Card>
         ) : (
           <>
+            {/* Makeup games owed from earlier weeks */}
+            {makeupTotal > 0 && (
+              <div className="mb-3 p-3 rounded-lg border-2 border-yellow-400 bg-yellow-50 flex items-center justify-between gap-2">
+                <div className="text-sm">
+                  <div className="font-bold text-yellow-900">Makeup games: {makeupTotal}</div>
+                  <div className="text-xs text-yellow-800">
+                    {makeups.map(m => `Week ${m.week}: ${m.count} game${m.count === 1 ? '' : 's'}`).join(' · ')}. Play them any week you and the other team are both free.
+                  </div>
+                </div>
+                {week !== makeups[0].week && (
+                  <Button size="sm" className="text-white text-xs shrink-0" style={{ backgroundColor: BRAND }} onClick={() => pickWeek(makeups[0].week)}>Go to Wk {makeups[0].week}</Button>
+                )}
+              </div>
+            )}
+
             {/* Week picker */}
             <div className="flex flex-wrap gap-1 justify-center mb-3">
               {weeks.map(w => {
                 const s = teamSideForWeek(weeks, myId, w.week);
                 const isCur = w.week === week;
                 return (
-                  <button key={w.week} onClick={() => setWeek(w.week)}
+                  <button key={w.week} onClick={() => pickWeek(w.week)}
                     className={`px-2 py-1 rounded-md border text-xs font-semibold ${isCur ? 'text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
                     style={isCur ? { backgroundColor: BRAND } : undefined}>
                     Wk {w.week}<span className={`ml-1 px-1 rounded ${isCur ? 'bg-white/20' : s ? sideClasses[s] : ''}`}>{s ?? '?'}</span>
@@ -252,6 +277,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
                           {pm.state === 'done' && pm.result && (
                             <Badge className={`text-[10px] ${pm.result.win ? 'bg-green-600' : 'bg-red-600'} text-white`}>{pm.result.win ? 'WIN' : 'LOSS'}</Badge>
                           )}
+                          {pm.forfeit && <Badge variant="outline" className="text-[9px] border-gray-400 text-gray-600">FORFEIT</Badge>}
                         </div>
 
                         {oppLabel(pm)}

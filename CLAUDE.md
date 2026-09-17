@@ -234,7 +234,16 @@ normal `games` table and the normal entry/confirm/dispute flow.
 - No play order and no tables: any two free teams in the same room play.
 - 9 weeks, all generated up front. Standings are cumulative: wins, then points,
   then team number (owner may revise the tiebreaker).
-- Absent teams are not handled yet (assumed everyone shows up).
+- No-show rule: an absent team loses every unplayed game that week 0 to 3
+  (opponent credited with the win and 3 points). Admin applies it per team per
+  week with the forfeit button next to the team number in Weekly Games
+  (`buildForfeitRows`; rows carry `submittedBy = 'forfeit'` and show a FORFEIT
+  badge). Games already scored that week are untouched.
+- Makeups: nothing gates weeks. Any open game can be scored in any later week
+  from the portal (week picker) or admin. The portal opens on the league's live
+  week (`leagueLiveWeek`, latest week with any confirmed score) and shows a
+  yellow "Makeup games" banner with a jump button when the team still owes
+  games from earlier weeks (`teamMakeupGames`).
 
 ### Generator (`src/lib/league.ts` → `generateLeagueSeason(teamIds, weeks)`)
 1. **Rooms**: simulated annealing over the whole season. A move swaps one team

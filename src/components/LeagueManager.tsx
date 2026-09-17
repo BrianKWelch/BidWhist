@@ -7,10 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Download, Printer, RefreshCw, Trophy, CalendarDays, ListChecks, AlertTriangle, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Download, Printer, RefreshCw, Trophy, CalendarDays, ListChecks, AlertTriangle, Pencil, Trash2, Check, X, UserX } from 'lucide-react';
 import {
+  FORFEIT_WIN_POINTS,
+  buildForfeitRows,
   buildLeagueMatches,
   currentLeagueWeek,
+  isForfeitGame,
   gameBelongsToMatch,
   generateLeagueSeason,
   getLeagueStandings,
@@ -272,6 +275,31 @@ const LeagueManager: React.FC = () => {
     [teams, games, schedule, throughWeek],
   );
 
+  const [forfeitTeam, setForfeitTeam] = useState<string | null>(null);
+  const [forfeiting, setForfeiting] = useState(false);
+
+  const forfeitWeek = async (teamId: string) => {
+    if (!schedule) return;
+    const rows = buildForfeitRows(schedule, games, teamId, selectedWeek);
+    if (rows.length === 0) { toast({ title: `Team ${teamId} has no unplayed games in Week ${selectedWeek}` }); setForfeitTeam(null); return; }
+    setForfeiting(true);
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const ids = rows.map(r => r.matchId as string);
+      const { error: delErr } = await supabase.from('games').delete().in('matchId', ids);
+      if (delErr) throw new Error(delErr.message);
+      const { error } = await supabase.from('games').insert(rows);
+      if (error) throw new Error(error.message);
+      await refreshGamesFromSupabase();
+      toast({ title: `Team ${teamId} forfeited Week ${selectedWeek}`, description: `${rows.length} game${rows.length === 1 ? '' : 's'} recorded as 0 to ${FORFEIT_WIN_POINTS} losses.` });
+      setForfeitTeam(null);
+    } catch (e) {
+      toast({ title: 'Forfeit failed', description: String(e), variant: 'destructive' });
+    } finally {
+      setForfeiting(false);
+    }
+  };
+
   const clearScore = async (match: ScheduleMatch) => {
     try {
       const { supabase } = await import('../supabaseClient');
@@ -482,7 +510,30 @@ const LeagueManager: React.FC = () => {
                           <span className={`inline-block px-2 py-0.5 rounded border ${sideClasses[side]}`}>Side {side}</span>
                           <span className="text-sm font-normal text-gray-600">Week {selectedWeek} · {roomTeams.length} teams · {doneCount} of {ms.length} games confirmed</span>
                         </CardTitle>
-                        <div className="text-xs text-gray-600">Teams: {roomTeams.join(', ')}</div>
+                        <div className="text-xs text-gray-600 flex flex-wrap items-center gap-1">
+                          <span className="mr-1">Teams:</span>
+                          {roomTeams.map(t => (
+                            <span key={t} className="inline-flex items-center rounded border bg-gray-50 pl-2">
+                              <span className="font-semibold">{t}</span>
+                              <button
+                                type="button"
+                                title={`Team ${t} did not show: record every unplayed Week ${selectedWeek} game as a 0 to ${FORFEIT_WIN_POINTS} loss`}
+                                className="ml-1 px-1.5 py-0.5 text-red-600 hover:bg-red-50 rounded-r"
+                                onClick={() => setForfeitTeam(forfeitTeam === t ? null : t)}
+                              >
+                                <UserX className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        {forfeitTeam && roomTeams.includes(forfeitTeam) && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2 p-2 rounded bg-red-50 border border-red-300 text-sm text-red-800">
+                            <AlertTriangle className="w-4 h-4" />
+                            Team {forfeitTeam} no-show: every unplayed Week {selectedWeek} game becomes a loss, opponents get {FORFEIT_WIN_POINTS} points. Games already scored are untouched.
+                            <Button size="sm" variant="destructive" disabled={forfeiting} onClick={() => forfeitWeek(forfeitTeam)}>{forfeiting ? 'Saving…' : 'Yes, forfeit'}</Button>
+                            <Button size="sm" variant="outline" disabled={forfeiting} onClick={() => setForfeitTeam(null)}>Cancel</Button>
+                          </div>
+                        )}
                       </CardHeader>
                       <CardContent className="space-y-1">
                         {ms.map(m => {
@@ -497,6 +548,7 @@ const LeagueManager: React.FC = () => {
                                 <span className="text-xs text-gray-400">vs</span>
                                 <span className="font-semibold text-sm w-44 truncate">{teamLabel(teams, m.teamB)}</span>
                                 {info.gameNo === 2 && <Badge variant="outline" className="text-[10px]">2nd game</Badge>}
+                                {isForfeitGame(confirmed) && <Badge className="text-[10px] bg-gray-700 text-white">FORFEIT</Badge>}
                                 <span className="ml-auto flex items-center gap-2">
                                   {confirmed ? (
                                     <span className="text-sm">

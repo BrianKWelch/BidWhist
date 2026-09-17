@@ -598,6 +598,74 @@ export const leagueWeekLeaders = (rows: LeagueStandingRow[], week: number): Leag
 });
 
 /** First week that still has an unconfirmed game (for the whole league, or for one team). */
+/** Marker stored in games.submittedBy for a no-show forfeit. */
+export const FORFEIT_MARK = 'forfeit';
+export const FORFEIT_WIN_POINTS = 3;
+export const isForfeitGame = (g: Game | undefined) => !!g && String(g.submittedBy) === FORFEIT_MARK;
+
+/**
+ * The week the league is actually playing: the latest week with any confirmed
+ * score (or week 1). Makeup games from earlier weeks do not pull this back.
+ */
+export const leagueLiveWeek = (schedule: TournamentSchedule | null | undefined, games: Game[]): number => {
+  if (!schedule || schedule.matches.length === 0) return 1;
+  const byId = new Map(schedule.matches.map(m => [m.id, m]));
+  let live = 0;
+  for (const g of games) {
+    if (!isConfirmed(g)) continue;
+    const m = byId.get(String(g.matchId));
+    if (m && gameBelongsToMatch(g, m)) live = Math.max(live, m.round);
+  }
+  return live || 1;
+};
+
+/** A team's still-open games in weeks before `beforeWeek` (its makeups), grouped by week. */
+export const teamMakeupGames = (schedule: TournamentSchedule | null | undefined, games: Game[], teamId: string, beforeWeek: number): { week: number; count: number }[] => {
+  if (!schedule) return [];
+  const out = new Map<number, number>();
+  for (const m of schedule.matches) {
+    if (m.round >= beforeWeek) continue;
+    if (String(m.teamA) !== teamId && String(m.teamB) !== teamId) continue;
+    const done = games.some(g => isConfirmed(g) && gameBelongsToMatch(g, m));
+    if (!done) out.set(m.round, (out.get(m.round) ?? 0) + 1);
+  }
+  return Array.from(out.entries()).map(([week, count]) => ({ week, count })).sort((x, y) => x.week - y.week);
+};
+
+/**
+ * Rows to write for a no-show: every unplayed game of `teamId` in `week` becomes
+ * a confirmed loss, opponent credited with the win and FORFEIT_WIN_POINTS.
+ */
+export const buildForfeitRows = (schedule: TournamentSchedule, games: Game[], teamId: string, week: number) => {
+  const rows: Record<string, unknown>[] = [];
+  const stamp = Date.now();
+  let n = 0;
+  for (const m of schedule.matches) {
+    if (m.round !== week) continue;
+    if (String(m.teamA) !== teamId && String(m.teamB) !== teamId) continue;
+    if (games.some(g => isConfirmed(g) && gameBelongsToMatch(g, m))) continue;
+    const forfeitIsA = String(m.teamA) === teamId;
+    rows.push({
+      id: `${stamp}${String(n++).padStart(3, '0')}`,
+      matchId: m.id,
+      teamA: String(m.teamA),
+      teamB: String(m.teamB),
+      scoreA: forfeitIsA ? 0 : FORFEIT_WIN_POINTS,
+      scoreB: forfeitIsA ? FORFEIT_WIN_POINTS : 0,
+      handsA: 0, handsB: 0, boston_a: 0, boston_b: 0,
+      winner: forfeitIsA ? 'teamB' : 'teamA',
+      submittedBy: FORFEIT_MARK,
+      confirmed: true,
+      confirmedBy: 'admin',
+      round: week,
+      timestamp: new Date().toISOString(),
+      status: 'confirmed',
+      entered_by_team_id: null,
+    });
+  }
+  return rows;
+};
+
 export const currentLeagueWeek = (schedule: TournamentSchedule | null | undefined, games: Game[], teamId?: string): number => {
   if (!schedule || schedule.matches.length === 0) return 1;
   const confirmedMatchIds = new Set(games.filter(isConfirmed).map(g => String(g.matchId)));
