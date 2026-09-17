@@ -11,10 +11,13 @@ import {
   getLeagueStandings,
   gameBelongsToMatch,
   leagueMatchInfo,
+  leagueSeasonLeaders,
+  leagueWeekLeaders,
   leagueWeeksFromSchedule,
   teamSideForWeek,
   type LeagueSide,
 } from '@/lib/league';
+import LeagueLeadersPanel from './LeagueLeadersPanel';
 
 const BRAND = '#a60002';
 
@@ -119,6 +122,8 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
   // ---- Season record and standings --------------------------------------
   const standings = useMemo(() => getLeagueStandings(teams, games, schedule), [teams, games, schedule]);
   const myRow = standings.find(r => r.teamId === myId);
+  const seasonLeaders = useMemo(() => leagueSeasonLeaders(standings), [standings]);
+  const weekLeaders = useMemo(() => weeks.map(w => ({ week: w.week, leaders: leagueWeekLeaders(standings, w.week), played: standings.some(r => (r.weeks[w.week]?.wins ?? 0) + (r.weeks[w.week]?.losses ?? 0) > 0) })), [standings, weeks]);
 
   // ---- Actions ----------------------------------------------------------
   const startEntry = async (pm: PortalMatch) => {
@@ -294,8 +299,13 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
         {/* Standings */}
         {standings.length > 0 && (
           <div className="mt-6">
+            <h3 className="text-center text-lg font-bold text-gray-900 mb-2">League Standings</h3>
+            <div className="mb-2">
+              <div className="text-[11px] text-center text-gray-500 uppercase tracking-wide mb-1">Season Leaders</div>
+              <LeagueLeadersPanel leaders={seasonLeaders} highlightTeamId={myId} />
+            </div>
             <button onClick={() => setShowStandings(s => !s)} className="w-full text-center text-sm font-bold py-2 rounded-lg text-white" style={{ backgroundColor: BRAND }}>
-              {showStandings ? 'Hide' : 'Show'} League Standings
+              {showStandings ? 'Hide' : 'Show'} Full Standings
             </button>
             {showStandings && (
               <Card className="mt-2">
@@ -321,6 +331,33 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
                 </CardContent>
               </Card>
             )}
+
+            {/* Weekly results: leaders for every week of the season */}
+            <h3 className="text-center text-lg font-bold text-gray-900 mt-6 mb-2">Weekly Results</h3>
+            <div className="space-y-2">
+              {weekLeaders.map(({ week: w, leaders, played }) => {
+                const side = teamSideForWeek(weeks, myId, w);
+                const mine = myRow?.weeks[w];
+                return (
+                  <Card key={w} className={`border ${w === week ? 'border-gray-400' : 'border-gray-200'}`}>
+                    <CardContent className="p-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-sm">Week {w}</span>
+                        <span className="text-[11px] text-gray-600">
+                          {side && <span className={`inline-block px-1.5 rounded border font-bold mr-2 ${sideClasses[side]}`}>{side}</span>}
+                          {mine ? `You: ${mine.wins}-${mine.losses}, ${mine.points} pts, ${mine.bostons} Bostons` : ''}
+                        </span>
+                      </div>
+                      {played ? (
+                        <LeagueLeadersPanel leaders={leaders} highlightTeamId={myId} compact />
+                      ) : (
+                        <div className="text-xs text-gray-500 text-center py-1">No games scored yet</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
         )}
 

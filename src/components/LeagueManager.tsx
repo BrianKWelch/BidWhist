@@ -17,12 +17,15 @@ import {
   isLeagueTournament,
   leagueGridCsv,
   leagueMatchInfo,
+  leagueSeasonLeaders,
+  leagueWeekLeaders,
   leagueWeeksFromSchedule,
   leagueWeeksOf,
   teamSideForWeek,
   type LeagueSide,
   type LeagueWeek,
 } from '@/lib/league';
+import LeagueLeadersPanel from './LeagueLeadersPanel';
 
 const BRAND = '#a60002';
 
@@ -605,6 +608,31 @@ const LeagueManager: React.FC = () => {
                     </tbody>
                   </table>
                   <p className="text-xs text-gray-500 mt-2">Sorted by wins, then total points, then team number. Only confirmed games count.</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {weeks.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="text-base">Leaders {throughWeek ? `through Week ${throughWeek}` : '(season to date)'}</CardTitle></CardHeader>
+                <CardContent><LeagueLeadersPanel leaders={leagueSeasonLeaders(standings)} /></CardContent>
+              </Card>
+            )}
+
+            {weeks.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="text-base">Weekly Results</CardTitle></CardHeader>
+                <CardContent className="grid gap-3 md:grid-cols-2">
+                  {weeks.map(w => {
+                    const leaders = leagueWeekLeaders(standings, w.week);
+                    const played = standings.some(r => (r.weeks[w.week]?.wins ?? 0) + (r.weeks[w.week]?.losses ?? 0) > 0);
+                    return (
+                      <div key={w.week} className="rounded-lg border p-3">
+                        <div className="font-bold mb-2">Week {w.week}</div>
+                        {played ? <LeagueLeadersPanel leaders={leaders} compact /> : <div className="text-xs text-gray-500">No games scored yet</div>}
+                      </div>
+                    );
+                  })}
                 </CardContent>
               </Card>
             )}

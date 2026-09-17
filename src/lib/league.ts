@@ -482,7 +482,7 @@ export interface LeagueStandingRow {
   hands: number;
   bostons: number;
   /** per-week breakdown */
-  weeks: Record<number, { wins: number; losses: number; points: number; side: LeagueSide | null }>;
+  weeks: Record<number, { wins: number; losses: number; points: number; bostons: number; side: LeagueSide | null }>;
   rank: number;
 }
 
@@ -523,7 +523,7 @@ export const getLeagueStandings = (
       rank: 0,
     };
     for (const wk of weeks) {
-      row.weeks[wk.week] = { wins: 0, losses: 0, points: 0, side: teamSideForWeek(weeks, id, wk.week) };
+      row.weeks[wk.week] = { wins: 0, losses: 0, points: 0, bostons: 0, side: teamSideForWeek(weeks, id, wk.week) };
     }
     rows.set(id, row);
   }
@@ -545,8 +545,9 @@ export const getLeagueStandings = (
       row.hands += hands;
       row.bostons += bostons;
       if (won) row.wins++; else row.losses++;
-      const wk = row.weeks[m.round] ?? (row.weeks[m.round] = { wins: 0, losses: 0, points: 0, side: null });
+      const wk = row.weeks[m.round] ?? (row.weeks[m.round] = { wins: 0, losses: 0, points: 0, bostons: 0, side: null });
       wk.points += my;
+      wk.bostons += bostons;
       if (won) wk.wins++; else wk.losses++;
     };
     apply(a, scoreA, scoreB, aWon, Number(g.handsA) || 0, Number(g.boston_a) || 0);
@@ -559,6 +560,42 @@ export const getLeagueStandings = (
   list.forEach((r, i) => { r.rank = i + 1; });
   return list;
 };
+
+export interface LeagueLeader {
+  value: number;
+  /** Every team tied at the top value. Empty when nothing has been scored yet. */
+  teams: { teamId: string; teamName: string }[];
+}
+
+export interface LeagueLeaders {
+  wins: LeagueLeader;
+  points: LeagueLeader;
+  bostons: LeagueLeader;
+}
+
+const topOf = (rows: LeagueStandingRow[], pick: (r: LeagueStandingRow) => number): LeagueLeader => {
+  let value = 0;
+  for (const r of rows) value = Math.max(value, pick(r));
+  if (value <= 0) return { value: 0, teams: [] };
+  return {
+    value,
+    teams: rows.filter(r => pick(r) === value).sort((x, y) => x.teamNumber - y.teamNumber).map(r => ({ teamId: r.teamId, teamName: r.teamName })),
+  };
+};
+
+/** Season leaders in wins, points and Bostons (ties list every tied team). */
+export const leagueSeasonLeaders = (rows: LeagueStandingRow[]): LeagueLeaders => ({
+  wins: topOf(rows, r => r.wins),
+  points: topOf(rows, r => r.points),
+  bostons: topOf(rows, r => r.bostons),
+});
+
+/** Leaders for one week only. */
+export const leagueWeekLeaders = (rows: LeagueStandingRow[], week: number): LeagueLeaders => ({
+  wins: topOf(rows, r => r.weeks[week]?.wins ?? 0),
+  points: topOf(rows, r => r.weeks[week]?.points ?? 0),
+  bostons: topOf(rows, r => r.weeks[week]?.bostons ?? 0),
+});
 
 /** First week that still has an unconfirmed game (for the whole league, or for one team). */
 export const currentLeagueWeek = (schedule: TournamentSchedule | null | undefined, games: Game[], teamId?: string): number => {

@@ -263,7 +263,10 @@ second game of a pair (`leagueMatchInfo(match)` reads week/side/gameNo back).
   status (not played / entering / awaiting confirm / confirmed), inline admin
   score entry or edit (points, hands if tracked, bostons, tie winner), clear.
   Admin entry deletes any rows for the match and inserts one `confirmed` row.
-- Standings: cumulative or "through week N", per-week W-L with side badge, CSV.
+- Standings: cumulative or "through week N", per-week W-L with side badge, CSV,
+  season leaders (wins / points / Bostons) and a Weekly Results grid with the
+  three leaders for every week (`leagueSeasonLeaders`, `leagueWeekLeaders`,
+  rendered by `LeagueLeadersPanel`; ties list every tied team).
 
 To create a league: Tournament Setup → edit tournament → Table Rotation =
 League → set League Weeks → register teams → League tab → Generate Season.
@@ -274,7 +277,9 @@ tournament is a league, passing its own `DirectScoreEntry` / `ScoreConfirmation`
 components as props (no import cycle). Shows season record and rank, week picker
 with the team's side, room-mates, one card per game (open games first, "2nd
 game" badge for the double), the same Score / Confirm / Retract / Re-enter flow
-as tournaments, and a collapsible standings table.
+as tournaments, season leaders, a collapsible standings table, and a Weekly
+Results list showing every week's wins / points / Boston leaders plus the
+team's own line for that week.
 
 ### Guards on tournament screens
 `TournamentScheduler`, `CombinedResultsPage` and `QuickScoreEntry` show a
