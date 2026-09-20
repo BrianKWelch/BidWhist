@@ -245,6 +245,31 @@ normal `games` table and the normal entry/confirm/dispute flow.
   yellow "Makeup games" banner with a jump button when the team still owes
   games from earlier weeks (`teamMakeupGames`).
 
+### Open-play weeks, the 2026 Fall Week 1 load, and one-sided makeups
+- **Open-play week**: matches with `table_number = 0` and ids `…-w{week}-O{n}`.
+  No sides; `leagueWeeksFromSchedule` marks the week `open` and lists `teams`.
+  Admin shows one "Open play" card with a played/10 chip per team; the portal
+  shows "Open play" and a "Record a game" button while a team owes games.
+- **Week 1 loader**: `src/data/league2026FallWeek1.json` holds the 20 teams and
+  95 games transcribed from the hand-scored workbook (two opponent typos fixed,
+  noted in the file). `src/lib/leagueSeed.ts` → `loadSeedWeek` matches teams by
+  `team_number` (then name), creates missing players/teams (no phones) with
+  `team_number` set, registers them, and writes matches + confirmed games with
+  deterministic ids, so re-running is a no-op. Button lives in the League tab
+  (also creates the league tournament when none exists).
+- **Team numbers**: league UI shows `team_number` when set (`leagueTeamNo`),
+  falling back to the id, because the workbook numbers are what players know.
+- **One-sided makeup**: `buildMakeupMatch` → id `…-w{week}-mk{tag}-for{teamId}`,
+  `table_number = 0`. `leagueMatchInfo(...).countsFor` names the only team the
+  result counts toward; standings skip the other side. Portal shows "MAKEUP for
+  Team N · not counted for you" on the opponent's card. Admin has a "Makeup
+  game" control on Weekly Games; the owing team can also start one from the
+  portal against any registered opponent.
+- **Locked weeks**: `lockedLeagueWeeks` = open weeks plus any week with a
+  confirmed score. Generation keeps their matches and only (re)generates from
+  the next week (`generateLeagueSeason(..., { startWeek })`), deleting scores
+  only for the weeks it replaces.
+
 ### Generator (`src/lib/league.ts` → `generateLeagueSeason(teamIds, weeks)`)
 1. **Rooms**: simulated annealing over the whole season. A move swaps one team
    from A with one from B in one week. Cost penalises pairs that share a room
@@ -330,6 +355,7 @@ have a CHECK constraint that rejects `'league'`.
 ### Lib
 - `src/lib/maltRotation.ts` — `getMaltNext(numTables, tableNum)`
 - `src/lib/league.ts` — `generateLeagueSeason`, `buildLeagueMatches`, `getLeagueStandings`, `leagueWeeksFromSchedule`
+- `src/lib/leagueSeed.ts` — hand-scored week loader (`loadSeedWeek`), data in `src/data/`
 - `src/lib/scheduler.ts` — `generateNRoundsWithByeAndFinal`, city-aware round-robin
 - `src/lib/utils.ts` — `getSortedTournamentResults`, general utils
 - `src/lib/badgeParser.ts` — OCR text parser (badge scanner feature)

@@ -24,7 +24,8 @@ export type LeagueSide = 'A' | 'B';
 export interface LeaguePairing {
   teamA: string;
   teamB: string;
-  side: LeagueSide;
+  /** null in an open-play week (no sides). */
+  side: LeagueSide | null;
   /** 1 for the regular game, 2 for the extra "play them twice" game. */
   gameNo: 1 | 2;
 }
@@ -34,6 +35,10 @@ export interface LeagueWeek {
   sideA: string[];
   sideB: string[];
   pairings: LeaguePairing[];
+  /** Open play: no sides, teams played whoever they liked (e.g. a hand-scored first week). */
+  open?: boolean;
+  /** Every team that appears in the week (open weeks have no side lists). */
+  teams?: string[];
 }
 
 export interface LeagueSeason {
@@ -50,17 +55,36 @@ export interface LeagueSeason {
 }
 
 export const SIDE_TABLE: Record<LeagueSide, number> = { A: 1, B: 2 };
+/** table_number used for open-play weeks and one-sided makeup games (no side). */
+export const OPEN_TABLE = 0;
+/** Games every team owes in a week; used to count makeups in an open week. */
+export const LEAGUE_GAMES_PER_WEEK = 10;
+
+/** The number players know a team by: team_number when set, else the id. */
+export const leagueTeamNo = (teams: Team[], id: string): string => {
+  const t = teams.find(tt => String(tt.id) === String(id));
+  return String(t?.teamNumber ?? id);
+};
 
 export const isLeagueTournament = (t?: Tournament | null): boolean => t?.rotationType === 'league';
 
 export const leagueWeeksOf = (t?: Tournament | null): number => Number(t?.maltRounds) || 0;
 
-/** Parse a league match id / row back into week + side. Works from the ScheduleMatch fields, not the id. */
-export const leagueMatchInfo = (m: ScheduleMatch): { week: number; side: LeagueSide; gameNo: 1 | 2 } => {
-  const side: LeagueSide = m.table === 2 ? 'B' : 'A';
+/**
+ * Parse a league match back into week, side, game number and (for one-sided
+ * makeup games) the only team whose record it counts toward.
+ * Side comes from table_number (1 = A, 2 = B, 0 = open play / makeup).
+ * Makeup ids end in `-for<teamId>`; the second game of a pair ends in `x2`.
+ */
+export const leagueMatchInfo = (m: ScheduleMatch): { week: number; side: LeagueSide | null; gameNo: 1 | 2; countsFor: string | null } => {
+  const side: LeagueSide | null = m.table === 2 ? 'B' : m.table === 1 ? 'A' : null;
   const gameNo: 1 | 2 = /-(A|B)\d+x2$/.test(m.id) ? 2 : 1;
-  return { week: m.round, side, gameNo };
+  const mk = /-for([^-]+)$/.exec(m.id);
+  return { week: m.round, side, gameNo, countsFor: mk ? mk[1] : null };
 };
+
+/** A game that counts for one team only (a makeup for a team that missed the week). */
+export const isOneSidedMatch = (m: ScheduleMatch) => leagueMatchInfo(m).countsFor !== null;
 
 // ---------------------------------------------------------------------------
 // Random helpers (seeded so a generation can be reproduced from its seed)
@@ -294,7 +318,7 @@ const bestMatching = (room: number[], games: number[][], rnd: () => number): [nu
   return chosen.map(([x, y]) => [room[x], room[y]] as [number, number]);
 };
 
-const buildSeasonOnce = (teamIds: string[], weeks: number, seed: number): LeagueSeason => {
+const buildSeasonOnce = (teamIds: string[], weeks: number, seed: number, startWeek = 1): LeagueSeason => {
   const n = teamIds.length;
   const rnd = mulberry32(seed);
 
@@ -337,7 +361,7 @@ const buildSeasonOnce = (teamIds: string[], weeks: number, seed: number): League
     addRoom(rooms[w].a, 'A', doubles[w][0]);
     addRoom(rooms[w].b, 'B', doubles[w][1]);
     out.push({
-      week: w + 1,
+      week: startWeek + w,
       sideA: rooms[w].a.map(i => teamIds[i]).sort(byTeamId),
       sideB: rooms[w].b.map(i => teamIds[i]).sort(byTeamId),
       pairings,
@@ -395,7 +419,7 @@ const seasonScore = (s: LeagueSeason): number => {
 export const generateLeagueSeason = (
   teamIds: string[],
   weeks: number,
-  options: { attempts?: number; seed?: number } = {},
+  options: { attempts?: number; seed?: number; startWeek?: number } = {},
 ): LeagueSeason => {
   if (teamIds.length < 4) throw new Error('A league needs at least 4 teams.');
   if (teamIds.length % 2 !== 0) throw new Error('A league needs an even number of teams so both sides are the same size.');
@@ -406,7 +430,7 @@ export const generateLeagueSeason = (
   let best: LeagueSeason | null = null;
   let bestScore = Infinity;
   for (let k = 0; k < attempts; k++) {
-    const s = buildSeasonOnce(teamIds, weeks, baseSeed + k * 7919);
+    const s = buildSeasonOnce(teamIds, weeks, baseSeed + k * 7919, options.startWeek ?? 1);
     const sc = seasonScore(s);
     if (sc < bestScore) { bestScore = sc; best = s; }
   }
@@ -423,15 +447,16 @@ export const buildLeagueMatches = (tournamentId: string, season: LeagueSeason, t
   for (const wk of season.weeks) {
     const counter: Record<LeagueSide, number> = { A: 0, B: 0 };
     for (const p of wk.pairings) {
-      counter[p.side]++;
-      const id = `${tournamentId}-s${tag}-w${wk.week}-${p.side}${counter[p.side]}${p.gameNo === 2 ? 'x2' : ''}`;
+      counter[p.side ?? 'A']++;
+      const side = p.side ?? 'A';
+      const id = `${tournamentId}-s${tag}-w${wk.week}-${side}${counter[side]}${p.gameNo === 2 ? 'x2' : ''}`;
       out.push({
         id,
         teamA: p.teamA,
         teamB: p.teamB,
         round: wk.week,
         tournamentId,
-        table: SIDE_TABLE[p.side],
+        table: p.side ? SIDE_TABLE[p.side] : OPEN_TABLE,
         isBye: false,
         isSameCity: false,
       });
@@ -446,15 +471,21 @@ export const leagueWeeksFromSchedule = (schedule?: TournamentSchedule | null): L
   const byWeek = new Map<number, LeagueWeek>();
   const sorted = schedule.matches.slice().sort((x, y) => x.round - y.round || x.id.localeCompare(y.id));
   for (const m of sorted) {
-    const { week, side, gameNo } = leagueMatchInfo(m);
-    if (!byWeek.has(week)) byWeek.set(week, { week, sideA: [], sideB: [], pairings: [] });
+    const { week, side, gameNo, countsFor } = leagueMatchInfo(m);
+    if (!byWeek.has(week)) byWeek.set(week, { week, sideA: [], sideB: [], pairings: [], teams: [] });
     const wk = byWeek.get(week)!;
-    const list = side === 'A' ? wk.sideA : wk.sideB;
-    for (const t of [m.teamA, m.teamB]) if (!list.includes(t)) list.push(t);
+    if (side) {
+      const list = side === 'A' ? wk.sideA : wk.sideB;
+      for (const t of [m.teamA, m.teamB]) if (!list.includes(t)) list.push(t);
+    } else if (!countsFor) {
+      // A sideless game that is not a makeup means the week itself is open play.
+      wk.open = true;
+    }
+    for (const t of [m.teamA, m.teamB]) if (!wk.teams!.includes(t)) wk.teams!.push(t);
     wk.pairings.push({ teamA: m.teamA, teamB: m.teamB, side, gameNo });
   }
   const weeks = Array.from(byWeek.values()).sort((x, y) => x.week - y.week);
-  for (const wk of weeks) { wk.sideA.sort(byTeamId); wk.sideB.sort(byTeamId); }
+  for (const wk of weeks) { wk.sideA.sort(byTeamId); wk.sideB.sort(byTeamId); wk.teams!.sort(byTeamId); }
   return weeks;
 };
 
@@ -538,6 +569,7 @@ export const getLeagueStandings = (
     if (!a || !b) continue;
     const scoreA = Number(g.scoreA) || 0, scoreB = Number(g.scoreB) || 0;
     const aWon = g.winner === 'teamA';
+    const { countsFor } = leagueMatchInfo(m);
     const apply = (row: LeagueStandingRow, my: number, opp: number, won: boolean, hands: number, bostons: number) => {
       row.played++;
       row.points += my;
@@ -550,8 +582,9 @@ export const getLeagueStandings = (
       wk.bostons += bostons;
       if (won) wk.wins++; else wk.losses++;
     };
-    apply(a, scoreA, scoreB, aWon, Number(g.handsA) || 0, Number(g.boston_a) || 0);
-    apply(b, scoreB, scoreA, !aWon, Number(g.handsB) || 0, Number(g.boston_b) || 0);
+    // A one-sided makeup counts only for the team that owed the game.
+    if (!countsFor || countsFor === String(g.teamA)) apply(a, scoreA, scoreB, aWon, Number(g.handsA) || 0, Number(g.boston_a) || 0);
+    if (!countsFor || countsFor === String(g.teamB)) apply(b, scoreB, scoreA, !aWon, Number(g.handsB) || 0, Number(g.boston_b) || 0);
   }
 
   const list = Array.from(rows.values()).sort((x, y) =>
@@ -579,7 +612,7 @@ const topOf = (rows: LeagueStandingRow[], pick: (r: LeagueStandingRow) => number
   if (value <= 0) return { value: 0, teams: [] };
   return {
     value,
-    teams: rows.filter(r => pick(r) === value).sort((x, y) => x.teamNumber - y.teamNumber).map(r => ({ teamId: r.teamId, teamName: r.teamName })),
+    teams: rows.filter(r => pick(r) === value).sort((x, y) => x.teamNumber - y.teamNumber).map(r => ({ teamId: String(r.teamNumber || r.teamId), teamName: r.teamName })),
   };
 };
 
@@ -620,16 +653,46 @@ export const leagueLiveWeek = (schedule: TournamentSchedule | null | undefined, 
 };
 
 /** A team's still-open games in weeks before `beforeWeek` (its makeups), grouped by week. */
-export const teamMakeupGames = (schedule: TournamentSchedule | null | undefined, games: Game[], teamId: string, beforeWeek: number): { week: number; count: number }[] => {
+export const teamMakeupGames = (schedule: TournamentSchedule | null | undefined, games: Game[], teamId: string, beforeWeek: number): { week: number; count: number; open: boolean }[] => {
   if (!schedule) return [];
-  const out = new Map<number, number>();
-  for (const m of schedule.matches) {
-    if (m.round >= beforeWeek) continue;
-    if (String(m.teamA) !== teamId && String(m.teamB) !== teamId) continue;
-    const done = games.some(g => isConfirmed(g) && gameBelongsToMatch(g, m));
-    if (!done) out.set(m.round, (out.get(m.round) ?? 0) + 1);
+  const weeks = leagueWeeksFromSchedule(schedule);
+  const out = new Map<number, { count: number; open: boolean }>();
+  for (const wk of weeks) {
+    if (wk.week >= beforeWeek) continue;
+    const mine = schedule.matches.filter(m => m.round === wk.week && (String(m.teamA) === teamId || String(m.teamB) === teamId));
+    const countsForMe = (m: ScheduleMatch) => { const c = leagueMatchInfo(m).countsFor; return !c || c === teamId; };
+    if (wk.open) {
+      // Open week: a team owes LEAGUE_GAMES_PER_WEEK games and may play anyone (as makeups).
+      const played = mine.filter(m => countsForMe(m) && games.some(g => isConfirmed(g) && gameBelongsToMatch(g, m))).length;
+      const owed = Math.max(0, LEAGUE_GAMES_PER_WEEK - played);
+      if (owed > 0) out.set(wk.week, { count: owed, open: true });
+    } else {
+      const open = mine.filter(m => countsForMe(m) && !games.some(g => isConfirmed(g) && gameBelongsToMatch(g, m))).length;
+      if (open > 0) out.set(wk.week, { count: open, open: false });
+    }
   }
-  return Array.from(out.entries()).map(([week, count]) => ({ week, count })).sort((x, y) => x.week - y.week);
+  return Array.from(out.entries()).map(([week, v]) => ({ week, ...v })).sort((x, y) => x.week - y.week);
+};
+
+/** Matches for a hand-scored open-play week (no sides). */
+export const buildOpenWeekMatches = (tournamentId: string, week: number, pairs: { teamA: string; teamB: string }[], tag: string = Date.now().toString(36)): ScheduleMatch[] =>
+  pairs.map((p, i) => ({
+    id: `${tournamentId}-s${tag}-w${week}-O${i + 1}`,
+    teamA: p.teamA, teamB: p.teamB, round: week, tournamentId, table: OPEN_TABLE, isBye: false, isSameCity: false,
+  }));
+
+/** A one-sided makeup match: `forTeam` owes the game; the result counts for `forTeam` only. */
+export const buildMakeupMatch = (tournamentId: string, week: number, forTeam: string, opponent: string): ScheduleMatch => ({
+  id: `${tournamentId}-w${week}-mk${Date.now().toString(36)}-for${forTeam}`,
+  teamA: forTeam, teamB: opponent, round: week, tournamentId, table: OPEN_TABLE, isBye: false, isSameCity: false,
+});
+
+/** Weeks that must be kept when (re)generating: open-play weeks and any week with a confirmed score. */
+export const lockedLeagueWeeks = (schedule: TournamentSchedule | null | undefined, games: Game[]): number[] => {
+  if (!schedule) return [];
+  const weeks = leagueWeeksFromSchedule(schedule);
+  const confirmedIds = new Set(games.filter(isConfirmed).map(g => String(g.matchId)));
+  return weeks.filter(w => w.open || schedule.matches.some(m => m.round === w.week && confirmedIds.has(m.id))).map(w => w.week);
 };
 
 /**
@@ -680,14 +743,14 @@ export const currentLeagueWeek = (schedule: TournamentSchedule | null | undefine
 /** CSV of the side grid: one row per team, one column per week. */
 export const leagueGridCsv = (weeks: LeagueWeek[], teams: Team[]): string => {
   const ids = new Set<string>();
-  weeks.forEach(w => { w.sideA.forEach(t => ids.add(t)); w.sideB.forEach(t => ids.add(t)); });
+  weeks.forEach(w => { w.sideA.forEach(t => ids.add(t)); w.sideB.forEach(t => ids.add(t)); (w.teams ?? []).forEach(t => ids.add(t)); });
   const sorted = Array.from(ids).sort(byTeamId);
   const header = ['Team #', 'Team', ...weeks.map(w => `Week ${w.week}`)];
   const lines = [header.join(',')];
   for (const id of sorted) {
     const t = teams.find(tt => String(tt.id) === id);
     const name = (t?.name ?? '').replace(/"/g, '""');
-    lines.push([id, `"${name}"`, ...weeks.map(w => teamSideForWeek(weeks, id, w.week) ?? '')].join(','));
+    lines.push([leagueTeamNo(teams, id), `"${name}"`, ...weeks.map(w => w.open ? 'open' : (teamSideForWeek(weeks, id, w.week) ?? ''))].join(','));
   }
   return lines.join('\n');
 };

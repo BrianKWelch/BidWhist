@@ -11,6 +11,8 @@ import {
   gameBelongsToMatch,
   isForfeitGame,
   leagueLiveWeek,
+  leagueTeamNo,
+  buildMakeupMatch,
   teamMakeupGames,
   leagueMatchInfo,
   leagueSeasonLeaders,
@@ -47,6 +49,8 @@ interface PortalMatch {
   game?: Game;
   result?: { my: number; opp: number; win: boolean };
   forfeit?: boolean;
+  /** One-sided makeup: the team whose record it counts toward (null = both). */
+  countsFor?: string | null;
 }
 
 type ScoreComponent = React.ComponentType<{ team: Team; match: ScheduleMatch; onComplete: () => void }>;
@@ -59,8 +63,9 @@ type ScoreComponent = React.ComponentType<{ team: Team; match: ScheduleMatch; on
 const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: ScoreComponent; Confirmation: ScoreComponent }> = ({ team, onLogout, ScoreEntry, Confirmation }) => {
   const {
     teams, schedules, games, getActiveTournament, beginScoreEntry, releaseScoreEntryLock, retractScore,
-    refreshGamesFromSupabase, getActiveMessages,
+    refreshGamesFromSupabase, refreshSchedules, getActiveMessages,
   } = useAppContext();
+  const no = (id: string) => leagueTeamNo(teams, id);
 
   const league = getActiveTournament();
   const schedule = schedules.find(s => s.tournamentId === league?.id) ?? null;
@@ -100,7 +105,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
         const opponentId = String(m.teamA) === myId ? String(m.teamB) : String(m.teamA);
         const opponent = teams.find(t => String(t.id) === opponentId);
         const game = games.find(g => gameBelongsToMatch(g, m));
-        const { gameNo } = leagueMatchInfo(m);
+        const { gameNo, countsFor } = leagueMatchInfo(m);
         let state: CardState = 'ready';
         let result: PortalMatch['result'];
         if (game) {
@@ -118,7 +123,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
             };
           }
         }
-        return { match: m, opponent, opponentId, gameNo, state, game, result, forfeit: isForfeitGame(game) };
+        return { match: m, opponent, opponentId, gameNo, state, game, result, forfeit: isForfeitGame(game), countsFor };
       })
       .sort((x, y) => {
         // Open games first, then pending, then completed; within a group by opponent number.
@@ -127,7 +132,36 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
       });
   }, [schedule, week, myId, teams, games]);
 
-  const openCount = myMatches.filter(m => m.state !== 'done').length;
+  const thisWeek = weeks.find(w => w.week === week);
+  const isOpenWeek = !!thisWeek?.open;
+  const countsForMe = (pm: PortalMatch) => !pm.countsFor || pm.countsFor === myId;
+  const playedThisWeek = myMatches.filter(m => m.state === 'done' && countsForMe(m)).length;
+  const openCount = isOpenWeek ? Math.max(0, 10 - playedThisWeek) : myMatches.filter(m => m.state !== 'done' && countsForMe(m)).length;
+
+  // ---- Makeup game against any opponent (one-sided, counts for me only) ----
+  const [mkOpp, setMkOpp] = useState('');
+  const [mkOpen, setMkOpen] = useState(false);
+  const startMakeup = async (targetWeek: number) => {
+    if (!league || !mkOpp) return;
+    setBusy(true);
+    try {
+      const m = buildMakeupMatch(league.id, targetWeek, myId, mkOpp);
+      const { supabase } = await import('../supabaseClient');
+      const { error } = await supabase.from('matches').insert([{ id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: league.id, table_number: m.table, is_bye: false, is_same_city: false }]);
+      if (error) throw new Error(error.message);
+      await refreshSchedules();
+      const result = await beginScoreEntry({ matchId: m.id, teamId: myId, teamA: m.teamA, teamB: m.teamB, round: m.round });
+      if (!result.ok) throw new Error('Could not start score entry');
+      setMkOpen(false); setMkOpp('');
+      pickWeek(targetWeek);
+      setHoldingLock(true);
+      setSelected({ match: m, opponent: teams.find(t => String(t.id) === mkOpp), opponentId: mkOpp, gameNo: 1, state: 'entering_me', countsFor: myId });
+    } catch (e) {
+      toast({ title: 'Could not add makeup game', description: String(e), variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // ---- Season record and standings --------------------------------------
   const standings = useMemo(() => getLeagueStandings(teams, games, schedule), [teams, games, schedule]);
@@ -176,7 +210,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
   const oppLabel = (pm: PortalMatch) => (
     <div className="flex flex-col items-center justify-center">
       <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">vs. Team</span>
-      <span className="font-bold text-lg">{pm.opponentId}</span>
+      <span className="font-bold text-lg">{no(pm.opponentId)}</span>
       <span className="text-xs text-gray-600">{pm.opponent?.player1FirstName || ''}/{pm.opponent?.player2FirstName || ''}</span>
     </div>
   );
@@ -198,7 +232,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
         </div>
         <div className="w-full h-1 bg-black" />
         <div className="py-2 px-4 text-center">
-          <div className="text-3xl font-black text-black tracking-tight">TEAM #{team.id}</div>
+          <div className="text-3xl font-black text-black tracking-tight">TEAM #{no(myId)}</div>
           <div className="text-sm text-gray-600">{team.player1FirstName} / {team.player2FirstName}</div>
           <div className="text-sm font-bold mt-1" style={{ color: BRAND }}>{league?.name} · League</div>
         </div>
@@ -223,25 +257,41 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
                 <div className="text-sm">
                   <div className="font-bold text-yellow-900">Makeup games: {makeupTotal}</div>
                   <div className="text-xs text-yellow-800">
-                    {makeups.map(m => `Week ${m.week}: ${m.count} game${m.count === 1 ? '' : 's'}`).join(' · ')}. Play them any week you and the other team are both free.
+                    {makeups.map(m => `Week ${m.week}: ${m.count} game${m.count === 1 ? '' : 's'}`).join(' · ')}.
+                    {makeups.some(m => m.open) ? ' Play any team, any week. The result counts for your record only.' : ' Play them any week you and the other team are both free.'}
                   </div>
                 </div>
-                {week !== makeups[0].week && (
+                {makeups.some(m => m.open) && !adminScoring ? (
+                  <Button size="sm" className="text-white text-xs shrink-0" style={{ backgroundColor: BRAND }} onClick={() => setMkOpen(o => !o)}>Record makeup</Button>
+                ) : week !== makeups[0].week && (
                   <Button size="sm" className="text-white text-xs shrink-0" style={{ backgroundColor: BRAND }} onClick={() => pickWeek(makeups[0].week)}>Go to Wk {makeups[0].week}</Button>
                 )}
+              </div>
+            )}
+            {mkOpen && (makeups.some(m => m.open) || (isOpenWeek && openCount > 0)) && (
+              <div className="mb-3 p-3 rounded-lg border bg-white flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold">Week {makeups.find(m => m.open)?.week ?? week} game vs</span>
+                <select className="border rounded px-2 py-1 bg-white flex-1" value={mkOpp} onChange={e => setMkOpp(e.target.value)}>
+                  <option value="">Pick the team you played…</option>
+                  {teams.filter(t => t.registeredTournaments?.includes(league?.id ?? '') && String(t.id) !== myId)
+                    .sort((x, y) => Number(x.teamNumber ?? x.id) - Number(y.teamNumber ?? y.id))
+                    .map(t => <option key={t.id} value={String(t.id)}>Team {no(String(t.id))} · {t.name}</option>)}
+                </select>
+                <Button size="sm" disabled={!mkOpp || busy} className="bg-blue-600 text-white text-xs" onClick={() => startMakeup(makeups.find(m => m.open)?.week ?? week)}>Score it</Button>
+                <Button size="sm" variant="outline" className="text-xs" onClick={() => { setMkOpen(false); setMkOpp(''); }}>Cancel</Button>
               </div>
             )}
 
             {/* Week picker */}
             <div className="flex flex-wrap gap-1 justify-center mb-3">
               {weeks.map(w => {
-                const s = teamSideForWeek(weeks, myId, w.week);
+                const s = w.open ? null : teamSideForWeek(weeks, myId, w.week);
                 const isCur = w.week === week;
                 return (
                   <button key={w.week} onClick={() => pickWeek(w.week)}
                     className={`px-2 py-1 rounded-md border text-xs font-semibold ${isCur ? 'text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
                     style={isCur ? { backgroundColor: BRAND } : undefined}>
-                    Wk {w.week}<span className={`ml-1 px-1 rounded ${isCur ? 'bg-white/20' : s ? sideClasses[s] : ''}`}>{s ?? '?'}</span>
+                    Wk {w.week}<span className={`ml-1 px-1 rounded ${isCur ? 'bg-white/20' : s ? sideClasses[s] : 'bg-gray-100 text-gray-500'}`}>{s ?? (w.open ? 'open' : '?')}</span>
                   </button>
                 );
               })}
@@ -250,15 +300,20 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
             <div className="text-center mb-3">
               <h2 className="text-xl font-bold text-gray-900">
                 Week {week}
-                {mySide && <span className={`ml-2 align-middle inline-block px-3 py-0.5 rounded-full border text-sm font-bold ${sideClasses[mySide]}`}>Side {mySide}</span>}
+                {isOpenWeek ? (
+                  <span className="ml-2 align-middle inline-block px-3 py-0.5 rounded-full border border-gray-300 text-sm font-bold text-gray-600">Open play</span>
+                ) : mySide && <span className={`ml-2 align-middle inline-block px-3 py-0.5 rounded-full border text-sm font-bold ${sideClasses[mySide]}`}>Side {mySide}</span>}
               </h2>
               <p className="text-xs text-gray-600 mt-1">
-                Play everyone in your room. No set order: when you and another team are both free, sit down and play.
+                {isOpenWeek ? 'Open play: 10 games against any teams.' : 'Play everyone in your room. No set order: when you and another team are both free, sit down and play.'}
               </p>
               <p className="text-xs text-gray-500 mt-1">
                 {openCount === 0 ? 'All games for this week are in.' : `${openCount} game${openCount === 1 ? '' : 's'} left this week.`}
-                {roomMates.length > 0 && <> Room: {roomMates.join(', ')}</>}
+                {!isOpenWeek && roomMates.length > 0 && <> Room: {roomMates.map(no).join(', ')}</>}
               </p>
+              {isOpenWeek && openCount > 0 && !adminScoring && !mkOpen && (
+                <Button size="sm" className="mt-2 text-white text-xs" style={{ backgroundColor: BRAND }} onClick={() => setMkOpen(true)}>Record a game</Button>
+              )}
             </div>
 
             {/* Match cards */}
@@ -278,6 +333,11 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
                             <Badge className={`text-[10px] ${pm.result.win ? 'bg-green-600' : 'bg-red-600'} text-white`}>{pm.result.win ? 'WIN' : 'LOSS'}</Badge>
                           )}
                           {pm.forfeit && <Badge variant="outline" className="text-[9px] border-gray-400 text-gray-600">FORFEIT</Badge>}
+                          {pm.countsFor && (
+                            <Badge variant="outline" className="text-[9px] border-purple-400 text-purple-700 whitespace-normal text-left leading-tight">
+                              {pm.countsFor === myId ? 'MAKEUP' : `MAKEUP for Team ${no(pm.countsFor)} · not counted for you`}
+                            </Badge>
+                          )}
                         </div>
 
                         {oppLabel(pm)}
@@ -328,7 +388,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
             <h3 className="text-center text-lg font-bold text-gray-900 mb-2">League Standings</h3>
             <div className="mb-2">
               <div className="text-[11px] text-center text-gray-500 uppercase tracking-wide mb-1">Season Leaders</div>
-              <LeagueLeadersPanel leaders={seasonLeaders} highlightTeamId={myId} />
+              <LeagueLeadersPanel leaders={seasonLeaders} highlightTeamId={no(myId)} />
             </div>
             <button onClick={() => setShowStandings(s => !s)} className="w-full text-center text-sm font-bold py-2 rounded-lg text-white" style={{ backgroundColor: BRAND }}>
               {showStandings ? 'Hide' : 'Show'} Full Standings
@@ -346,7 +406,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
                       {standings.map(r => (
                         <tr key={r.teamId} className={`border-b last:border-0 ${r.teamId === myId ? 'font-bold bg-yellow-50' : ''}`}>
                           <td className="p-1">{r.rank}</td>
-                          <td className="p-1 whitespace-nowrap">{r.teamId} · {r.teamName}</td>
+                          <td className="p-1 whitespace-nowrap">{no(r.teamId)} · {r.teamName}</td>
                           <td className="p-1 text-center">{r.wins}</td>
                           <td className="p-1 text-center">{r.losses}</td>
                           <td className="p-1 text-center">{r.points}</td>
@@ -362,7 +422,8 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
             <h3 className="text-center text-lg font-bold text-gray-900 mt-6 mb-2">Weekly Results</h3>
             <div className="space-y-2">
               {weekLeaders.map(({ week: w, leaders, played }) => {
-                const side = teamSideForWeek(weeks, myId, w);
+                const wkObj = weeks.find(x => x.week === w);
+                const side = wkObj?.open ? null : teamSideForWeek(weeks, myId, w);
                 const mine = myRow?.weeks[w];
                 return (
                   <Card key={w} className={`border ${w === week ? 'border-gray-400' : 'border-gray-200'}`}>
@@ -370,12 +431,12 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-sm">Week {w}</span>
                         <span className="text-[11px] text-gray-600">
-                          {side && <span className={`inline-block px-1.5 rounded border font-bold mr-2 ${sideClasses[side]}`}>{side}</span>}
+                          {side ? <span className={`inline-block px-1.5 rounded border font-bold mr-2 ${sideClasses[side]}`}>{side}</span> : wkObj?.open ? <span className="inline-block px-1.5 rounded border border-gray-300 text-gray-500 mr-2">open</span> : null}
                           {mine ? `You: ${mine.wins}-${mine.losses}, ${mine.points} pts, ${mine.bostons} Bostons` : ''}
                         </span>
                       </div>
                       {played ? (
-                        <LeagueLeadersPanel leaders={leaders} highlightTeamId={myId} compact />
+                        <LeagueLeadersPanel leaders={leaders} highlightTeamId={no(myId)} compact />
                       ) : (
                         <div className="text-xs text-gray-500 text-center py-1">No games scored yet</div>
                       )}
@@ -396,7 +457,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
-                {selected.state === 'pending_opp' ? 'Confirm Score' : 'Enter Score'} · Week {selected.match.round} vs Team {selected.opponentId}
+                {selected.state === 'pending_opp' ? 'Confirm Score' : 'Enter Score'} · Week {selected.match.round} vs Team {no(selected.opponentId)}
               </h3>
               <Button variant="ghost" size="sm" onClick={cancelEntry}>✕</Button>
             </div>

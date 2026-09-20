@@ -1,0 +1,1008 @@
+{
+ "season": "2026 Fall League",
+ "week": 1,
+ "sourceFile": "2026_FALL_League_Stats_Workbook--WEEK_1_91526.xlsx",
+ "notes": [
+  "Week 1 was open play (no sides). Team 20 did not play; it owes 10 one-sided makeup games.",
+  "Two sheet typos corrected: team 2 game 10 opponent 19 -> 1; team 18 game 8 opponent 14 -> 15."
+ ],
+ "teams": [
+  {
+   "no": 1,
+   "name": "WE'RE BACK",
+   "player1": "Jon Jerrie",
+   "player2": "Rhonda",
+   "members": "Jon Jerrie & Rhonda"
+  },
+  {
+   "no": 2,
+   "name": "MJ",
+   "player1": "Mitchell",
+   "player2": "Johnny",
+   "members": "Mitchell & Johnny"
+  },
+  {
+   "no": 3,
+   "name": "YOGI & DAVE",
+   "player1": "David",
+   "player2": "Yogi",
+   "members": "David & Yogi"
+  },
+  {
+   "no": 4,
+   "name": "AK 47",
+   "player1": "Ann",
+   "player2": "Kim",
+   "members": "Ann & Kim"
+  },
+  {
+   "no": 5,
+   "name": "SOOPA FRIENZ",
+   "player1": "Kelli",
+   "player2": "Shari & Ms.Jackie",
+   "members": "Kelli & Shari & Ms.Jackie"
+  },
+  {
+   "no": 6,
+   "name": "JUST SO LUCKY",
+   "player1": "Jeralyn",
+   "player2": "Louis",
+   "members": "Jeralyn & Louis"
+  },
+  {
+   "no": 7,
+   "name": "ABOUT TIME",
+   "player1": "Guy",
+   "player2": "Lady T",
+   "members": "Guy & Lady T"
+  },
+  {
+   "no": 8,
+   "name": "THE 80'S",
+   "player1": "Rosa",
+   "player2": "Thelma",
+   "members": "Rosa & Thelma"
+  },
+  {
+   "no": 9,
+   "name": "SMOKIE & THE BAND-ANT",
+   "player1": "Ant",
+   "player2": "Dianne",
+   "members": "Ant & Dianne"
+  },
+  {
+   "no": 10,
+   "name": "COMBAT READY",
+   "player1": "Tim",
+   "player2": "Cheri",
+   "members": "Tim & Cheri"
+  },
+  {
+   "no": 11,
+   "name": "BS",
+   "player1": "Marcus",
+   "player2": "Kitty",
+   "members": "Marcus & Kitty"
+  },
+  {
+   "no": 12,
+   "name": "CAP",
+   "player1": "Calvin",
+   "player2": "Peggy",
+   "members": "Calvin & Peggy"
+  },
+  {
+   "no": 13,
+   "name": "2 FOR THE SHOW",
+   "player1": "Courtney",
+   "player2": "Tameica",
+   "members": "Courtney & Tameica"
+  },
+  {
+   "no": 14,
+   "name": "TRAIN WRECK",
+   "player1": "Adrienne",
+   "player2": "Tiffany",
+   "members": "Adrienne & Tiffany"
+  },
+  {
+   "no": 15,
+   "name": "THREE MEN & A STRANGER",
+   "player1": "Harold",
+   "player2": "Patrina",
+   "members": "Harold & Patrina"
+  },
+  {
+   "no": 16,
+   "name": "TRIO",
+   "player1": "Kat",
+   "player2": "Dave & Mike",
+   "members": "Kat & Dave & Mike"
+  },
+  {
+   "no": 17,
+   "name": "LAST DEAL",
+   "player1": "Mr.Willie",
+   "player2": "Jean",
+   "members": "Mr.Willie & Jean"
+  },
+  {
+   "no": 18,
+   "name": "GOOD LUCK",
+   "player1": "Gena",
+   "player2": "Lawrence",
+   "members": "Gena & Lawrence"
+  },
+  {
+   "no": 19,
+   "name": "OLD SCHOOL",
+   "player1": "Dwayne",
+   "player2": "Geneva",
+   "members": "Dwayne & Geneva"
+  },
+  {
+   "no": 20,
+   "name": "TEAM 20",
+   "player1": "Player 1",
+   "player2": "Player 2",
+   "members": ""
+  }
+ ],
+ "games": [
+  {
+   "a": 1,
+   "b": 8,
+   "ptsA": 4,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 1,
+   "b": 12,
+   "ptsA": 4,
+   "ptsB": 10,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 1,
+   "b": 10,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 1,
+   "b": 16,
+   "ptsA": 8,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 1,
+   "b": 7,
+   "ptsA": 10,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 1,
+   "b": 11,
+   "ptsA": 7,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 1,
+   "b": 2,
+   "ptsA": 5,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 1,
+   "b": 6,
+   "ptsA": 8,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 1,
+   "b": 14,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 1,
+   "b": 5,
+   "ptsA": 0,
+   "ptsB": 9,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 2,
+   "b": 3,
+   "ptsA": 4,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 2,
+   "b": 17,
+   "ptsA": 3,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 2,
+   "b": 4,
+   "ptsA": 6,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 2,
+   "b": 19,
+   "ptsA": 0,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 2,
+   "b": 13,
+   "ptsA": 8,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 2,
+   "b": 9,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 2,
+   "b": 15,
+   "ptsA": 4,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 2,
+   "b": 14,
+   "ptsA": 0,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 2,
+   "b": 18,
+   "ptsA": 7,
+   "ptsB": 0,
+   "bosA": 1,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 3,
+   "b": 8,
+   "ptsA": 9,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 3,
+   "b": 12,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 3,
+   "b": 17,
+   "ptsA": 8,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 3,
+   "b": 10,
+   "ptsA": 0,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 3,
+   "b": 16,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 3,
+   "b": 7,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 3,
+   "b": 11,
+   "ptsA": 9,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 3,
+   "b": 6,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 3,
+   "b": 5,
+   "ptsA": 7,
+   "ptsB": 2,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 4,
+   "b": 8,
+   "ptsA": 6,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 4,
+   "b": 12,
+   "ptsA": 3,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 4,
+   "b": 10,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 4,
+   "b": 16,
+   "ptsA": 4,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 4,
+   "b": 19,
+   "ptsA": 9,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 4,
+   "b": 7,
+   "ptsA": 0,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 4,
+   "b": 11,
+   "ptsA": 3,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 4,
+   "b": 6,
+   "ptsA": 6,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 4,
+   "b": 5,
+   "ptsA": 0,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 5,
+   "b": 17,
+   "ptsA": 3,
+   "ptsB": 9,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 5,
+   "b": 19,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 5,
+   "b": 13,
+   "ptsA": 6,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 5,
+   "b": 9,
+   "ptsA": 6,
+   "ptsB": 3,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 5,
+   "b": 15,
+   "ptsA": 0,
+   "ptsB": 14,
+   "bosA": 0,
+   "bosB": 1,
+   "winner": "b"
+  },
+  {
+   "a": 5,
+   "b": 14,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 5,
+   "b": 18,
+   "ptsA": 3,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 6,
+   "b": 17,
+   "ptsA": 5,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 6,
+   "b": 19,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 6,
+   "b": 13,
+   "ptsA": 0,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 6,
+   "b": 9,
+   "ptsA": 8,
+   "ptsB": 3,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 6,
+   "b": 15,
+   "ptsA": 5,
+   "ptsB": 3,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 6,
+   "b": 14,
+   "ptsA": 8,
+   "ptsB": 3,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 6,
+   "b": 18,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 7,
+   "b": 17,
+   "ptsA": 0,
+   "ptsB": 10,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 7,
+   "b": 19,
+   "ptsA": 6,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 7,
+   "b": 13,
+   "ptsA": 3,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 7,
+   "b": 9,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 7,
+   "b": 15,
+   "ptsA": 8,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 7,
+   "b": 14,
+   "ptsA": 9,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 7,
+   "b": 18,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 8,
+   "b": 17,
+   "ptsA": 10,
+   "ptsB": 0,
+   "bosA": 1,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 8,
+   "b": 19,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 8,
+   "b": 13,
+   "ptsA": 4,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 8,
+   "b": 9,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 8,
+   "b": 15,
+   "ptsA": 4,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 8,
+   "b": 14,
+   "ptsA": 8,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 8,
+   "b": 18,
+   "ptsA": 6,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 9,
+   "b": 12,
+   "ptsA": 8,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 9,
+   "b": 10,
+   "ptsA": 0,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 9,
+   "b": 16,
+   "ptsA": 7,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 9,
+   "b": 13,
+   "ptsA": 6,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 9,
+   "b": 11,
+   "ptsA": 7,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 10,
+   "b": 17,
+   "ptsA": 7,
+   "ptsB": 3,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 10,
+   "b": 19,
+   "ptsA": 3,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 10,
+   "b": 13,
+   "ptsA": 4,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 10,
+   "b": 15,
+   "ptsA": 3,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 10,
+   "b": 14,
+   "ptsA": 9,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 10,
+   "b": 18,
+   "ptsA": 4,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 11,
+   "b": 17,
+   "ptsA": 4,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 11,
+   "b": 19,
+   "ptsA": 3,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 11,
+   "b": 13,
+   "ptsA": 0,
+   "ptsB": 6,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 11,
+   "b": 15,
+   "ptsA": 7,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 11,
+   "b": 14,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 11,
+   "b": 18,
+   "ptsA": 8,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 12,
+   "b": 17,
+   "ptsA": 7,
+   "ptsB": 3,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 12,
+   "b": 19,
+   "ptsA": 3,
+   "ptsB": 7,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 12,
+   "b": 13,
+   "ptsA": 0,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 12,
+   "b": 15,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 12,
+   "b": 14,
+   "ptsA": 0,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 12,
+   "b": 18,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 13,
+   "b": 16,
+   "ptsA": 6,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 14,
+   "b": 16,
+   "ptsA": 0,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 15,
+   "b": 16,
+   "ptsA": 7,
+   "ptsB": 0,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 15,
+   "b": 18,
+   "ptsA": 4,
+   "ptsB": 8,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  },
+  {
+   "a": 16,
+   "b": 17,
+   "ptsA": 7,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 16,
+   "b": 19,
+   "ptsA": 6,
+   "ptsB": 4,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "a"
+  },
+  {
+   "a": 16,
+   "b": 18,
+   "ptsA": 0,
+   "ptsB": 5,
+   "bosA": 0,
+   "bosB": 0,
+   "winner": "b"
+  }
+ ]
+}

@@ -24,11 +24,19 @@ import {
   leagueWeekLeaders,
   leagueWeeksFromSchedule,
   leagueWeeksOf,
+  leagueTeamNo,
+  lockedLeagueWeeks,
+  buildMakeupMatch,
+  LEAGUE_GAMES_PER_WEEK,
   teamSideForWeek,
   type LeagueSide,
   type LeagueWeek,
 } from '@/lib/league';
+import { createLeagueTournament, loadSeedWeek, type SeedWeekData } from '@/lib/leagueSeed';
+import week1Data from '@/data/league2026FallWeek1.json';
 import LeagueLeadersPanel from './LeagueLeadersPanel';
+
+const SEED: SeedWeekData = week1Data as SeedWeekData;
 
 const BRAND = '#a60002';
 
@@ -52,7 +60,9 @@ const downloadText = (filename: string, text: string) => {
 const teamLabel = (teams: Team[], id: string) => {
   const t = teams.find(tt => String(tt.id) === String(id));
   if (!t) return `Team ${id}`;
-  return `${t.id} · ${t.player1FirstName || ''}/${t.player2FirstName || ''}`;
+  const players = `${t.player1FirstName || ''}/${t.player2FirstName || ''}`;
+  const isLeagueName = t.name && t.name !== players && !t.name.includes('/');
+  return `${leagueTeamNo(teams, id)} · ${isLeagueName ? t.name : players}`;
 };
 
 // ---------------------------------------------------------------------------
@@ -159,7 +169,7 @@ const MatchScoreEditor: React.FC<{
 // ---------------------------------------------------------------------------
 
 const LeagueManager: React.FC = () => {
-  const { teams, tournaments, schedules, games, getActiveTournament, saveSchedule, updateTournament, refreshGamesFromSupabase, refreshSchedules } = useAppContext();
+  const { teams, tournaments, schedules, games, getActiveTournament, saveSchedule, updateTournament, refreshGamesFromSupabase, refreshSchedules, refreshTeams, refreshTournaments } = useAppContext();
 
   const leagues = useMemo(() => tournaments.filter(isLeagueTournament), [tournaments]);
   const active = getActiveTournament();
@@ -172,7 +182,7 @@ const LeagueManager: React.FC = () => {
 
   const league = leagues.find(l => l.id === selectedId) ?? null;
   const registered = useMemo(
-    () => teams.filter(t => t.registeredTournaments?.includes(league?.id ?? '__none__')).sort((x, y) => Number(x.id) - Number(y.id)),
+    () => teams.filter(t => t.registeredTournaments?.includes(league?.id ?? '__none__')).sort((x, y) => Number(x.teamNumber ?? x.id) - Number(y.teamNumber ?? y.id)),
     [teams, league?.id],
   );
   const schedule = schedules.find(s => s.tournamentId === league?.id) ?? null;
@@ -185,6 +195,65 @@ const LeagueManager: React.FC = () => {
   useEffect(() => { setWeeksInput(String(plannedWeeks)); }, [plannedWeeks, league?.id]);
   const [generating, setGenerating] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState('');
+  const [confirmSeed, setConfirmSeed] = useState(false);
+  const no = (id: string) => leagueTeamNo(teams, id);
+  const locked = useMemo(() => lockedLeagueWeeks(schedule, games), [schedule, games]);
+  const nextWeek = locked.length ? Math.max(...locked) + 1 : 1;
+  const seedLoaded = useMemo(() => weeks.some(w => w.week === SEED.week && w.open), [weeks]);
+
+  // ---- Hand-scored week loader ----------------------------------------------
+  const runSeed = async (tournamentId: string) => {
+    const { supabase } = await import('../supabaseClient');
+    const sched = schedules.find(s => s.tournamentId === tournamentId) ?? null;
+    const res = await loadSeedWeek(supabase, tournamentId, teams, sched, SEED, setSeedMsg);
+    await Promise.all([refreshTeams(), refreshSchedules(), refreshGamesFromSupabase()]);
+    toast({
+      title: `Week ${SEED.week} loaded`,
+      description: `${res.teamsCreated} teams created, ${res.teamsMatched} matched, ${res.gamesInserted} games written${res.skipped ? `, ${res.skipped} already present` : ''}.`,
+    });
+  };
+  const handleSeed = async () => {
+    if (!confirmSeed) { setConfirmSeed(true); return; }
+    setSeeding(true); setSeedMsg('Starting…');
+    try {
+      let id = league?.id;
+      if (!id) {
+        const { supabase } = await import('../supabaseClient');
+        const anyActive = tournaments.some(t => t.status === 'active');
+        id = await createLeagueTournament(supabase, SEED.season, 9, anyActive ? 'pending' : 'active');
+        await refreshTournaments();
+        setSelectedId(id);
+      }
+      await runSeed(id);
+      setConfirmSeed(false);
+    } catch (e) {
+      toast({ title: 'Load failed', description: String(e), variant: 'destructive' });
+    } finally {
+      setSeeding(false); setSeedMsg('');
+    }
+  };
+
+  // ---- Makeup game (one-sided) ------------------------------------------
+  const [mkTeam, setMkTeam] = useState('');
+  const [mkOpp, setMkOpp] = useState('');
+  const [mkWeek, setMkWeek] = useState<number>(1);
+  const addMakeup = async () => {
+    if (!league || !mkTeam || !mkOpp || mkTeam === mkOpp) return;
+    try {
+      const m = buildMakeupMatch(league.id, mkWeek, mkTeam, mkOpp);
+      const { supabase } = await import('../supabaseClient');
+      const { error } = await supabase.from('matches').insert([{ id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: league.id, table_number: m.table, is_bye: false, is_same_city: false }]);
+      if (error) throw new Error(error.message);
+      await refreshSchedules();
+      setSelectedWeek(mkWeek);
+      setEditingMatchId(m.id);
+      toast({ title: `Makeup game added for Team ${no(mkTeam)}`, description: `Week ${mkWeek} vs Team ${no(mkOpp)}. Counts for Team ${no(mkTeam)} only.` });
+    } catch (e) {
+      toast({ title: 'Could not add makeup game', description: String(e), variant: 'destructive' });
+    }
+  };
 
   // Keep scores fresh while the admin is on this tab.
   useEffect(() => {
@@ -199,15 +268,19 @@ const LeagueManager: React.FC = () => {
     const w = parseInt(weeksInput) || plannedWeeks;
     if (n < 4) { toast({ title: 'Need at least 4 registered teams', variant: 'destructive' }); return; }
     if (n % 2 !== 0) { toast({ title: `Even number of teams required (currently ${n})`, description: 'Both sides must be the same size.', variant: 'destructive' }); return; }
-    if (schedule && !confirmRegenerate) { setConfirmRegenerate(true); return; }
+    const hasUnlocked = !!schedule && schedule.matches.some(m => !locked.includes(m.round));
+    if (hasUnlocked && !confirmRegenerate) { setConfirmRegenerate(true); return; }
+    if (nextWeek > w) { toast({ title: `All ${w} weeks are already played or locked`, variant: 'destructive' }); return; }
     setGenerating(true);
     try {
-      const season = generateLeagueSeason(registered.map(t => String(t.id)), w);
-      const matches = buildLeagueMatches(league.id, season);
+      // Weeks already played (or hand-scored) stay exactly as they are; only the rest is generated.
+      const season = generateLeagueSeason(registered.map(t => String(t.id)), w - nextWeek + 1, { startWeek: nextWeek });
+      const kept = (schedule?.matches ?? []).filter(m => locked.includes(m.round));
+      const matches = [...kept, ...buildLeagueMatches(league.id, season)];
       const { supabase } = await import('../supabaseClient');
       if (schedule) {
-        // Regenerating: old match ids go away, so their scores must too.
-        const oldIds = schedule.matches.map(m => m.id);
+        // Replaced match ids go away, so their scores must too (kept weeks untouched).
+        const oldIds = schedule.matches.filter(m => !locked.includes(m.round)).map(m => m.id);
         for (let i = 0; i < oldIds.length; i += 200) {
           const { error } = await supabase.from('games').delete().in('matchId', oldIds.slice(i, i + 200));
           if (error) throw new Error(error.message);
@@ -220,7 +293,7 @@ const LeagueManager: React.FC = () => {
       await Promise.all([refreshSchedules(), refreshGamesFromSupabase()]);
       setConfirmRegenerate(false);
       toast({
-        title: `Season generated: ${w} weeks, ${matches.length} games`,
+        title: nextWeek > 1 ? `Weeks ${nextWeek} to ${w} generated (${season.weeks.length} weeks)` : `Season generated: ${w} weeks, ${matches.length} games`,
         description: `Every pair of teams meets ${season.stats.minPairGames} to ${season.stats.maxPairGames} times; sides balanced within ${season.stats.sideImbalance} week(s).`,
       });
       setTab('season');
@@ -325,6 +398,18 @@ const LeagueManager: React.FC = () => {
             <li>Register the teams to it from the Command Center as usual (20 teams for a 10 / 10 split).</li>
             <li>Come back here and click <strong>Generate Season</strong>.</li>
           </ol>
+          <div className="mt-4 p-3 rounded-lg border-2 border-emerald-400 bg-emerald-50 space-y-2">
+            <div className="font-bold text-emerald-900">{SEED.season}: load Week {SEED.week} from the hand-scored workbook</div>
+            <div className="text-xs text-emerald-900">
+              Creates the league ({SEED.teams.length} teams with their numbers and names, no phone numbers yet) and writes all {SEED.games.length} Week {SEED.week} results as confirmed games.
+              Then generate weeks 2 onward from the League tab.
+            </div>
+            {seedMsg && <div className="text-xs text-gray-600">{seedMsg}</div>}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={handleSeed} disabled={seeding} className="text-white" style={{ backgroundColor: BRAND }}>{seeding ? 'Loading…' : confirmSeed ? 'Yes, create league and load Week 1' : `Create league and load Week ${SEED.week}`}</Button>
+              {confirmSeed && !seeding && <Button variant="outline" onClick={() => setConfirmSeed(false)}>Cancel</Button>}
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
@@ -365,8 +450,24 @@ const LeagueManager: React.FC = () => {
 
           {/* ---------------- Season ---------------- */}
           <TabsContent value="season" className="space-y-4">
+            {!seedLoaded && (
+              <Card className="border-emerald-400">
+                <CardHeader><CardTitle className="text-base">Week {SEED.week} results (hand-scored workbook)</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="text-sm text-gray-700">
+                    {SEED.sourceFile}: {SEED.teams.length} teams, {SEED.games.length} games as played (open play, no sides). Teams are matched by team number, created if missing, and registered to this league.
+                  </div>
+                  <ul className="text-xs text-gray-500 list-disc pl-5">{SEED.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                  {seedMsg && <div className="text-xs text-gray-600">{seedMsg}</div>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button onClick={handleSeed} disabled={seeding} className="text-white" style={{ backgroundColor: BRAND }}>{seeding ? 'Loading…' : confirmSeed ? `Yes, load Week ${SEED.week}` : `Load Week ${SEED.week} results`}</Button>
+                    {confirmSeed && !seeding && <Button variant="outline" onClick={() => setConfirmSeed(false)}>Cancel</Button>}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             <Card>
-              <CardHeader><CardTitle className="text-base">Generate Season</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">{nextWeek > 1 ? `Generate Weeks ${nextWeek} onward` : 'Generate Season'}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex flex-wrap items-end gap-3">
                   <div>
@@ -378,12 +479,13 @@ const LeagueManager: React.FC = () => {
                     {registered.length % 2 === 1 && <span className="text-red-600 font-semibold"> (needs an even count)</span>}
                   </div>
                   <Button onClick={handleGenerate} disabled={generating || registered.length < 4 || registered.length % 2 !== 0} style={{ backgroundColor: BRAND }} className="text-white">
-                    {generating ? 'Generating…' : schedule ? 'Regenerate Season' : 'Generate Season'}
+                    {generating ? 'Generating…' : schedule && schedule.matches.some(m => !locked.includes(m.round)) ? `Regenerate Weeks ${nextWeek}+` : nextWeek > 1 ? `Generate Weeks ${nextWeek} to ${weeksInput}` : 'Generate Season'}
                   </Button>
+                  {locked.length > 0 && <span className="text-xs text-gray-500">Week{locked.length > 1 ? 's' : ''} {locked.join(', ')} {locked.length > 1 ? 'are' : 'is'} locked (played or hand-scored) and will not change.</span>}
                   {confirmRegenerate && (
                     <div className="flex items-center gap-2 p-2 rounded bg-red-50 border border-red-300 text-sm text-red-700">
                       <AlertTriangle className="w-4 h-4" />
-                      This replaces the whole schedule and deletes every league score. Continue?
+                      This replaces weeks {nextWeek} onward and deletes their scores. Locked weeks ({locked.join(', ') || 'none'}) are untouched. Continue?
                       <Button size="sm" variant="destructive" onClick={handleGenerate} disabled={generating}>Yes, regenerate</Button>
                       <Button size="sm" variant="outline" onClick={() => setConfirmRegenerate(false)}>Cancel</Button>
                     </div>
@@ -428,17 +530,18 @@ const LeagueManager: React.FC = () => {
                     </thead>
                     <tbody>
                       {gridTeamIds.map(id => {
-                        const sides = weeks.map(w => teamSideForWeek(weeks, id, w.week));
+                        const sides = weeks.map(w => (w.open ? 'open' : teamSideForWeek(weeks, id, w.week)) as LeagueSide | 'open' | null);
                         const aCount = sides.filter(s => s === 'A').length;
+                        const bCount = sides.filter(s => s === 'B').length;
                         return (
                           <tr key={id} className="odd:bg-white even:bg-gray-50">
                             <td className="p-2 border whitespace-nowrap font-medium">{teamLabel(teams, id)}</td>
                             {sides.map((s, i) => (
                               <td key={i} className="p-1 border text-center">
-                                {s && <span className={`inline-block w-8 py-0.5 rounded border font-bold ${sideClasses[s]}`}>{s}</span>}
+                                {s === 'open' ? <span className="inline-block px-1 py-0.5 rounded border border-gray-300 text-[10px] text-gray-500">open</span> : s && <span className={`inline-block w-8 py-0.5 rounded border font-bold ${sideClasses[s]}`}>{s}</span>}
                               </td>
                             ))}
-                            <td className="p-2 border text-center text-xs text-gray-600">{aCount} / {sides.length - aCount}</td>
+                            <td className="p-2 border text-center text-xs text-gray-600">{aCount} / {bCount}</td>
                           </tr>
                         );
                       })}
@@ -455,10 +558,12 @@ const LeagueManager: React.FC = () => {
                   {weeks.map(w => (
                     <div key={w.week} className="rounded-lg border p-3">
                       <div className="font-bold mb-2">Week {w.week}</div>
-                      {(['A', 'B'] as LeagueSide[]).map(side => (
+                      {w.open ? (
+                        <div className="text-sm text-gray-600"><span className="inline-block px-2 py-0.5 rounded border text-xs font-bold mr-2 border-gray-300">Open play</span>{(w.teams ?? []).length} teams, hand-scored</div>
+                      ) : (['A', 'B'] as LeagueSide[]).map(side => (
                         <div key={side} className="mb-2">
                           <span className={`inline-block px-2 py-0.5 rounded border text-xs font-bold mr-2 ${sideClasses[side]}`}>Side {side}</span>
-                          <span className="text-sm">{(side === 'A' ? w.sideA : w.sideB).join(', ')}</span>
+                          <span className="text-sm">{(side === 'A' ? w.sideA : w.sideB).map(no).join(', ')}</span>
                         </div>
                       ))}
                     </div>
@@ -495,41 +600,74 @@ const LeagueManager: React.FC = () => {
                   </CardContent>
                 </Card>
 
-                {(['A', 'B'] as LeagueSide[]).map(side => {
+                <Card className="border-dashed">
+                  <CardContent className="pt-3 pb-3 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-semibold">Makeup game</span>
+                    <span className="text-xs text-gray-500">for a team that missed a week. Counts for that team only; the opponent's record is not affected.</span>
+                    <select className="border rounded px-2 py-1 bg-white" value={mkTeam} onChange={e => setMkTeam(e.target.value)}>
+                      <option value="">Team owing…</option>
+                      {registered.map(t => <option key={t.id} value={String(t.id)}>{teamLabel(teams, String(t.id))}</option>)}
+                    </select>
+                    <span className="text-xs text-gray-500">vs</span>
+                    <select className="border rounded px-2 py-1 bg-white" value={mkOpp} onChange={e => setMkOpp(e.target.value)}>
+                      <option value="">Opponent…</option>
+                      {registered.filter(t => String(t.id) !== mkTeam).map(t => <option key={t.id} value={String(t.id)}>{teamLabel(teams, String(t.id))}</option>)}
+                    </select>
+                    <span className="text-xs text-gray-500">week</span>
+                    <select className="border rounded px-2 py-1 bg-white" value={mkWeek} onChange={e => setMkWeek(Number(e.target.value))}>
+                      {weeks.map(w => <option key={w.week} value={w.week}>{w.week}</option>)}
+                    </select>
+                    <Button size="sm" disabled={!mkTeam || !mkOpp || mkTeam === mkOpp} onClick={addMakeup} className="text-white" style={{ backgroundColor: BRAND }}>Add and score</Button>
+                  </CardContent>
+                </Card>
+
+                {(() => {
                   const wk = weeks.find(w => w.week === selectedWeek)!;
-                  const roomTeams = side === 'A' ? wk.sideA : wk.sideB;
+                  const sides: (LeagueSide | null)[] = wk.open ? [null] : ['A', 'B'];
+                  return sides.map(side => {
+                  const roomTeams = wk.open ? (wk.teams ?? []) : side === 'A' ? wk.sideA : wk.sideB;
                   const ms = schedule!.matches
-                    .filter(m => m.round === selectedWeek && leagueMatchInfo(m).side === side)
-                    .filter(m => !teamFilter || String(m.teamA) === teamFilter || String(m.teamB) === teamFilter)
-                    .sort((x, y) => Number(x.teamA) - Number(y.teamA) || Number(x.teamB) - Number(y.teamB) || x.id.localeCompare(y.id));
+                    .filter(m => m.round === selectedWeek && (wk.open || leagueMatchInfo(m).side === side || (leagueMatchInfo(m).countsFor !== null && roomTeams.includes(String(m.teamA)))))
+                    .filter(m => !teamFilter || no(String(m.teamA)) === teamFilter || no(String(m.teamB)) === teamFilter)
+                    .sort((x, y) => Number(no(x.teamA)) - Number(no(y.teamA)) || Number(no(x.teamB)) - Number(no(y.teamB)) || x.id.localeCompare(y.id));
                   const doneCount = ms.filter(m => confirmedFor(m)).length;
+                  const playedBy = (t: string) => ms.filter(m => (String(m.teamA) === t || String(m.teamB) === t) && confirmedFor(m) && (!leagueMatchInfo(m).countsFor || leagueMatchInfo(m).countsFor === t)).length;
                   return (
-                    <Card key={side}>
+                    <Card key={side ?? 'open'}>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base flex flex-wrap items-center gap-2">
-                          <span className={`inline-block px-2 py-0.5 rounded border ${sideClasses[side]}`}>Side {side}</span>
+                          {side ? <span className={`inline-block px-2 py-0.5 rounded border ${sideClasses[side]}`}>Side {side}</span> : <span className="inline-block px-2 py-0.5 rounded border border-gray-300">Open play</span>}
                           <span className="text-sm font-normal text-gray-600">Week {selectedWeek} · {roomTeams.length} teams · {doneCount} of {ms.length} games confirmed</span>
                         </CardTitle>
                         <div className="text-xs text-gray-600 flex flex-wrap items-center gap-1">
                           <span className="mr-1">Teams:</span>
                           {roomTeams.map(t => (
-                            <span key={t} className="inline-flex items-center rounded border bg-gray-50 pl-2">
-                              <span className="font-semibold">{t}</span>
-                              <button
-                                type="button"
-                                title={`Team ${t} did not show: record every unplayed Week ${selectedWeek} game as a 0 to ${FORFEIT_WIN_POINTS} loss`}
-                                className="ml-1 px-1.5 py-0.5 text-red-600 hover:bg-red-50 rounded-r"
-                                onClick={() => setForfeitTeam(forfeitTeam === t ? null : t)}
-                              >
-                                <UserX className="w-3 h-3" />
-                              </button>
+                            <span key={t} className="inline-flex items-center rounded border bg-gray-50 pl-2" title={`Team ${no(t)}: ${playedBy(t)} of ${LEAGUE_GAMES_PER_WEEK} games in`}>
+                              <span className="font-semibold">{no(t)}</span>
+                              {wk.open && <span className={`ml-1 text-[10px] ${playedBy(t) >= LEAGUE_GAMES_PER_WEEK ? 'text-green-700' : 'text-orange-700'}`}>{playedBy(t)}/{LEAGUE_GAMES_PER_WEEK}</span>}
+                              {!wk.open && (
+                                <button
+                                  type="button"
+                                  title={`Team ${no(t)} did not show: record every unplayed Week ${selectedWeek} game as a 0 to ${FORFEIT_WIN_POINTS} loss`}
+                                  className="ml-1 px-1.5 py-0.5 text-red-600 hover:bg-red-50 rounded-r"
+                                  onClick={() => setForfeitTeam(forfeitTeam === t ? null : t)}
+                                >
+                                  <UserX className="w-3 h-3" />
+                                </button>
+                              )}
+                              {wk.open && <span className="pr-2" />}
+                            </span>
+                          ))}
+                          {wk.open && registered.filter(t => !roomTeams.includes(String(t.id))).map(t => (
+                            <span key={t.id} className="inline-flex items-center rounded border border-orange-300 bg-orange-50 px-2 text-orange-800" title="No games this week yet">
+                              <span className="font-semibold">{no(String(t.id))}</span><span className="ml-1 text-[10px]">0/{LEAGUE_GAMES_PER_WEEK}</span>
                             </span>
                           ))}
                         </div>
                         {forfeitTeam && roomTeams.includes(forfeitTeam) && (
                           <div className="mt-2 flex flex-wrap items-center gap-2 p-2 rounded bg-red-50 border border-red-300 text-sm text-red-800">
                             <AlertTriangle className="w-4 h-4" />
-                            Team {forfeitTeam} no-show: every unplayed Week {selectedWeek} game becomes a loss, opponents get {FORFEIT_WIN_POINTS} points. Games already scored are untouched.
+                            Team {no(forfeitTeam)} no-show: every unplayed Week {selectedWeek} game becomes a loss, opponents get {FORFEIT_WIN_POINTS} points. Games already scored are untouched.
                             <Button size="sm" variant="destructive" disabled={forfeiting} onClick={() => forfeitWeek(forfeitTeam)}>{forfeiting ? 'Saving…' : 'Yes, forfeit'}</Button>
                             <Button size="sm" variant="outline" disabled={forfeiting} onClick={() => setForfeitTeam(null)}>Cancel</Button>
                           </div>
@@ -548,6 +686,7 @@ const LeagueManager: React.FC = () => {
                                 <span className="text-xs text-gray-400">vs</span>
                                 <span className="font-semibold text-sm w-44 truncate">{teamLabel(teams, m.teamB)}</span>
                                 {info.gameNo === 2 && <Badge variant="outline" className="text-[10px]">2nd game</Badge>}
+                                {info.countsFor && <Badge className="text-[10px] bg-purple-700 text-white" title="One-sided makeup: counts for the owing team only">MAKEUP · counts for {no(info.countsFor)} only</Badge>}
                                 {isForfeitGame(confirmed) && <Badge className="text-[10px] bg-gray-700 text-white">FORFEIT</Badge>}
                                 <span className="ml-auto flex items-center gap-2">
                                   {confirmed ? (
@@ -555,11 +694,11 @@ const LeagueManager: React.FC = () => {
                                       <span className={confirmed.winner === 'teamA' ? 'font-bold text-green-700' : ''}>{confirmed.scoreA}</span>
                                       {' – '}
                                       <span className={confirmed.winner === 'teamB' ? 'font-bold text-green-700' : ''}>{confirmed.scoreB}</span>
-                                      <span className="text-xs text-gray-500 ml-2">W: {confirmed.winner === 'teamA' ? m.teamA : m.teamB}</span>
+                                      <span className="text-xs text-gray-500 ml-2">W: {no(confirmed.winner === 'teamA' ? m.teamA : m.teamB)}</span>
                                     </span>
                                   ) : pending ? (
                                     <Badge className="bg-yellow-200 text-yellow-900 text-[10px]">
-                                      {pending.status === 'entering' ? `Team ${pending.entered_by_team_id} entering` : pending.status === 'pending_confirmation' ? `Entered by ${pending.entered_by_team_id}, awaiting confirm` : pending.status}
+                                      {pending.status === 'entering' ? `Team ${no(String(pending.entered_by_team_id))} entering` : pending.status === 'pending_confirmation' ? `Entered by ${no(String(pending.entered_by_team_id))}, awaiting confirm` : pending.status}
                                     </Badge>
                                   ) : (
                                     <Badge variant="outline" className="text-[10px] text-gray-500">Not played</Badge>
@@ -586,7 +725,8 @@ const LeagueManager: React.FC = () => {
                       </CardContent>
                     </Card>
                   );
-                })}
+                  });
+                })()}
               </>
             )}
           </TabsContent>
@@ -608,7 +748,7 @@ const LeagueManager: React.FC = () => {
                     <Button size="sm" variant="outline" onClick={() => {
                       const header = ['Rank', 'Team #', 'Team', 'W', 'L', 'Played', 'Points', 'Points Against', ...(tracksHands ? ['Hands'] : []), 'Bostons', ...weeks.map(w => `Wk${w.week} W-L`)];
                       const lines = [header.join(',')];
-                      standings.forEach(r => lines.push([r.rank, r.teamId, `"${r.teamName.replace(/"/g, '""')}"`, r.wins, r.losses, r.played, r.points, r.pointsAgainst, ...(tracksHands ? [r.hands] : []), r.bostons, ...weeks.map(w => `${r.weeks[w.week]?.wins ?? 0}-${r.weeks[w.week]?.losses ?? 0}`)].join(',')));
+                      standings.forEach(r => lines.push([r.rank, no(r.teamId), `"${r.teamName.replace(/"/g, '""')}"`, r.wins, r.losses, r.played, r.points, r.pointsAgainst, ...(tracksHands ? [r.hands] : []), r.bostons, ...weeks.map(w => `${r.weeks[w.week]?.wins ?? 0}-${r.weeks[w.week]?.losses ?? 0}`)].join(',')));
                       downloadText(`${league.name.replace(/\s+/g, '_')}_standings.csv`, lines.join('\n'));
                     }}>
                       <Download className="w-4 h-4 mr-1" /> CSV
