@@ -521,6 +521,67 @@ export interface LeagueStandingRow {
 
 const isConfirmed = (g: Game) => Boolean(g.confirmed) || g.status === 'confirmed';
 
+/**
+ * The confirmed rows that count: one per match (the newest when a match has
+ * several), and only rows whose teams match their match. Every standings,
+ * leaders and live-week figure is derived from this list.
+ */
+export const countedGames = (games: Game[], schedule: TournamentSchedule | null | undefined): Game[] => {
+  if (!schedule) return [];
+  const byId = new Map(schedule.matches.map(m => [m.id, m]));
+  const best = new Map<string, Game>();
+  for (const g of games) {
+    if (!isConfirmed(g) || !g.matchId) continue;
+    const m = byId.get(String(g.matchId));
+    if (!m || !gameBelongsToMatch(g, m)) continue;
+    const prev = best.get(m.id);
+    if (!prev || new Date(g.timestamp).getTime() > new Date(prev.timestamp).getTime()) best.set(m.id, g);
+  }
+  return Array.from(best.values());
+};
+
+export interface LeagueAudit {
+  /** Matches carrying more than one confirmed score row; `extra` are the ids standings ignore. */
+  duplicates: { match: ScheduleMatch; kept: Game; extra: Game[] }[];
+  /** Confirmed rows whose match is missing or whose teams do not match the match. */
+  orphans: Game[];
+  /** Teams credited with more games in a week than the week allows. */
+  overCount: { teamId: string; week: number; games: number }[];
+}
+
+/** Data-quality check for a league: duplicate scores, orphan scores, and over-counted weeks. */
+export const leagueAudit = (games: Game[], schedule: TournamentSchedule | null | undefined): LeagueAudit => {
+  const out: LeagueAudit = { duplicates: [], orphans: [], overCount: [] };
+  if (!schedule) return out;
+  const byId = new Map(schedule.matches.map(m => [m.id, m]));
+  const perMatch = new Map<string, Game[]>();
+  for (const g of games) {
+    if (!isConfirmed(g)) continue;
+    const m = byId.get(String(g.matchId));
+    if (!m || !gameBelongsToMatch(g, m)) { out.orphans.push(g); continue; }
+    perMatch.set(m.id, [...(perMatch.get(m.id) ?? []), g]);
+  }
+  for (const [id, rows] of perMatch) {
+    if (rows.length < 2) continue;
+    const sorted = rows.slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    out.duplicates.push({ match: byId.get(id)!, kept: sorted[0], extra: sorted.slice(1) });
+  }
+  const perTeamWeek = new Map<string, number>();
+  for (const g of countedGames(games, schedule)) {
+    const m = byId.get(String(g.matchId))!;
+    const { countsFor } = leagueMatchInfo(m);
+    for (const t of [String(g.teamA), String(g.teamB)]) {
+      if (countsFor && countsFor !== t) continue;
+      const k = `${t}|${m.round}`;
+      perTeamWeek.set(k, (perTeamWeek.get(k) ?? 0) + 1);
+    }
+  }
+  for (const [k, n] of perTeamWeek) {
+    if (n > LEAGUE_GAMES_PER_WEEK) { const [teamId, week] = k.split('|'); out.overCount.push({ teamId, week: Number(week), games: n }); }
+  }
+  return out;
+};
+
 /** A game row belongs to a match only if it is for the same two teams (guards against stale rows). */
 export const gameBelongsToMatch = (g: Game, m: ScheduleMatch): boolean => {
   if (String(g.matchId) !== m.id) return false;
@@ -561,10 +622,8 @@ export const getLeagueStandings = (
     rows.set(id, row);
   }
 
-  for (const g of games) {
-    if (!isConfirmed(g) || !g.matchId) continue;
-    const m = matchById.get(String(g.matchId));
-    if (!m || !gameBelongsToMatch(g, m)) continue;
+  for (const g of countedGames(games, schedule)) {
+    const m = matchById.get(String(g.matchId))!;
     if (throughWeek && m.round > throughWeek) continue;
     const a = rows.get(String(g.teamA));
     const b = rows.get(String(g.teamB));
@@ -646,10 +705,9 @@ export const leagueLiveWeek = (schedule: TournamentSchedule | null | undefined, 
   if (!schedule || schedule.matches.length === 0) return 1;
   const byId = new Map(schedule.matches.map(m => [m.id, m]));
   let live = 0;
-  for (const g of games) {
-    if (!isConfirmed(g)) continue;
+  for (const g of countedGames(games, schedule)) {
     const m = byId.get(String(g.matchId));
-    if (m && gameBelongsToMatch(g, m)) live = Math.max(live, m.round);
+    if (m) live = Math.max(live, m.round);
   }
   return live || 1;
 };

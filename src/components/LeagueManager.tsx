@@ -24,6 +24,7 @@ import {
   leagueWeekLeaders,
   leagueWeeksFromSchedule,
   leagueWeeksOf,
+  leagueAudit,
   leagueTeamNo,
   lockedLeagueWeeks,
   buildMakeupMatch,
@@ -375,6 +376,19 @@ const LeagueManager: React.FC = () => {
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
   const [teamFilter, setTeamFilter] = useState('');
   const [throughWeek, setThroughWeek] = useState<number>(0);
+
+  const audit = useMemo(() => leagueAudit(games, schedule), [games, schedule]);
+  const removeExtraRows = async (ids: string[]) => {
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const { error } = await supabase.from('games').delete().in('id', ids);
+      if (error) throw new Error(error.message);
+      await refreshGamesFromSupabase();
+      toast({ title: `Removed ${ids.length} duplicate score row${ids.length === 1 ? '' : 's'}` });
+    } catch (e) {
+      toast({ title: 'Remove failed', description: String(e), variant: 'destructive' });
+    }
+  };
 
   const standings = useMemo(
     () => getLeagueStandings(teams, games, schedule, throughWeek || undefined),
@@ -841,7 +855,43 @@ const LeagueManager: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
-                  <p className="text-xs text-gray-500 mt-2">Sorted by wins, then total points, then team number. Only confirmed games count.</p>
+                  <p className="text-xs text-gray-500 mt-2">Sorted by wins, then total points, then team number. Only confirmed games count, one score per game.</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {weeks.length > 0 && (
+              <Card className={audit.duplicates.length || audit.orphans.length || audit.overCount.length ? 'border-orange-400' : ''}>
+                <CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-600" /> Data check</CardTitle></CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  {!audit.duplicates.length && !audit.orphans.length && !audit.overCount.length && (
+                    <div className="text-gray-600">Clean: every game has one score, every score belongs to a game, and no team is over {LEAGUE_GAMES_PER_WEEK} games in any week.</div>
+                  )}
+                  {audit.duplicates.length > 0 && (
+                    <div>
+                      <div className="font-semibold text-orange-800">Games with more than one confirmed score ({audit.duplicates.length}). Standings use the newest; the rest can be removed.</div>
+                      {audit.duplicates.map(d => (
+                        <div key={d.match.id} className="flex flex-wrap items-center gap-2 mt-1 p-2 rounded bg-orange-50 border border-orange-200">
+                          <span>Week {d.match.round}: {teamLabel(teams, d.match.teamA)} vs {teamLabel(teams, d.match.teamB)}</span>
+                          <span className="text-xs text-gray-600">kept {d.kept.scoreA}–{d.kept.scoreB} ({new Date(d.kept.timestamp).toLocaleString()}); extra: {d.extra.map(g => `${g.scoreA}–${g.scoreB} by ${g.submittedBy || '?'}`).join(', ')}</span>
+                          <Button size="sm" variant="outline" className="h-7" onClick={() => removeExtraRows(d.extra.map(g => g.id))}><Trash2 className="w-3 h-3 mr-1" /> Remove extra</Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {audit.overCount.length > 0 && (
+                    <div>
+                      <div className="font-semibold text-orange-800">Teams over {LEAGUE_GAMES_PER_WEEK} games in a week</div>
+                      <div className="text-xs text-gray-700">{audit.overCount.map(o => `Team ${no(o.teamId)}: Week ${o.week}, ${o.games} games`).join(' · ')}</div>
+                    </div>
+                  )}
+                  {audit.orphans.length > 0 && (
+                    <div>
+                      <div className="font-semibold text-orange-800">Confirmed scores not attached to any game ({audit.orphans.length}), ignored by standings</div>
+                      <div className="text-xs text-gray-700">{audit.orphans.slice(0, 10).map(g => `${no(String(g.teamA))} vs ${no(String(g.teamB))} ${g.scoreA}–${g.scoreB} (round ${g.round ?? '?'})`).join(' · ')}</div>
+                      <Button size="sm" variant="outline" className="h-7 mt-1" onClick={() => removeExtraRows(audit.orphans.map(g => g.id))}><Trash2 className="w-3 h-3 mr-1" /> Remove orphan rows</Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

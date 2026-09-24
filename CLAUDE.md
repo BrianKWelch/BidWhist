@@ -265,6 +265,12 @@ normal `games` table and the normal entry/confirm/dispute flow.
   Team N · not counted for you" on the opponent's card. Admin has a "Makeup
   game" control on Weekly Games; the owing team can also start one from the
   portal against any registered opponent.
+- **One score per game**: `countedGames` keeps the newest confirmed row per
+  match (teams must match the match); standings, leaders and the live week are
+  all derived from it. `leagueAudit` lists duplicate rows, orphan rows and
+  teams over 10 games in a week; the admin Standings tab shows it as a "Data
+  check" card with remove buttons. Reversed makeups are fixed with the "flip"
+  link on the match row.
 - **Locked weeks**: `lockedLeagueWeeks` = open weeks plus any week with a
   confirmed score. Generation keeps their matches and only (re)generates from
   the next week (`generateLeagueSeason(..., { startWeek })`), deleting scores
