@@ -149,6 +149,13 @@ localStorage is **cleared on startup** for teams/schedules/games/scoreSubmission
 ## Key Business Rules
 
 ### Score Entry Lock System
+
+> Two phones can pass the lock checks in the same instant. `beginScoreEntry`
+> re-reads the match after inserting its `entering` row and backs out if an
+> older rival row (or a pending/confirmed score) exists; `submitGame` refuses
+> to create a second pending score when the opponent's is already in. League
+> standings additionally count only one confirmed row per game.
+
 1. Click "Score" → `beginScoreEntry` inserts `{status: 'entering', entered_by_team_id}` row in games
 2. Lock expires after 5 minutes (stale locks auto-deleted)
 3. Returns `{ ok: false, reason: 'conflict' }` if opponent holds lock
@@ -272,9 +279,12 @@ normal `games` table and the normal entry/confirm/dispute flow.
   check" card with remove buttons. Reversed makeups are fixed with the "flip"
   link on the match row.
 - **Locked weeks**: `lockedLeagueWeeks` = open weeks plus any week with a
-  confirmed score. Generation keeps their matches and only (re)generates from
-  the next week (`generateLeagueSeason(..., { startWeek })`), deleting scores
-  only for the weeks it replaces.
+  confirmed score. Generation only (re)generates from the next week
+  (`generateLeagueSeason(..., { startWeek })`) and deletes/inserts matches by
+  `round >= nextWeek` directly in the database, never via `saveSchedule`, so a
+  makeup added from a phone moments earlier cannot be lost to stale state.
+  An orphaned score (its match gone) can be re-attached with the Data check
+  card's Restore button, which recreates the match under its original id.
 
 ### Generator (`src/lib/league.ts` → `generateLeagueSeason(teamIds, weeks)`)
 1. **Rooms**: simulated annealing over the whole season. A move swaps one team

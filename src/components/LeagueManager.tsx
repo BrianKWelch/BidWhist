@@ -170,7 +170,7 @@ const MatchScoreEditor: React.FC<{
 // ---------------------------------------------------------------------------
 
 const LeagueManager: React.FC = () => {
-  const { teams, tournaments, schedules, games, getActiveTournament, saveSchedule, updateTournament, refreshGamesFromSupabase, refreshSchedules, refreshTeams, refreshTournaments } = useAppContext();
+  const { teams, tournaments, schedules, games, getActiveTournament, updateTournament, refreshGamesFromSupabase, refreshSchedules, refreshTeams, refreshTournaments } = useAppContext();
 
   const leagues = useMemo(() => tournaments.filter(isLeagueTournament), [tournaments]);
   const active = getActiveTournament();
@@ -309,18 +309,25 @@ const LeagueManager: React.FC = () => {
     try {
       // Weeks already played (or hand-scored) stay exactly as they are; only the rest is generated.
       const season = generateLeagueSeason(registered.map(t => String(t.id)), w - nextWeek + 1, { startWeek: nextWeek });
-      const kept = (schedule?.matches ?? []).filter(m => locked.includes(m.round));
-      const matches = [...kept, ...buildLeagueMatches(league.id, season)];
+      const generated = buildLeagueMatches(league.id, season);
+      const matches = [...(schedule?.matches ?? []).filter(m => locked.includes(m.round)), ...generated];
       const { supabase } = await import('../supabaseClient');
-      if (schedule) {
-        // Replaced match ids go away, so their scores must too (kept weeks untouched).
-        const oldIds = schedule.matches.filter(m => !locked.includes(m.round)).map(m => m.id);
-        for (let i = 0; i < oldIds.length; i += 200) {
-          const { error } = await supabase.from('games').delete().in('matchId', oldIds.slice(i, i + 200));
-          if (error) throw new Error(error.message);
-        }
+      // Replace only the weeks being generated, straight from the database, so locked
+      // weeks (and any makeup added from a phone a moment ago) are never touched.
+      const { data: replaced, error: selErr } = await supabase.from('matches').select('id').eq('tournament_id', league.id).gte('round', nextWeek);
+      if (selErr) throw new Error(selErr.message);
+      const oldIds = (replaced || []).map((m: { id: string }) => String(m.id));
+      for (let i = 0; i < oldIds.length; i += 200) {
+        const { error } = await supabase.from('games').delete().in('matchId', oldIds.slice(i, i + 200));
+        if (error) throw new Error(error.message);
       }
-      await saveSchedule({ tournamentId: league.id, rounds: w, matches });
+      const { error: delErr } = await supabase.from('matches').delete().eq('tournament_id', league.id).gte('round', nextWeek);
+      if (delErr) throw new Error(delErr.message);
+      const rows = generated.map(m => ({ id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: league.id, table_number: m.table ?? 0, is_bye: false, is_same_city: false }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await supabase.from('matches').insert(rows.slice(i, i + 200));
+        if (error) throw new Error(error.message);
+      }
       if (w !== leagueWeeksOf(league)) {
         await updateTournament(league.id, league.name, league.cost, league.bostonPotCost, league.description, league.status, undefined, undefined, undefined, undefined, undefined, 'league', w);
       }
@@ -378,6 +385,22 @@ const LeagueManager: React.FC = () => {
   const [throughWeek, setThroughWeek] = useState<number>(0);
 
   const audit = useMemo(() => leagueAudit(games, schedule), [games, schedule]);
+  /** Recreate the missing match for an orphan score so it counts again (keeps its original id, week and makeup marker). */
+  const restoreOrphan = async (g: Game) => {
+    if (!league) return;
+    const id = String(g.matchId);
+    const wk = /-w(\d+)-/.exec(id);
+    const round = wk ? Number(wk[1]) : Number(g.round) || 1;
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const { error } = await supabase.from('matches').insert([{ id, team_a: String(g.teamA), team_b: String(g.teamB), round, tournament_id: league.id, table_number: 0, is_bye: false, is_same_city: false }]);
+      if (error) throw new Error(error.message);
+      await Promise.all([refreshSchedules(), refreshGamesFromSupabase()]);
+      toast({ title: `Restored Week ${round} game ${no(String(g.teamA))} vs ${no(String(g.teamB))}` });
+    } catch (e) {
+      toast({ title: 'Restore failed', description: String(e), variant: 'destructive' });
+    }
+  };
   const removeExtraRows = async (ids: string[]) => {
     try {
       const { supabase } = await import('../supabaseClient');
@@ -888,8 +911,19 @@ const LeagueManager: React.FC = () => {
                   {audit.orphans.length > 0 && (
                     <div>
                       <div className="font-semibold text-orange-800">Confirmed scores not attached to any game ({audit.orphans.length}), ignored by standings</div>
-                      <div className="text-xs text-gray-700">{audit.orphans.slice(0, 10).map(g => `${no(String(g.teamA))} vs ${no(String(g.teamB))} ${g.scoreA}–${g.scoreB} (round ${g.round ?? '?'})`).join(' · ')}</div>
-                      <Button size="sm" variant="outline" className="h-7 mt-1" onClick={() => removeExtraRows(audit.orphans.map(g => g.id))}><Trash2 className="w-3 h-3 mr-1" /> Remove orphan rows</Button>
+                      {audit.orphans.map(g => {
+                        const id = String(g.matchId);
+                        const at = id.lastIndexOf('-for');
+                        const forTeam = at >= 0 ? id.slice(at + 4) : null;
+                        const wk = /-w(\d+)-/.exec(id);
+                        return (
+                          <div key={g.id} className="flex flex-wrap items-center gap-2 mt-1 p-2 rounded bg-orange-50 border border-orange-200 text-xs">
+                            <span>Week {wk ? wk[1] : (g.round ?? '?')}: {teamLabel(teams, String(g.teamA))} vs {teamLabel(teams, String(g.teamB))} · {g.scoreA}–{g.scoreB}{forTeam ? ` · makeup, counts for ${no(forTeam)} only` : ''}</span>
+                            <Button size="sm" variant="outline" className="h-7" onClick={() => restoreOrphan(g)}><Check className="w-3 h-3 mr-1" /> Restore game</Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-red-600" onClick={() => removeExtraRows([g.id])}><Trash2 className="w-3 h-3 mr-1" /> Remove</Button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>

@@ -1023,6 +1023,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     
+    // If the opponent's score already reached pending or confirmed while this one
+    // was being typed, do not create a second score for the same game.
+    const { data: others } = await supabase
+      .from('games')
+      .select('id, status, entered_by_team_id')
+      .eq('matchId', matchId)
+      .in('status', ['pending_confirmation', 'confirmed']);
+    if (others && others.some(g => String(g.id) !== String(existing.id))) {
+      await supabase.from('games').delete().eq('id', existing.id).eq('status', 'entering');
+      await refreshGamesFromSupabase();
+      toast({ title: 'Opponent already entered this score', description: 'Please confirm their entry instead.', variant: 'destructive' });
+      return;
+    }
+
     // Create the game record with pending confirmation status, using the existing ID
     const newGame: Game = {
       id: existing.id, // Use the existing ID from the "entering" row
@@ -2053,6 +2067,24 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (error) {
         console.error('beginScoreEntry upsert error:', error);
         return { ok: false, reason: 'error' as const };
+      }
+      // Two phones can pass the checks above in the same instant. Re-read the match:
+      // if the opponent's row exists too and is older (or the game already has a
+      // pending/confirmed score), back out of ours so only one entry survives.
+      const { data: after } = await supabase
+        .from('games')
+        .select('id, status, entered_by_team_id, timestamp')
+        .eq('matchId', matchId)
+        .in('status', ['entering', 'pending_confirmation', 'confirmed']);
+      const rival = (after || []).find(g =>
+        String(g.id) !== String(id) &&
+        (g.status !== 'entering' || String(g.entered_by_team_id) !== String(teamId)) &&
+        (g.status !== 'entering' || new Date(g.timestamp).getTime() <= new Date(row.timestamp).getTime())
+      );
+      if (rival) {
+        await supabase.from('games').delete().eq('id', id).eq('status', 'entering');
+        await refreshGamesFromSupabase();
+        return { ok: false, reason: 'conflict' as const };
       }
       await refreshGamesFromSupabase();
       return { ok: true };
