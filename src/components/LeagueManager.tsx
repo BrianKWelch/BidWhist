@@ -720,7 +720,7 @@ const LeagueManager: React.FC = () => {
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base flex flex-wrap items-center gap-2">
                           {side ? <span className={`inline-block px-2 py-0.5 rounded border ${sideClasses[side]}`}>Side {side}</span> : <span className="inline-block px-2 py-0.5 rounded border border-gray-300">Open play</span>}
-                          <span className="text-sm font-normal text-gray-600">Week {selectedWeek} · {roomTeams.length} teams · {doneCount} of {ms.length} games confirmed</span>
+                          <span className="text-sm font-normal text-gray-600">Week {selectedWeek} · {roomTeams.length} teams · {doneCount} of {roomMatches.length} games confirmed</span>
                         </CardTitle>
                         <div className="text-xs text-gray-600 flex flex-wrap items-center gap-1">
                           <span className="mr-1">Teams:</span>
