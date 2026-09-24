@@ -1,0 +1,141 @@
+name: Build Meeting Reminder APK
+
+# Builds, tests and signs the Meeting Reminder Android app on GitHub's runners
+# (which have the Android SDK) and publishes the APK as a downloadable artifact.
+# Runs on pushes that touch the app, or manually from the Actions tab.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - claude/meeting-reminder-android-ccn9nt
+    paths:
+      - 'meeting-reminder-android/**'
+      - '.github/workflows/build-meeting-reminder-apk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: meeting-reminder-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: meeting-reminder-android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK packages
+        run: |
+          set -e
+          SDKMGR="$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$SDKMGR" ]; then SDKMGR="$(command -v sdkmanager)"; fi
+          yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+          "$SDKMGR" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Guard: the app must never be able to write to Microsoft 365.
+      - name: Verify read-only Microsoft Graph access
+        run: |
+          set -e
+          SRC=app/src/main
+          if grep -rnE 'requestMethod *= *"(POST|PUT|PATCH|DELETE)"|"(POST|PUT|PATCH|DELETE)"' "$SRC"; then
+            echo "::error::A write HTTP method appears in the app source."; exit 1
+          fi
+          if grep -rnE 'Calendars\.ReadWrite|Calendars\.ReadBasic\.All|\.ReadWrite' "$SRC"; then
+            echo "::error::A write-capable Graph scope appears in the app source."; exit 1
+          fi
+          grep -n 'const val METHOD = "GET"' "$SRC/java/com/brianwelch/meetingreminder/graph/GraphClient.kt"
+          grep -n 'Calendars.Read"' "$SRC/java/com/brianwelch/meetingreminder/auth/AuthConfig.kt"
+          echo "Read-only check passed: only GET requests and the Calendars.Read scope."
+
+      # Stable signing key from repository secrets (see README "Stable signing key").
+      # Without the secret each run signs with a fresh throwaway key, which works
+      # but changes the redirect URI and forces an uninstall between builds.
+      - name: Configure signing
+        env:
+          MR_KEYSTORE_B64: ${{ secrets.MR_KEYSTORE_B64 }}
+          MR_KEYSTORE_PASSWORD: ${{ secrets.MR_KEYSTORE_PASSWORD }}
+          MR_KEY_ALIAS: ${{ secrets.MR_KEY_ALIAS }}
+          MR_KEY_PASSWORD: ${{ secrets.MR_KEY_PASSWORD }}
+        run: |
+          set -e
+          KS="$RUNNER_TEMP/meetingreminder.jks"
+          if [ -n "$MR_KEYSTORE_B64" ]; then
+            echo "$MR_KEYSTORE_B64" | base64 -d > "$KS"
+            STOREPASS="$MR_KEYSTORE_PASSWORD"
+            ALIAS="${MR_KEY_ALIAS:-meetingreminder}"
+            KEYPASS="${MR_KEY_PASSWORD:-$MR_KEYSTORE_PASSWORD}"
+            echo "SIGNING_MODE=stable" >> "$GITHUB_ENV"
+          else
+            STOREPASS="$(openssl rand -hex 16)"
+            ALIAS="meetingreminder"
+            KEYPASS="$STOREPASS"
+            keytool -genkeypair -keystore "$KS" -storetype PKCS12 \
+              -storepass "$STOREPASS" -keypass "$KEYPASS" -alias "$ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Meeting Reminder, O=Personal, C=US" >/dev/null
+            echo "SIGNING_MODE=throwaway" >> "$GITHUB_ENV"
+            echo "::warning::No MR_KEYSTORE_B64 secret: signed with a throwaway key. See README, 'Stable signing key'."
+          fi
+          echo "::add-mask::$STOREPASS"
+          {
+            echo "MR_KEYSTORE_FILE=$KS"
+            echo "MR_KEYSTORE_PASSWORD=$STOREPASS"
+            echo "MR_KEY_ALIAS=$ALIAS"
+            echo "MR_KEY_PASSWORD=$KEYPASS"
+          } >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: Build release APK
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      - name: Report redirect URI
+        run: |
+          set -e
+          HASH="$(keytool -exportcert -alias "$MR_KEY_ALIAS" -keystore "$MR_KEYSTORE_FILE" -storepass "$MR_KEYSTORE_PASSWORD" \
+            | openssl sha1 -binary | openssl base64)"
+          ENC="$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))' "$HASH")"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/MeetingReminder.apk"
+          {
+            echo "## Meeting Reminder APK"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Signing | $SIGNING_MODE |"
+            echo "| Package name | com.brianwelch.meetingreminder |"
+            echo "| Signature hash | \`$HASH\` |"
+            echo "| Redirect URI | \`msauth://com.brianwelch.meetingreminder/$ENC\` |"
+            echo ""
+            echo "Download the **MeetingReminder-apk** artifact below. The app also shows the redirect URI on its setup screen."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: meeting-reminder-android/app/build/reports/tests/
+          if-no-files-found: ignore
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeetingReminder-apk
+          path: ${{ runner.temp }}/MeetingReminder.apk
+          if-no-files-found: error
