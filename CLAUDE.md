@@ -315,7 +315,9 @@ second game of a pair (`leagueMatchInfo(match)` reads week/side/gameNo back).
   entering / awaiting confirm / confirmed), inline admin score entry or edit
   (points, hands if tracked, bostons, tie winner), clear.
   Admin entry deletes any rows for the match and inserts one `confirmed` row.
-- Standings: cumulative or "through week N", per-week W-L with side badge, CSV,
+- Standings: a Show selector offers season to date, "Week N only" (that
+  week's record for every team, sorted by that week's wins then points via
+  `leagueWeekTable`) or season through week N; per-week W-L with side badge, CSV,
   season leaders (wins / points / Bostons) and a Weekly Results grid with the
   three leaders for every week (`leagueSeasonLeaders`, `leagueWeekLeaders`,
   rendered by `LeagueLeadersPanel`; ties list every tied team).
@@ -331,7 +333,8 @@ with the team's side, room-mates, one card per game (open games first, "2nd
 game" badge for the double), the same Score / Confirm / Retract / Re-enter flow
 as tournaments, season leaders, a collapsible standings table, and a Weekly
 Results list showing every week's wins / points / Boston leaders plus the
-team's own line for that week.
+team's own line for that week and a "Show Week N standings" toggle with that
+week's full table.
 
 ### Guards on tournament screens
 `TournamentScheduler`, `CombinedResultsPage` and `QuickScoreEntry` show a

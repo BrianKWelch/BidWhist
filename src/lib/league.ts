@@ -691,6 +691,28 @@ export const leagueWeekLeaders = (rows: LeagueStandingRow[], week: number): Leag
   bostons: topOf(rows, r => r.weeks[week]?.bostons ?? 0),
 });
 
+export interface LeagueWeekRow {
+  teamId: string;
+  teamNumber: number;
+  teamName: string;
+  wins: number;
+  losses: number;
+  points: number;
+  bostons: number;
+  side: LeagueSide | null;
+  rank: number;
+}
+
+/** One week on its own: every team's record for that week, sorted by wins, then points, then team number. */
+export const leagueWeekTable = (rows: LeagueStandingRow[], week: number): LeagueWeekRow[] => {
+  const list = rows.map(r => {
+    const w = r.weeks[week] ?? { wins: 0, losses: 0, points: 0, bostons: 0, side: null };
+    return { teamId: r.teamId, teamNumber: r.teamNumber, teamName: r.teamName, wins: w.wins, losses: w.losses, points: w.points, bostons: w.bostons, side: w.side, rank: 0 };
+  }).sort((x, y) => y.wins - x.wins || y.points - x.points || x.teamNumber - y.teamNumber);
+  list.forEach((r, i) => { r.rank = i + 1; });
+  return list;
+};
+
 /** First week that still has an unconfirmed game (for the whole league, or for one team). */
 /** Marker stored in games.submittedBy for a no-show forfeit. */
 export const FORFEIT_MARK = 'forfeit';

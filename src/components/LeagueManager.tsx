@@ -22,6 +22,7 @@ import {
   leagueMatchInfo,
   leagueSeasonLeaders,
   leagueWeekLeaders,
+  leagueWeekTable,
   leagueWeeksFromSchedule,
   leagueWeeksOf,
   leagueAudit,
@@ -385,6 +386,7 @@ const LeagueManager: React.FC = () => {
   const [showAllGames, setShowAllGames] = useState(false);
   const toggleTeamFilter = (num: string) => { setTeamFilter(f => (f === num ? '' : num)); setEditingMatchId(null); };
   const [throughWeek, setThroughWeek] = useState<number>(0);
+  const [weekOnly, setWeekOnly] = useState<number>(0);
 
   const audit = useMemo(() => leagueAudit(games, schedule), [games, schedule]);
   /** Recreate the missing match for an orphan score so it counts again (keeps its original id, week and makeup marker). */
@@ -836,12 +838,16 @@ const LeagueManager: React.FC = () => {
             ) : (
               <Card>
                 <CardHeader className="flex flex-row flex-wrap items-center justify-between space-y-0 gap-2">
-                  <CardTitle className="text-base">Standings {throughWeek ? `through Week ${throughWeek}` : '(season to date)'}</CardTitle>
+                  <CardTitle className="text-base">{weekOnly ? `Week ${weekOnly} Standings` : `Standings ${throughWeek ? `through Week ${throughWeek}` : '(season to date)'}`}</CardTitle>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Through week</span>
-                    <select className="border rounded px-2 py-1 text-sm bg-white" value={throughWeek} onChange={e => setThroughWeek(Number(e.target.value))}>
-                      <option value={0}>All</option>
-                      {weeks.map(w => <option key={w.week} value={w.week}>{w.week}</option>)}
+                    <span className="text-xs text-gray-500">Show</span>
+                    <select className="border rounded px-2 py-1 text-sm bg-white" value={weekOnly ? `w${weekOnly}` : `t${throughWeek}`} onChange={e => {
+                      const v = e.target.value;
+                      if (v.startsWith('w')) { setWeekOnly(Number(v.slice(1))); setThroughWeek(0); } else { setWeekOnly(0); setThroughWeek(Number(v.slice(1))); }
+                    }}>
+                      <option value="t0">Season to date</option>
+                      {weeks.map(w => <option key={`w${w.week}`} value={`w${w.week}`}>Week {w.week} only</option>)}
+                      {weeks.map(w => <option key={`t${w.week}`} value={`t${w.week}`}>Season through Week {w.week}</option>)}
                     </select>
                     <Button size="sm" variant="outline" onClick={() => {
                       const header = ['Rank', 'Team #', 'Team', 'W', 'L', 'Played', 'Points', 'Points Against', ...(tracksHands ? ['Hands'] : []), 'Bostons', ...weeks.map(w => `Wk${w.week} W-L`)];
@@ -854,6 +860,34 @@ const LeagueManager: React.FC = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
+                  {weekOnly ? (
+                    <table className="text-sm border-collapse w-full">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="p-2 border">#</th>
+                          <th className="p-2 border text-left">Team</th>
+                          <th className="p-2 border">Side</th>
+                          <th className="p-2 border">W</th>
+                          <th className="p-2 border">L</th>
+                          <th className="p-2 border">Pts</th>
+                          <th className="p-2 border">Bostons</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leagueWeekTable(getLeagueStandings(teams, games, schedule), weekOnly).map(r => (
+                          <tr key={r.teamId} className="odd:bg-white even:bg-gray-50">
+                            <td className="p-2 border text-center font-bold">{r.rank}</td>
+                            <td className="p-2 border whitespace-nowrap">{teamLabel(teams, r.teamId)}</td>
+                            <td className="p-2 border text-center">{r.side ? <span className={`inline-block w-5 rounded text-[10px] font-bold ${sideClasses[r.side]}`}>{r.side}</span> : <span className="text-[10px] text-gray-400">open</span>}</td>
+                            <td className="p-2 border text-center font-bold">{r.wins}</td>
+                            <td className="p-2 border text-center">{r.losses}</td>
+                            <td className="p-2 border text-center font-semibold">{r.points}</td>
+                            <td className="p-2 border text-center">{r.bostons}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
                   <table className="text-sm border-collapse w-full">
                     <thead>
                       <tr className="bg-gray-100">
@@ -897,7 +931,8 @@ const LeagueManager: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
-                  <p className="text-xs text-gray-500 mt-2">Sorted by wins, then total points, then team number. Only confirmed games count, one score per game.</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">Sorted by wins, then {weekOnly ? 'points that week' : 'total points'}, then team number. Only confirmed games count, one score per game.</p>
                 </CardContent>
               </Card>
             )}

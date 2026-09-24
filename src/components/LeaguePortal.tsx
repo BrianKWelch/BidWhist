@@ -17,6 +17,7 @@ import {
   leagueMatchInfo,
   leagueSeasonLeaders,
   leagueWeekLeaders,
+  leagueWeekTable,
   leagueWeeksFromSchedule,
   teamSideForWeek,
   type LeagueSide,
@@ -88,6 +89,7 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
   const [holdingLock, setHoldingLock] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showStandings, setShowStandings] = useState(false);
+  const [openWeekTable, setOpenWeekTable] = useState<number | null>(null);
 
   const mySide = teamSideForWeek(weeks, myId, week);
   const roomMates = useMemo(() => {
@@ -436,7 +438,33 @@ const LeaguePortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sco
                         </span>
                       </div>
                       {played ? (
-                        <LeagueLeadersPanel leaders={leaders} highlightTeamId={no(myId)} compact />
+                        <>
+                          <LeagueLeadersPanel leaders={leaders} highlightTeamId={no(myId)} compact />
+                          <button className="mt-2 w-full text-xs font-semibold py-1 rounded border border-gray-300 text-gray-700" onClick={() => setOpenWeekTable(openWeekTable === w ? null : w)}>
+                            {openWeekTable === w ? 'Hide' : 'Show'} Week {w} standings
+                          </button>
+                          {openWeekTable === w && (
+                            <table className="w-full text-xs mt-2">
+                              <thead>
+                                <tr className="text-gray-500 border-b">
+                                  <th className="p-1 text-left">#</th><th className="p-1 text-left">Team</th><th className="p-1">W</th><th className="p-1">L</th><th className="p-1">Pts</th><th className="p-1">Bos</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {leagueWeekTable(standings, w).map(r => (
+                                  <tr key={r.teamId} className={`border-b last:border-0 ${r.teamId === myId ? 'font-bold bg-yellow-50' : ''}`}>
+                                    <td className="p-1">{r.rank}</td>
+                                    <td className="p-1 whitespace-nowrap">{no(r.teamId)} · {r.teamName}</td>
+                                    <td className="p-1 text-center">{r.wins}</td>
+                                    <td className="p-1 text-center">{r.losses}</td>
+                                    <td className="p-1 text-center">{r.points}</td>
+                                    <td className="p-1 text-center">{r.bostons}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </>
                       ) : (
                         <div className="text-xs text-gray-500 text-center py-1">No games scored yet</div>
                       )}
