@@ -52,7 +52,11 @@ fun SettingsContent(
                 }
                 TextButton(onClick = { vm.signOut() }) { Text("Sign out") }
             }
-            else -> OutlinedButton(onClick = onSignIn) { Text("Sign in with Microsoft") }
+            else -> if (settings.isConfigured) {
+                OutlinedButton(onClick = onSignIn) { Text("Sign in with Microsoft") }
+            } else {
+                Text("Enter the app registration IDs below first.", style = MaterialTheme.typography.bodyMedium)
+            }
         }
 
         HorizontalDivider()

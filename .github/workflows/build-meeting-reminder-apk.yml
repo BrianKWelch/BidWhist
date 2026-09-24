@@ -105,6 +105,11 @@ jobs:
       - name: Build release APK
         run: ./gradlew --no-daemon :app:assembleRelease
 
+      - name: Show merged manifest (permissions, receivers, MSAL redirect)
+        run: |
+          M="$(find app/build/intermediates/merged_manifest/release -name AndroidManifest.xml | head -1)"
+          grep -nE 'uses-permission|<receiver|<action |android:scheme|android:host|android:pathPrefix|android:exported|BrowserTabActivity' "$M"
+
       - name: Report redirect URI
         run: |
           set -e
