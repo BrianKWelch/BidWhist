@@ -309,9 +309,11 @@ second game of a pair (`leagueMatchInfo(match)` reads week/side/gameNo back).
 - Season Schedule: weeks input, Generate / Regenerate (regenerate deletes every
   league score, two-click confirm), A/B grid per team per week (CSV + print),
   rooms by week, pair-meeting histogram.
-- Weekly Games: week picker with confirmed counts, per-room match list with
-  status (not played / entering / awaiting confirm / confirmed), inline admin
-  score entry or edit (points, hands if tracked, bostons, tie winner), clear.
+- Weekly Games: week picker with confirmed counts; each room shows its team
+  chips (played/total, click a chip to list only that team's games; a "Show all
+  games" checkbox lists the whole room). Match rows show status (not played /
+  entering / awaiting confirm / confirmed), inline admin score entry or edit
+  (points, hands if tracked, bostons, tie winner), clear.
   Admin entry deletes any rows for the match and inserts one `confirmed` row.
 - Standings: cumulative or "through week N", per-week W-L with side badge, CSV,
   season leaders (wins / points / Bostons) and a Weekly Results grid with the

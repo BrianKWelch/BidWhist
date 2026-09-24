@@ -382,6 +382,8 @@ const LeagueManager: React.FC = () => {
   useEffect(() => { if (schedule) setSelectedWeek(currentLeagueWeek(schedule, games)); }, [schedule?.tournamentId, weeks.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
   const [teamFilter, setTeamFilter] = useState('');
+  const [showAllGames, setShowAllGames] = useState(false);
+  const toggleTeamFilter = (num: string) => { setTeamFilter(f => (f === num ? '' : num)); setEditingMatchId(null); };
   const [throughWeek, setThroughWeek] = useState<number>(0);
 
   const audit = useMemo(() => leagueAudit(games, schedule), [games, schedule]);
@@ -664,8 +666,13 @@ const LeagueManager: React.FC = () => {
                       );
                     })}
                     <div className="ml-auto flex items-center gap-2">
-                      <span className="text-xs text-gray-500">Find team #</span>
-                      <Input value={teamFilter} onChange={e => setTeamFilter(e.target.value.trim())} className="w-20" placeholder="—" />
+                      {teamFilter ? (
+                        <Button size="sm" variant="outline" className="h-8" onClick={() => setTeamFilter('')}>Team {teamFilter} <X className="w-3 h-3 ml-1" /></Button>
+                      ) : (
+                        <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                          <input type="checkbox" checked={showAllGames} onChange={e => setShowAllGames(e.target.checked)} /> Show all games
+                        </label>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -698,12 +705,16 @@ const LeagueManager: React.FC = () => {
                   const sides: (LeagueSide | null)[] = wk.open ? [null] : ['A', 'B'];
                   return sides.map(side => {
                   const roomTeams = wk.open ? (wk.teams ?? []) : side === 'A' ? wk.sideA : wk.sideB;
-                  const ms = schedule!.matches
+                  const roomMatches = schedule!.matches
                     .filter(m => m.round === selectedWeek && (wk.open || leagueMatchInfo(m).side === side || (leagueMatchInfo(m).countsFor !== null && roomTeams.includes(String(m.teamA)))))
-                    .filter(m => !teamFilter || no(String(m.teamA)) === teamFilter || no(String(m.teamB)) === teamFilter)
                     .sort((x, y) => Number(no(x.teamA)) - Number(no(y.teamA)) || Number(no(x.teamB)) - Number(no(y.teamB)) || x.id.localeCompare(y.id));
-                  const doneCount = ms.filter(m => confirmedFor(m)).length;
-                  const playedBy = (t: string) => ms.filter(m => (String(m.teamA) === t || String(m.teamB) === t) && confirmedFor(m) && (!leagueMatchInfo(m).countsFor || leagueMatchInfo(m).countsFor === t)).length;
+                  const ms = roomMatches.filter(m => !teamFilter || no(String(m.teamA)) === teamFilter || no(String(m.teamB)) === teamFilter);
+                  const doneCount = roomMatches.filter(m => confirmedFor(m)).length;
+                  const countsFor = (m: ScheduleMatch, t: string) => { const c = leagueMatchInfo(m).countsFor; return !c || c === t; };
+                  const playedBy = (t: string) => roomMatches.filter(m => (String(m.teamA) === t || String(m.teamB) === t) && confirmedFor(m) && countsFor(m, t)).length;
+                  const owedBy = (t: string) => wk.open ? Math.max(0, LEAGUE_GAMES_PER_WEEK - playedBy(t)) : roomMatches.filter(m => (String(m.teamA) === t || String(m.teamB) === t) && countsFor(m, t) && !confirmedFor(m)).length;
+                  const listOpen = showAllGames || !!teamFilter;
+                  const filteredTeamInRoom = !!teamFilter && (roomTeams.some(t => no(t) === teamFilter) || roomMatches.some(m => no(String(m.teamA)) === teamFilter || no(String(m.teamB)) === teamFilter));
                   return (
                     <Card key={side ?? 'open'}>
                       <CardHeader className="pb-2">
@@ -714,9 +725,11 @@ const LeagueManager: React.FC = () => {
                         <div className="text-xs text-gray-600 flex flex-wrap items-center gap-1">
                           <span className="mr-1">Teams:</span>
                           {roomTeams.map(t => (
-                            <span key={t} className="inline-flex items-center rounded border bg-gray-50 pl-2" title={`Team ${no(t)}: ${playedBy(t)} of ${LEAGUE_GAMES_PER_WEEK} games in`}>
-                              <span className="font-semibold">{no(t)}</span>
-                              {wk.open && <span className={`ml-1 text-[10px] ${playedBy(t) >= LEAGUE_GAMES_PER_WEEK ? 'text-green-700' : 'text-orange-700'}`}>{playedBy(t)}/{LEAGUE_GAMES_PER_WEEK}</span>}
+                            <span key={t} className={`inline-flex items-center rounded border ${teamFilter === no(t) ? 'bg-red-50 border-red-400' : 'bg-gray-50'}`} title={`Team ${no(t)}: ${playedBy(t)} in, ${owedBy(t)} to play. Click to see this team's games.`}>
+                              <button type="button" className="pl-2 pr-1 py-0.5 flex items-center gap-1 hover:text-red-700" onClick={() => toggleTeamFilter(no(t))}>
+                                <span className="font-semibold">{no(t)}</span>
+                                <span className={`text-[10px] ${owedBy(t) === 0 ? 'text-green-700' : 'text-orange-700'}`}>{playedBy(t)}/{playedBy(t) + owedBy(t)}</span>
+                              </button>
                               {!wk.open && (
                                 <button
                                   type="button"
@@ -727,7 +740,7 @@ const LeagueManager: React.FC = () => {
                                   <UserX className="w-3 h-3" />
                                 </button>
                               )}
-                              {wk.open && <span className="pr-2" />}
+                              {wk.open && <span className="pr-1" />}
                             </span>
                           ))}
                           {wk.open && registered.filter(t => !roomTeams.includes(String(t.id))).map(t => (
@@ -745,7 +758,9 @@ const LeagueManager: React.FC = () => {
                           </div>
                         )}
                       </CardHeader>
+                      {listOpen && (!teamFilter || filteredTeamInRoom) && (
                       <CardContent className="space-y-1">
+                        {teamFilter && <div className="text-xs text-gray-600 mb-1">Team {teamFilter}: {ms.filter(m => confirmedFor(m)).length} of {ms.length} games in this week.</div>}
                         {ms.map(m => {
                           const info = leagueMatchInfo(m);
                           const confirmed = confirmedFor(m);
@@ -800,8 +815,12 @@ const LeagueManager: React.FC = () => {
                             </div>
                           );
                         })}
-                        {ms.length === 0 && <div className="text-sm text-gray-500">No games match that filter.</div>}
+                        {ms.length === 0 && <div className="text-sm text-gray-500">No games for that team here.</div>}
                       </CardContent>
+                      )}
+                      {!listOpen && (
+                        <CardContent className="pt-0 text-xs text-gray-500">Click a team to see its games, or tick "Show all games".</CardContent>
+                      )}
                     </Card>
                   );
                   });
