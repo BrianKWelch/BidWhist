@@ -239,6 +239,39 @@ const LeagueManager: React.FC = () => {
   const [mkTeam, setMkTeam] = useState('');
   const [mkOpp, setMkOpp] = useState('');
   const [mkWeek, setMkWeek] = useState<number>(1);
+  /** Teams that still owe games in `week` (played fewer than 10 that count for them). */
+  const owingTeams = (week: number) => {
+    if (!schedule) return [] as Team[];
+    return registered.filter(t => {
+      const id = String(t.id);
+      const played = schedule.matches.filter(m => m.round === week && (String(m.teamA) === id || String(m.teamB) === id))
+        .filter(m => { const c = leagueMatchInfo(m).countsFor; return (!c || c === id) && confirmedFor(m); }).length;
+      return played < LEAGUE_GAMES_PER_WEEK;
+    });
+  };
+
+  /** Move a makeup's credit to the other team, keeping the score. */
+  const flipMakeup = async (m: ScheduleMatch) => {
+    if (!league) return;
+    const { countsFor } = leagueMatchInfo(m);
+    if (!countsFor) return;
+    const other = String(m.teamA) === countsFor ? String(m.teamB) : String(m.teamA);
+    const newId = m.id.slice(0, m.id.lastIndexOf('-for')) + `-for${other}`;
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const { error: e1 } = await supabase.from('matches').insert([{ id: newId, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: league.id, table_number: m.table ?? 0, is_bye: false, is_same_city: false }]);
+      if (e1) throw new Error(e1.message);
+      const { error: e2 } = await supabase.from('games').update({ matchId: newId }).eq('matchId', m.id);
+      if (e2) throw new Error(e2.message);
+      const { error: e3 } = await supabase.from('matches').delete().eq('id', m.id);
+      if (e3) throw new Error(e3.message);
+      await Promise.all([refreshSchedules(), refreshGamesFromSupabase()]);
+      toast({ title: `Makeup now counts for Team ${no(other)} only` });
+    } catch (e) {
+      toast({ title: 'Could not flip makeup', description: String(e), variant: 'destructive' });
+    }
+  };
+
   const addMakeup = async () => {
     if (!league || !mkTeam || !mkOpp || mkTeam === mkOpp) return;
     try {
@@ -603,10 +636,10 @@ const LeagueManager: React.FC = () => {
                 <Card className="border-dashed">
                   <CardContent className="pt-3 pb-3 flex flex-wrap items-center gap-2 text-sm">
                     <span className="font-semibold">Makeup game</span>
-                    <span className="text-xs text-gray-500">for a team that missed a week. Counts for that team only; the opponent's record is not affected.</span>
+                    <span className="text-xs text-gray-500">for a team that missed a week. The first team is the one that <strong>owes</strong> the game; the result counts for it only. The opponent's record is not affected.</span>
                     <select className="border rounded px-2 py-1 bg-white" value={mkTeam} onChange={e => setMkTeam(e.target.value)}>
-                      <option value="">Team owing…</option>
-                      {registered.map(t => <option key={t.id} value={String(t.id)}>{teamLabel(teams, String(t.id))}</option>)}
+                      <option value="">Team that owes the game…</option>
+                      {owingTeams(mkWeek).map(t => <option key={t.id} value={String(t.id)}>{teamLabel(teams, String(t.id))}</option>)}
                     </select>
                     <span className="text-xs text-gray-500">vs</span>
                     <select className="border rounded px-2 py-1 bg-white" value={mkOpp} onChange={e => setMkOpp(e.target.value)}>
@@ -618,6 +651,8 @@ const LeagueManager: React.FC = () => {
                       {weeks.map(w => <option key={w.week} value={w.week}>{w.week}</option>)}
                     </select>
                     <Button size="sm" disabled={!mkTeam || !mkOpp || mkTeam === mkOpp} onClick={addMakeup} className="text-white" style={{ backgroundColor: BRAND }}>Add and score</Button>
+                    {mkTeam && mkOpp && mkTeam !== mkOpp && <span className="text-xs text-purple-700 font-semibold w-full">Counts for Team {no(mkTeam)} only. Team {no(mkOpp)}'s record does not change.</span>}
+                    {owingTeams(mkWeek).length === 0 && <span className="text-xs text-gray-500 w-full">No team owes games in Week {mkWeek}.</span>}
                   </CardContent>
                 </Card>
 
@@ -686,7 +721,14 @@ const LeagueManager: React.FC = () => {
                                 <span className="text-xs text-gray-400">vs</span>
                                 <span className="font-semibold text-sm w-44 truncate">{teamLabel(teams, m.teamB)}</span>
                                 {info.gameNo === 2 && <Badge variant="outline" className="text-[10px]">2nd game</Badge>}
-                                {info.countsFor && <Badge className="text-[10px] bg-purple-700 text-white" title="One-sided makeup: counts for the owing team only">MAKEUP · counts for {no(info.countsFor)} only</Badge>}
+                                {info.countsFor && (
+                                  <>
+                                    <Badge className="text-[10px] bg-purple-700 text-white" title="One-sided makeup: counts for the owing team only">MAKEUP · counts for {no(info.countsFor)} only</Badge>
+                                    <button type="button" className="text-[10px] underline text-purple-700" title="Move the credit to the other team, keeping the score" onClick={() => flipMakeup(m)}>
+                                      flip to {no(String(m.teamA) === info.countsFor ? m.teamB : m.teamA)}
+                                    </button>
+                                  </>
+                                )}
                                 {isForfeitGame(confirmed) && <Badge className="text-[10px] bg-gray-700 text-white">FORFEIT</Badge>}
                                 <span className="ml-auto flex items-center gap-2">
                                   {confirmed ? (
