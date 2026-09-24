@@ -79,8 +79,10 @@ export const leagueWeeksOf = (t?: Tournament | null): number => Number(t?.maltRo
 export const leagueMatchInfo = (m: ScheduleMatch): { week: number; side: LeagueSide | null; gameNo: 1 | 2; countsFor: string | null } => {
   const side: LeagueSide | null = m.table === 2 ? 'B' : m.table === 1 ? 'A' : null;
   const gameNo: 1 | 2 = /-(A|B)\d+x2$/.test(m.id) ? 2 : 1;
-  const mk = /-for([^-]+)$/.exec(m.id);
-  return { week: m.round, side, gameNo, countsFor: mk ? mk[1] : null };
+  // Everything after the last '-for' is the owing team's id (ids may themselves contain dashes).
+  const at = m.id.lastIndexOf('-for');
+  const countsFor = at >= 0 ? m.id.slice(at + 4) : null;
+  return { week: m.round, side, gameNo, countsFor: countsFor || null };
 };
 
 /** A game that counts for one team only (a makeup for a team that missed the week). */
