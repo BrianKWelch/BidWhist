@@ -278,8 +278,17 @@ normal `games` table and the normal entry/confirm/dispute flow.
   teams over 10 games in a week; the admin Standings tab shows it as a "Data
   check" card with remove buttons. Reversed makeups are fixed with the "flip"
   link on the match row.
-- **Locked weeks**: `lockedLeagueWeeks` = open weeks plus any week with a
-  confirmed score. Generation only (re)generates from the next week
+- **Locked weeks**: `lockedLeagueWeeks` = open weeks plus any week with ANY
+  score row (entering, pending or confirmed): a week in play is never rebuilt.
+  Once every planned week exists, the generate card collapses to a notice with
+  an "add weeks" control (raise Total weeks → Generate Weeks N to M, which
+  only appends and never touches existing weeks); rescheduling future weeks
+  sits behind "Advanced", needs the word REGENERATE typed, and is the only
+  path that rebuilds existing unlocked weeks. Unlocked weeks can be re-roomed
+  by hand in "Rooms by Week" (Edit rooms → click teams across sides, add
+  left-out registered teams → Save), which rebuilds that week's 100 games via
+  `buildWeekMatchesFromSides`. The Data check card flags weeks where a
+  registered team has no games. Generation only (re)generates from the next week
   (`generateLeagueSeason(..., { startWeek })`) and deletes/inserts matches by
   `round >= nextWeek` directly in the database, never via `saveSchedule`, so a
   makeup added from a phone moments earlier cannot be lost to stale state.
