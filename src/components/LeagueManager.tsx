@@ -311,6 +311,15 @@ const LeagueManager: React.FC = () => {
     if (!wk) return;
     setEditWeek(w); setEditA(wk.sideA.slice()); setEditB(wk.sideB.slice());
   };
+  const addTeamToWeek = (id: string) => {
+    if (editA.length <= editB.length) setEditA([...editA, id]); else setEditB([...editB, id]);
+  };
+  const removeTeamFromWeek = (id: string) => { setEditA(editA.filter(t => t !== id)); setEditB(editB.filter(t => t !== id)); };
+  // Registered teams that a generated week left out (this is how a bad regenerate shows up).
+  const missingByWeek = useMemo(() => weeks.filter(w => !w.open).map(w => ({
+    week: w.week,
+    missing: registered.map(t => String(t.id)).filter(id => !w.sideA.includes(id) && !w.sideB.includes(id)),
+  })).filter(x => x.missing.length > 0), [weeks, registered]);
   const moveTeam = (id: string) => {
     if (editA.includes(id)) { setEditA(editA.filter(t => t !== id)); setEditB([...editB, id]); }
     else { setEditB(editB.filter(t => t !== id)); setEditA([...editA, id]); }
@@ -704,12 +713,25 @@ const LeagueManager: React.FC = () => {
                       ) : editWeek === w.week ? (
                         <div className="space-y-2 text-sm">
                           <div className="text-xs text-gray-600">Click a team to move it to the other side. Sides must stay equal.</div>
+                          {registered.filter(t => !editA.includes(String(t.id)) && !editB.includes(String(t.id))).length > 0 && (
+                            <div className="p-2 rounded bg-orange-50 border border-orange-300">
+                              <div className="text-xs font-semibold text-orange-800 mb-1">Not in this week yet. Click to add:</div>
+                              <span className="inline-flex flex-wrap gap-1">
+                                {registered.filter(t => !editA.includes(String(t.id)) && !editB.includes(String(t.id))).map(t => (
+                                  <button key={t.id} type="button" className="px-2 py-0.5 rounded border border-orange-400 bg-white hover:bg-orange-100 text-xs font-semibold" onClick={() => addTeamToWeek(String(t.id))}>+ {no(String(t.id))}</button>
+                                ))}
+                              </span>
+                            </div>
+                          )}
                           {(['A', 'B'] as const).map(side => (
                             <div key={side}>
                               <span className={`inline-block px-2 py-0.5 rounded border text-xs font-bold mr-2 ${sideClasses[side]}`}>Side {side} ({(side === 'A' ? editA : editB).length})</span>
                               <span className="inline-flex flex-wrap gap-1 align-middle">
                                 {(side === 'A' ? editA : editB).slice().sort((x, y) => Number(no(x)) - Number(no(y))).map(t => (
-                                  <button key={t} type="button" className="px-2 py-0.5 rounded border bg-white hover:bg-gray-100 text-xs font-semibold" onClick={() => moveTeam(t)}>{no(t)}</button>
+                                  <span key={t} className="inline-flex items-center rounded border bg-white">
+                                    <button type="button" className="px-2 py-0.5 hover:bg-gray-100 text-xs font-semibold" title="Move to the other side" onClick={() => moveTeam(t)}>{no(t)}</button>
+                                    <button type="button" className="px-1 text-[10px] text-gray-400 hover:text-red-600" title="Remove from this week" onClick={() => removeTeamFromWeek(t)}>×</button>
+                                  </span>
                                 ))}
                               </span>
                             </div>
@@ -1035,7 +1057,7 @@ const LeagueManager: React.FC = () => {
               <Card className={audit.duplicates.length || audit.orphans.length || audit.overCount.length ? 'border-orange-400' : ''}>
                 <CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-600" /> Data check</CardTitle></CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  {!audit.duplicates.length && !audit.orphans.length && !audit.overCount.length && (
+                  {!audit.duplicates.length && !audit.orphans.length && !audit.overCount.length && !missingByWeek.length && (
                     <div className="text-gray-600">Clean: every game has one score, every score belongs to a game, and no team is over {LEAGUE_GAMES_PER_WEEK} games in any week.</div>
                   )}
                   {audit.duplicates.length > 0 && (
@@ -1048,6 +1070,15 @@ const LeagueManager: React.FC = () => {
                           <Button size="sm" variant="outline" className="h-7" onClick={() => removeExtraRows(d.extra.map(g => g.id))}><Trash2 className="w-3 h-3 mr-1" /> Remove extra</Button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  {missingByWeek.length > 0 && (
+                    <div>
+                      <div className="font-semibold text-orange-800">Registered teams with no games in a week</div>
+                      <div className="text-xs text-gray-700">
+                        {missingByWeek.map(x => `Week ${x.week}: team${x.missing.length > 1 ? 's' : ''} ${x.missing.map(no).join(', ')}`).join(' · ')}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">Fix: Season Schedule, Rooms by Week, Edit rooms on that week, click the missing teams to add them, Save.</div>
                     </div>
                   )}
                   {audit.overCount.length > 0 && (
