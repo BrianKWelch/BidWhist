@@ -212,6 +212,10 @@ const LeagueManager: React.FC = () => {
   const no = (id: string) => leagueTeamNo(teams, id);
   const locked = useMemo(() => lockedLeagueWeeks(schedule, games), [schedule, games]);
   const nextWeek = locked.length ? Math.max(...locked) + 1 : 1;
+  const maxExistingWeek = weeks.length ? Math.max(...weeks.map(w => w.week)) : 0;
+  // Adding weeks keeps every existing week; only an explicit (advanced) reschedule rebuilds from nextWeek.
+  const [rescheduleArmed, setRescheduleArmed] = useState(false);
+  const startWeek = rescheduleArmed ? nextWeek : Math.max(nextWeek, maxExistingWeek + 1);
   const seedLoaded = useMemo(() => weeks.some(w => w.week === SEED.week && w.open), [weeks]);
 
   // ---- Hand-scored week loader ----------------------------------------------
@@ -355,26 +359,26 @@ const LeagueManager: React.FC = () => {
     const w = parseInt(weeksInput) || plannedWeeks;
     if (n < 4) { toast({ title: 'Need at least 4 registered teams', variant: 'destructive' }); return; }
     if (n % 2 !== 0) { toast({ title: `Even number of teams required (currently ${n})`, description: 'Both sides must be the same size.', variant: 'destructive' }); return; }
-    const hasUnlocked = !!schedule && schedule.matches.some(m => !locked.includes(m.round));
-    if (hasUnlocked && !confirmRegenerate) { setConfirmRegenerate(true); return; }
-    if (nextWeek > w) { toast({ title: `All ${w} weeks are already played or locked`, variant: 'destructive' }); return; }
+    const replacesExisting = !!schedule && schedule.matches.some(m => m.round >= startWeek);
+    if (replacesExisting && !confirmRegenerate) { setConfirmRegenerate(true); return; }
+    if (startWeek > w) { toast({ title: `All ${w} weeks already exist`, description: 'Raise the Weeks number to add more, or use Advanced to reschedule.', variant: 'destructive' }); return; }
     setGenerating(true);
     try {
       // Weeks already played (or hand-scored) stay exactly as they are; only the rest is generated.
-      const season = generateLeagueSeason(registered.map(t => String(t.id)), w - nextWeek + 1, { startWeek: nextWeek });
+      const season = generateLeagueSeason(registered.map(t => String(t.id)), w - startWeek + 1, { startWeek });
       const generated = buildLeagueMatches(league.id, season);
       const matches = [...(schedule?.matches ?? []).filter(m => locked.includes(m.round)), ...generated];
       const { supabase } = await import('../supabaseClient');
       // Replace only the weeks being generated, straight from the database, so locked
       // weeks (and any makeup added from a phone a moment ago) are never touched.
-      const { data: replaced, error: selErr } = await supabase.from('matches').select('id').eq('tournament_id', league.id).gte('round', nextWeek);
+      const { data: replaced, error: selErr } = await supabase.from('matches').select('id').eq('tournament_id', league.id).gte('round', startWeek);
       if (selErr) throw new Error(selErr.message);
       const oldIds = (replaced || []).map((m: { id: string }) => String(m.id));
       for (let i = 0; i < oldIds.length; i += 200) {
         const { error } = await supabase.from('games').delete().in('matchId', oldIds.slice(i, i + 200));
         if (error) throw new Error(error.message);
       }
-      const { error: delErr } = await supabase.from('matches').delete().eq('tournament_id', league.id).gte('round', nextWeek);
+      const { error: delErr } = await supabase.from('matches').delete().eq('tournament_id', league.id).gte('round', startWeek);
       if (delErr) throw new Error(delErr.message);
       const rows = generated.map(m => ({ id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: league.id, table_number: m.table ?? 0, is_bye: false, is_same_city: false }));
       for (let i = 0; i < rows.length; i += 200) {
@@ -387,7 +391,7 @@ const LeagueManager: React.FC = () => {
       await Promise.all([refreshSchedules(), refreshGamesFromSupabase()]);
       setConfirmRegenerate(false);
       toast({
-        title: nextWeek > 1 ? `Weeks ${nextWeek} to ${w} generated (${season.weeks.length} weeks)` : `Season generated: ${w} weeks, ${matches.length} games`,
+        title: startWeek > 1 ? `Weeks ${startWeek} to ${w} generated (${season.weeks.length} weeks)` : `Season generated: ${w} weeks, ${matches.length} games`,
         description: `Every pair of teams meets ${season.stats.minPairGames} to ${season.stats.maxPairGames} times; sides balanced within ${season.stats.sideImbalance} week(s).`,
       });
       setTab('season');
@@ -594,21 +598,31 @@ const LeagueManager: React.FC = () => {
             )}
             {(() => {
               const planned = parseInt(weeksInput) || plannedWeeks;
-              const allGenerated = weeks.length > 0 && weeks.some(w => w.week >= planned);
-              const regenerateMode = allGenerated;
-              if (regenerateMode && !showAdvanced) {
+              const allGenerated = weeks.length > 0 && maxExistingWeek >= plannedWeeks;
+              const regenerateMode = allGenerated && showAdvanced;
+              if (allGenerated && !showAdvanced) {
                 return (
                   <Card>
-                    <CardContent className="pt-4 flex flex-wrap items-center gap-3 text-sm text-gray-700">
-                      <span>Season schedule is complete: weeks 1 to {Math.max(...weeks.map(w => w.week))} are generated. Weeks {locked.join(', ') || 'none'} are locked (played or in play).</span>
-                      <button type="button" className="text-xs underline text-gray-500 ml-auto" onClick={() => setShowAdvanced(true)}>Advanced: reschedule future weeks</button>
+                    <CardContent className="pt-4 space-y-2 text-sm text-gray-700">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span>Season schedule is complete: weeks 1 to {maxExistingWeek} are generated. Weeks {locked.join(', ') || 'none'} are locked (played or in play).</span>
+                        <button type="button" className="text-xs underline text-gray-500 ml-auto" onClick={() => { setShowAdvanced(true); setRescheduleArmed(true); }}>Advanced: reschedule future weeks</button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span>Need a longer season? Total weeks:</span>
+                        <Input type="number" min={maxExistingWeek + 1} max={52} value={weeksInput} onChange={e => setWeeksInput(e.target.value)} className="w-20 h-8" aria-label="Weeks" />
+                        <Button size="sm" className="h-8 text-white" style={{ backgroundColor: BRAND }} disabled={generating || planned <= maxExistingWeek} onClick={handleGenerate}>
+                          {generating ? 'Generating…' : planned > maxExistingWeek ? `Generate Weeks ${maxExistingWeek + 1} to ${planned}` : 'Add weeks'}
+                        </Button>
+                        <span>Existing weeks are never changed by this.</span>
+                      </div>
                     </CardContent>
                   </Card>
                 );
               }
               return (
             <Card className={regenerateMode ? 'border-red-300' : ''}>
-              <CardHeader><CardTitle className="text-base">{regenerateMode ? `Reschedule weeks ${nextWeek} onward (advanced)` : nextWeek > 1 ? `Generate Weeks ${nextWeek} onward` : 'Generate Season'}</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">{regenerateMode ? `Reschedule weeks ${nextWeek} onward (advanced)` : maxExistingWeek > 0 ? `Generate Weeks ${startWeek} to ${planned}` : 'Generate Season'}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 {regenerateMode && (
                   <div className="p-2 rounded bg-red-50 border border-red-300 text-sm text-red-800">
@@ -626,14 +640,15 @@ const LeagueManager: React.FC = () => {
                     {registered.length % 2 === 1 && <span className="text-red-600 font-semibold"> (needs an even count)</span>}
                   </div>
                   <Button onClick={handleGenerate} disabled={generating || registered.length < 4 || registered.length % 2 !== 0 || (regenerateMode && regenTyped !== 'REGENERATE')} style={{ backgroundColor: BRAND }} className="text-white">
-                    {generating ? 'Generating…' : regenerateMode ? `Reschedule Weeks ${nextWeek}+` : nextWeek > 1 ? `Generate Weeks ${nextWeek} to ${weeksInput}` : 'Generate Season'}
+                    {generating ? 'Generating…' : regenerateMode ? `Reschedule Weeks ${nextWeek}+` : maxExistingWeek > 0 ? `Generate Weeks ${startWeek} to ${weeksInput}` : 'Generate Season'}
                   </Button>
-                  {regenerateMode && <Button variant="outline" onClick={() => { setShowAdvanced(false); setRegenTyped(''); setConfirmRegenerate(false); }}>Close</Button>}
-                  {locked.length > 0 && <span className="text-xs text-gray-500">Week{locked.length > 1 ? 's' : ''} {locked.join(', ')} {locked.length > 1 ? 'are' : 'is'} locked (played or hand-scored) and will not change.</span>}
+                  {regenerateMode && <Button variant="outline" onClick={() => { setShowAdvanced(false); setRescheduleArmed(false); setRegenTyped(''); setConfirmRegenerate(false); }}>Close</Button>}
+                  {!regenerateMode && maxExistingWeek > 0 && <span className="text-xs text-gray-500">Weeks 1 to {maxExistingWeek} stay exactly as they are.</span>}
+                  {regenerateMode && locked.length > 0 && <span className="text-xs text-gray-500">Week{locked.length > 1 ? 's' : ''} {locked.join(', ')} {locked.length > 1 ? 'are' : 'is'} locked (played or in play) and will not change.</span>}
                   {confirmRegenerate && (
                     <div className="flex items-center gap-2 p-2 rounded bg-red-50 border border-red-300 text-sm text-red-700">
                       <AlertTriangle className="w-4 h-4" />
-                      This replaces weeks {nextWeek} onward and deletes their scores. Locked weeks ({locked.join(', ') || 'none'}) are untouched. Continue?
+                      This replaces weeks {startWeek} onward and deletes their scores. Locked weeks ({locked.join(', ') || 'none'}) are untouched. Continue?
                       <Button size="sm" variant="destructive" onClick={handleGenerate} disabled={generating}>Yes, regenerate</Button>
                       <Button size="sm" variant="outline" onClick={() => setConfirmRegenerate(false)}>Cancel</Button>
                     </div>
