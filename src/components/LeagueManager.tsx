@@ -29,6 +29,8 @@ import {
   leagueTeamNo,
   lockedLeagueWeeks,
   buildMakeupMatch,
+  buildWeekMatchesFromSides,
+  pairGamesInSchedule,
   LEAGUE_GAMES_PER_WEEK,
   teamSideForWeek,
   type LeagueSide,
@@ -197,6 +199,13 @@ const LeagueManager: React.FC = () => {
   useEffect(() => { setWeeksInput(String(plannedWeeks)); }, [plannedWeeks, league?.id]);
   const [generating, setGenerating] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [regenTyped, setRegenTyped] = useState('');
+  // Room editor for one unlocked week
+  const [editWeek, setEditWeek] = useState<number | null>(null);
+  const [editA, setEditA] = useState<string[]>([]);
+  const [editB, setEditB] = useState<string[]>([]);
+  const [savingRooms, setSavingRooms] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState('');
   const [confirmSeed, setConfirmSeed] = useState(false);
@@ -297,6 +306,40 @@ const LeagueManager: React.FC = () => {
   }, [refreshGamesFromSupabase]);
 
   // ---- Generation ---------------------------------------------------------
+  const openRoomEditor = (w: number) => {
+    const wk = weeks.find(x => x.week === w);
+    if (!wk) return;
+    setEditWeek(w); setEditA(wk.sideA.slice()); setEditB(wk.sideB.slice());
+  };
+  const moveTeam = (id: string) => {
+    if (editA.includes(id)) { setEditA(editA.filter(t => t !== id)); setEditB([...editB, id]); }
+    else { setEditB(editB.filter(t => t !== id)); setEditA([...editA, id]); }
+  };
+  const saveRooms = async () => {
+    if (!league || !schedule || editWeek === null) return;
+    if (editA.length !== editB.length) { toast({ title: 'Both sides need the same number of teams', variant: 'destructive' }); return; }
+    if (locked.includes(editWeek)) { toast({ title: `Week ${editWeek} already has scores and cannot be changed`, variant: 'destructive' }); return; }
+    setSavingRooms(true);
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const { data: touched } = await supabase.from('games').select('id').in('matchId', schedule.matches.filter(m => m.round === editWeek).map(m => m.id));
+      if (touched && touched.length > 0) throw new Error(`Week ${editWeek} has ${touched.length} score row(s); refusing to rebuild it.`);
+      const fresh = buildWeekMatchesFromSides(league.id, editWeek, editA, editB, pairGamesInSchedule(schedule, editWeek));
+      const { error: delErr } = await supabase.from('matches').delete().eq('tournament_id', league.id).eq('round', editWeek);
+      if (delErr) throw new Error(delErr.message);
+      const rows = fresh.map(m => ({ id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: league.id, table_number: m.table ?? 0, is_bye: false, is_same_city: false }));
+      const { error } = await supabase.from('matches').insert(rows);
+      if (error) throw new Error(error.message);
+      await refreshSchedules();
+      setEditWeek(null);
+      toast({ title: `Week ${editWeek} rooms saved`, description: `${rows.length} games rebuilt from the sides you set.` });
+    } catch (e) {
+      toast({ title: 'Could not save rooms', description: String(e), variant: 'destructive' });
+    } finally {
+      setSavingRooms(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!league) return;
     const n = registered.length;
@@ -540,9 +583,30 @@ const LeagueManager: React.FC = () => {
                 </CardContent>
               </Card>
             )}
-            <Card>
-              <CardHeader><CardTitle className="text-base">{nextWeek > 1 ? `Generate Weeks ${nextWeek} onward` : 'Generate Season'}</CardTitle></CardHeader>
+            {(() => {
+              const planned = parseInt(weeksInput) || plannedWeeks;
+              const allGenerated = weeks.length > 0 && weeks.some(w => w.week >= planned);
+              const regenerateMode = allGenerated;
+              if (regenerateMode && !showAdvanced) {
+                return (
+                  <Card>
+                    <CardContent className="pt-4 flex flex-wrap items-center gap-3 text-sm text-gray-700">
+                      <span>Season schedule is complete: weeks 1 to {Math.max(...weeks.map(w => w.week))} are generated. Weeks {locked.join(', ') || 'none'} are locked (played or in play).</span>
+                      <button type="button" className="text-xs underline text-gray-500 ml-auto" onClick={() => setShowAdvanced(true)}>Advanced: reschedule future weeks</button>
+                    </CardContent>
+                  </Card>
+                );
+              }
+              return (
+            <Card className={regenerateMode ? 'border-red-300' : ''}>
+              <CardHeader><CardTitle className="text-base">{regenerateMode ? `Reschedule weeks ${nextWeek} onward (advanced)` : nextWeek > 1 ? `Generate Weeks ${nextWeek} onward` : 'Generate Season'}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
+                {regenerateMode && (
+                  <div className="p-2 rounded bg-red-50 border border-red-300 text-sm text-red-800">
+                    This throws away the room assignments for weeks {nextWeek} onward and builds new ones. Players who were told their rooms will see different ones. Only use this if those weeks have not been announced. Weeks with any score are never touched. Type REGENERATE to enable the button.
+                    <Input value={regenTyped} onChange={e => setRegenTyped(e.target.value)} placeholder="REGENERATE" className="w-44 mt-2 bg-white" />
+                  </div>
+                )}
                 <div className="flex flex-wrap items-end gap-3">
                   <div>
                     <label className="text-xs text-gray-500">Weeks</label>
@@ -552,9 +616,10 @@ const LeagueManager: React.FC = () => {
                     {registered.length} registered teams → {registered.length / 2} per side, {registered.length / 2} games per team per week
                     {registered.length % 2 === 1 && <span className="text-red-600 font-semibold"> (needs an even count)</span>}
                   </div>
-                  <Button onClick={handleGenerate} disabled={generating || registered.length < 4 || registered.length % 2 !== 0} style={{ backgroundColor: BRAND }} className="text-white">
-                    {generating ? 'Generating…' : schedule && schedule.matches.some(m => !locked.includes(m.round)) ? `Regenerate Weeks ${nextWeek}+` : nextWeek > 1 ? `Generate Weeks ${nextWeek} to ${weeksInput}` : 'Generate Season'}
+                  <Button onClick={handleGenerate} disabled={generating || registered.length < 4 || registered.length % 2 !== 0 || (regenerateMode && regenTyped !== 'REGENERATE')} style={{ backgroundColor: BRAND }} className="text-white">
+                    {generating ? 'Generating…' : regenerateMode ? `Reschedule Weeks ${nextWeek}+` : nextWeek > 1 ? `Generate Weeks ${nextWeek} to ${weeksInput}` : 'Generate Season'}
                   </Button>
+                  {regenerateMode && <Button variant="outline" onClick={() => { setShowAdvanced(false); setRegenTyped(''); setConfirmRegenerate(false); }}>Close</Button>}
                   {locked.length > 0 && <span className="text-xs text-gray-500">Week{locked.length > 1 ? 's' : ''} {locked.join(', ')} {locked.length > 1 ? 'are' : 'is'} locked (played or hand-scored) and will not change.</span>}
                   {confirmRegenerate && (
                     <div className="flex items-center gap-2 p-2 rounded bg-red-50 border border-red-300 text-sm text-red-700">
@@ -579,6 +644,8 @@ const LeagueManager: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+              );
+            })()}
 
             {weeks.length > 0 && (
               <Card>
@@ -634,12 +701,39 @@ const LeagueManager: React.FC = () => {
                       <div className="font-bold mb-2">Week {w.week}</div>
                       {w.open ? (
                         <div className="text-sm text-gray-600"><span className="inline-block px-2 py-0.5 rounded border text-xs font-bold mr-2 border-gray-300">Open play</span>{(w.teams ?? []).length} teams, hand-scored</div>
-                      ) : (['A', 'B'] as LeagueSide[]).map(side => (
-                        <div key={side} className="mb-2">
-                          <span className={`inline-block px-2 py-0.5 rounded border text-xs font-bold mr-2 ${sideClasses[side]}`}>Side {side}</span>
-                          <span className="text-sm">{(side === 'A' ? w.sideA : w.sideB).map(no).join(', ')}</span>
+                      ) : editWeek === w.week ? (
+                        <div className="space-y-2 text-sm">
+                          <div className="text-xs text-gray-600">Click a team to move it to the other side. Sides must stay equal.</div>
+                          {(['A', 'B'] as const).map(side => (
+                            <div key={side}>
+                              <span className={`inline-block px-2 py-0.5 rounded border text-xs font-bold mr-2 ${sideClasses[side]}`}>Side {side} ({(side === 'A' ? editA : editB).length})</span>
+                              <span className="inline-flex flex-wrap gap-1 align-middle">
+                                {(side === 'A' ? editA : editB).slice().sort((x, y) => Number(no(x)) - Number(no(y))).map(t => (
+                                  <button key={t} type="button" className="px-2 py-0.5 rounded border bg-white hover:bg-gray-100 text-xs font-semibold" onClick={() => moveTeam(t)}>{no(t)}</button>
+                                ))}
+                              </span>
+                            </div>
+                          ))}
+                          <div className="flex gap-2">
+                            <Button size="sm" className="text-white" style={{ backgroundColor: BRAND }} disabled={savingRooms || editA.length !== editB.length} onClick={saveRooms}>{savingRooms ? 'Saving…' : 'Save rooms'}</Button>
+                            <Button size="sm" variant="outline" disabled={savingRooms} onClick={() => setEditWeek(null)}>Cancel</Button>
+                          </div>
                         </div>
-                      ))}
+                      ) : (
+                        <>
+                          {(['A', 'B'] as LeagueSide[]).map(side => (
+                            <div key={side} className="mb-2">
+                              <span className={`inline-block px-2 py-0.5 rounded border text-xs font-bold mr-2 ${sideClasses[side]}`}>Side {side}</span>
+                              <span className="text-sm">{(side === 'A' ? w.sideA : w.sideB).map(no).join(', ')}</span>
+                            </div>
+                          ))}
+                          {locked.includes(w.week) ? (
+                            <div className="text-[11px] text-gray-500">Locked: has scores</div>
+                          ) : (
+                            <button type="button" className="text-xs underline text-gray-600" onClick={() => openRoomEditor(w.week)}>Edit rooms</button>
+                          )}
+                        </>
+                      )}
                     </div>
                   ))}
                 </CardContent>

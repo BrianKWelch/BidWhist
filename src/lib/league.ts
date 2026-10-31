@@ -773,8 +773,53 @@ export const buildMakeupMatch = (tournamentId: string, week: number, forTeam: st
 export const lockedLeagueWeeks = (schedule: TournamentSchedule | null | undefined, games: Game[]): number[] => {
   if (!schedule) return [];
   const weeks = leagueWeeksFromSchedule(schedule);
-  const confirmedIds = new Set(games.filter(isConfirmed).map(g => String(g.matchId)));
-  return weeks.filter(w => w.open || schedule.matches.some(m => m.round === w.week && confirmedIds.has(m.id))).map(w => w.week);
+  // Any score row at all (entering, pending, confirmed) means the week is in play: never regenerate it.
+  const touchedIds = new Set(games.filter(g => g.matchId).map(g => String(g.matchId)));
+  return weeks.filter(w => w.open || schedule.matches.some(m => m.round === w.week && touchedIds.has(m.id))).map(w => w.week);
+};
+
+/**
+ * Builds one week's matches from rooms the admin chose by hand. Every pair in a
+ * room plays once; the "play twice" pairs are the perfect matching that best
+ * evens out games already scheduled between the same teams elsewhere in the
+ * season (`priorPairGames[a][b]`).
+ */
+export const buildWeekMatchesFromSides = (
+  tournamentId: string,
+  week: number,
+  sideA: string[],
+  sideB: string[],
+  priorPairGames: Record<string, Record<string, number>>,
+  tag: string = Date.now().toString(36),
+): ScheduleMatch[] => {
+  const out: ScheduleMatch[] = [];
+  const rnd = mulberry32(week * 7919 + 17);
+  (['A', 'B'] as LeagueSide[]).forEach(side => {
+    const room = side === 'A' ? sideA : sideB;
+    const idx = room.map((_, i) => i);
+    const games = room.map(a => room.map(b => (a === b ? 0 : (priorPairGames[a]?.[b] ?? 0) + 1)));
+    let n = 0;
+    for (let i = 0; i < room.length; i++) for (let j = i + 1; j < room.length; j++) {
+      out.push({ id: `${tournamentId}-s${tag}-w${week}-${side}${++n}`, teamA: room[i], teamB: room[j], round: week, tournamentId, table: SIDE_TABLE[side], isBye: false, isSameCity: false });
+    }
+    for (const [x, y] of bestMatching(idx, games, rnd)) {
+      out.push({ id: `${tournamentId}-s${tag}-w${week}-${side}${++n}x2`, teamA: room[x], teamB: room[y], round: week, tournamentId, table: SIDE_TABLE[side], isBye: false, isSameCity: false });
+    }
+  });
+  return out;
+};
+
+/** Games between each pair of teams across a schedule, optionally skipping one week. */
+export const pairGamesInSchedule = (schedule: TournamentSchedule | null | undefined, skipWeek?: number): Record<string, Record<string, number>> => {
+  const out: Record<string, Record<string, number>> = {};
+  if (!schedule) return out;
+  for (const m of schedule.matches) {
+    if (m.round === skipWeek) continue;
+    const a = String(m.teamA), b = String(m.teamB);
+    (out[a] ??= {})[b] = (out[a][b] ?? 0) + 1;
+    (out[b] ??= {})[a] = (out[b][a] ?? 0) + 1;
+  }
+  return out;
 };
 
 /**
