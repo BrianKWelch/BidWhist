@@ -550,6 +550,10 @@ export interface LeagueAudit {
   overCount: { teamId: string; week: number; games: number }[];
 }
 
+/** True when a game's match id belongs to this league (all league match ids start with `${tournamentId}-`). */
+export const isLeagueGameId = (tournamentId: string, matchId: unknown): boolean =>
+  typeof matchId === 'string' && matchId.startsWith(`${tournamentId}-`);
+
 /** Data-quality check for a league: duplicate scores, orphan scores, and over-counted weeks. */
 export const leagueAudit = (games: Game[], schedule: TournamentSchedule | null | undefined): LeagueAudit => {
   const out: LeagueAudit = { duplicates: [], orphans: [], overCount: [] };
@@ -558,6 +562,9 @@ export const leagueAudit = (games: Game[], schedule: TournamentSchedule | null |
   const perMatch = new Map<string, Game[]>();
   for (const g of games) {
     if (!isConfirmed(g)) continue;
+    // The games table holds every tournament; only rows whose match id carries this
+    // league's prefix are this league's (its ids are `${tournamentId}-...`).
+    if (!isLeagueGameId(schedule.tournamentId, g.matchId)) continue;
     const m = byId.get(String(g.matchId));
     if (!m || !gameBelongsToMatch(g, m)) { out.orphans.push(g); continue; }
     perMatch.set(m.id, [...(perMatch.get(m.id) ?? []), g]);

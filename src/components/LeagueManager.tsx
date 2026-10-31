@@ -1168,7 +1168,7 @@ const LeagueManager: React.FC = () => {
                       <div className="text-xs text-gray-700">
                         {missingByWeek.map(x => `Week ${x.week}: team${x.missing.length > 1 ? 's' : ''} ${x.missing.map(no).join(', ')}`).join(' · ')}
                       </div>
-                      <div className="text-xs text-gray-600 mt-1">Fix: Season Schedule, Rooms by Week, Edit rooms on that week, click the missing teams to add them, Save.</div>
+                      <div className="text-xs text-gray-600 mt-1">Fix: Season Schedule, Rooms by Week, that week's box. Unlocked week: Edit rooms, click the missing teams, Save. Locked week: use the orange “Missing from this week” panel, which only adds games.</div>
                     </div>
                   )}
                   {audit.overCount.length > 0 && (
