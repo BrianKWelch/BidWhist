@@ -38,6 +38,8 @@ import {
 } from '@/lib/league';
 import { createLeagueTournament, loadSeedWeek, type SeedWeekData } from '@/lib/leagueSeed';
 import week1Data from '@/data/league2026FallWeek1.json';
+import { LeagueRestoreCard } from '@/components/LeagueRestoreCard';
+import { originalTag } from '@/lib/leagueRecover';
 import LeagueLeadersPanel from './LeagueLeadersPanel';
 
 const SEED: SeedWeekData = week1Data as SeedWeekData;
@@ -337,7 +339,7 @@ const LeagueManager: React.FC = () => {
       const { supabase } = await import('../supabaseClient');
       const { data: touched } = await supabase.from('games').select('id').in('matchId', schedule.matches.filter(m => m.round === editWeek).map(m => m.id));
       if (touched && touched.length > 0) throw new Error(`Week ${editWeek} has ${touched.length} score row(s); refusing to rebuild it.`);
-      const fresh = buildWeekMatchesFromSides(league.id, editWeek, editA, editB, pairGamesInSchedule(schedule, editWeek));
+      const fresh = buildWeekMatchesFromSides(league.id, editWeek, editA, editB, pairGamesInSchedule(schedule, editWeek), originalTag(schedule));
       const { error: delErr } = await supabase.from('matches').delete().eq('tournament_id', league.id).eq('round', editWeek);
       if (delErr) throw new Error(delErr.message);
       const rows = fresh.map(m => ({ id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: league.id, table_number: m.table ?? 0, is_bye: false, is_same_city: false }));
@@ -366,7 +368,8 @@ const LeagueManager: React.FC = () => {
     try {
       // Weeks already played (or hand-scored) stay exactly as they are; only the rest is generated.
       const season = generateLeagueSeason(registered.map(t => String(t.id)), w - startWeek + 1, { startWeek });
-      const generated = buildLeagueMatches(league.id, season);
+      // Added weeks keep the season's original tag; a reschedule gets a fresh one so it can be told apart (and undone).
+      const generated = buildLeagueMatches(league.id, season, rescheduleArmed ? undefined : originalTag(schedule));
       const matches = [...(schedule?.matches ?? []).filter(m => locked.includes(m.round)), ...generated];
       const { supabase } = await import('../supabaseClient');
       // Replace only the weeks being generated, straight from the database, so locked
@@ -596,6 +599,7 @@ const LeagueManager: React.FC = () => {
                 </CardContent>
               </Card>
             )}
+            <LeagueRestoreCard league={league} schedule={schedule} games={games} teams={teams} plannedWeeks={plannedWeeks} onRestored={async () => { await Promise.all([refreshSchedules(), refreshGamesFromSupabase(), refreshTeams()]); }} />
             {(() => {
               const planned = parseInt(weeksInput) || plannedWeeks;
               const allGenerated = weeks.length > 0 && maxExistingWeek >= plannedWeeks;

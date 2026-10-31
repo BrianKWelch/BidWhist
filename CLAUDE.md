@@ -295,6 +295,34 @@ normal `games` table and the normal entry/confirm/dispute flow.
   An orphaned score (its match gone) can be re-attached with the Data check
   card's Restore button, which recreates the match under its original id.
 
+### Restoring a schedule after an accidental regenerate (`src/lib/leagueRecover.ts`)
+`generateLeagueSeason` seeds from `Date.now()` and `buildLeagueMatches` stamps
+ids with a base-36 `Date.now()` tag taken right after it returns, so a lost
+generation can be replayed: the original tag is still in the ids of the weeks
+that survived, the seed is a few seconds earlier, and candidate seeds are tried
+(12 attempt seeds per millisecond, `baseSeed + k*7919`) until one reproduces the
+surviving weeks' sides and doubles exactly. The same run then yields the lost
+weeks, rebuilt with the original tag so even the match ids come back.
+- `recoveryTarget(schedule, plannedWeeks)` finds the earliest tag, the weeks it
+  still owns (verified) and the weeks it no longer covers (lost). Null when
+  nothing is lost.
+- `findOriginalSeason` scans offsets 0..60 s on web workers
+  (`leagueRecover.worker.ts`, built as a separate chunk by Vite) and falls
+  back to the main thread. About 0.6 s of CPU per millisecond of offset, so a
+  generation that took 2 s in the browser takes a few minutes on 4 to 8 cores.
+- `planRestore` lists inserts (original ids), deletes (the later tag's rows)
+  and moves scores entered since onto the original game between the same two
+  teams; a score between teams not in the same room that week is kept and
+  reported. `LeagueRestoreCard` (League tab, Season Schedule) shows only when
+  a second tag exists, previews the recovered sides, needs a second click,
+  re-registers teams that are in the original schedule but unregistered, and
+  can be dismissed when the current schedule is intended.
+- Room edits and added weeks reuse `originalTag(schedule)` so they never look
+  like a regenerate; only the Advanced reschedule mints a new tag.
+- Generator code must stay byte-for-byte reproducible for this to work: any
+  change to `initState`, `optimiseRooms`, `bestMatching`, `buildSeasonOnce` or
+  the attempt stride breaks replay of seasons generated before the change.
+
 ### Generator (`src/lib/league.ts` → `generateLeagueSeason(teamIds, weeks)`)
 1. **Rooms**: simulated annealing over the whole season. A move swaps one team
    from A with one from B in one week. Cost penalises pairs that share a room

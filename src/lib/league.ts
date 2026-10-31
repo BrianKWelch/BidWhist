@@ -320,7 +320,8 @@ const bestMatching = (room: number[], games: number[][], rnd: () => number): [nu
   return chosen.map(([x, y]) => [room[x], room[y]] as [number, number]);
 };
 
-const buildSeasonOnce = (teamIds: string[], weeks: number, seed: number, startWeek = 1): LeagueSeason => {
+/** One seeded generation attempt (exported so a lost generation can be replayed from its seed). */
+export const buildSeasonOnce = (teamIds: string[], weeks: number, seed: number, startWeek = 1): LeagueSeason => {
   const n = teamIds.length;
   const rnd = mulberry32(seed);
 
