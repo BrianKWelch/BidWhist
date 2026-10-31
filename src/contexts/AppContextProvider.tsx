@@ -57,6 +57,20 @@ import { AppContext, Team, Game, Tournament, TournamentSchedule, ScoreText, Tour
 import { createTournamentResultMethods } from './AppContextMethods';
 import { generateNextWinLossRound } from '../lib/scheduler';
 
+// PostgREST caps every request at 1000 rows (Supabase default). A whole-table read
+// must page, or rows past the cap silently never reach the app.
+const PAGE_ROWS = 1000;
+const fetchAllRows = async (sb: any, table: string, orderBy: string = 'id'): Promise<{ data: any[] | null; error: any }> => {
+  const out: any[] = [];
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const { data, error } = await sb.from(table).select('*').order(orderBy, { ascending: true }).range(from, from + PAGE_ROWS - 1);
+    if (error) return { data: null, error };
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGE_ROWS) break;
+  }
+  return { data: out, error: null };
+};
+
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // TEMP HOTFIX: Always clear localStorage caches so placeholders are not loaded
   // Remove after tournament when proper cache invalidation is implemented
@@ -273,12 +287,10 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
 
         // Fetch team_registrations join table
-        const { data: registrations, error: regError } = await supabase.from('team_registrations').select('*');
+        const { data: registrations, error: regError } = await fetchAllRows(supabase, 'team_registrations', 'team_id');
         
         // Fetch player tournament payments for all players
-        const { data: playerPayments, error: paymentError } = await supabase
-          .from('player_tournament')
-          .select('*');
+        const { data: playerPayments, error: paymentError } = await fetchAllRows(supabase, 'player_tournament');
 
         if (regError) {
           console.error('Error fetching team registrations:', regError);
@@ -390,7 +402,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Always fetch games from Supabase on load
   useEffect(() => {
     async function fetchGamesFromSupabase() {
-      const { data: gamesData, error } = await supabase.from('games').select('*');
+      const { data: gamesData, error } = await fetchAllRows(supabase, 'games');
       if (error) {
         toast({ title: 'Failed to fetch games from Supabase', description: error.message, variant: 'destructive' });
         setGames([]);
@@ -469,7 +481,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // After submitting a score, fetch games again from Supabase
   const refreshGamesFromSupabase = async () => {
     try {
-      const { data: gamesData, error } = await supabase.from('games').select('*');
+      const { data: gamesData, error } = await fetchAllRows(supabase, 'games');
       if (error) {
         toast({ title: 'Failed to refresh games from Supabase', description: error.message, variant: 'destructive' });
         return;
@@ -576,7 +588,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     async function fetchSchedulesFromSupabase() {
       try {
-        const { data: matches, error } = await supabase.from('matches').select('*');
+        const { data: matches, error } = await fetchAllRows(supabase, 'matches');
         if (error) {
           toast({ title: 'Failed to fetch schedules from Supabase', description: error.message, variant: 'destructive' });
           return;
@@ -625,7 +637,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         { event: '*', schema: 'public', table: 'matches' },
         async () => {
           try {
-            const { data: matches, error } = await supabase.from('matches').select('*');
+            const { data: matches, error } = await fetchAllRows(supabase, 'matches');
             if (error || !matches) return;
             const grouped: { [tournamentId: string]: ScheduleMatch[] } = {};
             matches.forEach((m: any) => {
@@ -1368,7 +1380,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Manual refresh from DB
   const refreshSchedules = async () => {
     try {
-      const { data: matches, error } = await supabase.from('matches').select('*');
+      const { data: matches, error } = await fetchAllRows(supabase, 'matches');
       if (error || !matches) return;
       const grouped: { [tid: string]: ScheduleMatch[] } = {};
       matches.forEach((m: any) => {
@@ -1712,7 +1724,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
 
       // Fetch team_registrations join table
-      const { data: registrations, error: regError } = await supabase.from('team_registrations').select('*');
+      const { data: registrations, error: regError } = await fetchAllRows(supabase, 'team_registrations', 'team_id');
       
       if (regError) {
         console.error('Error fetching team registrations:', regError);
@@ -1744,9 +1756,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       // Fetch player tournament payments for all players
-      const { data: playerPayments, error: paymentError } = await supabase
-        .from('player_tournament')
-        .select('*');
+      const { data: playerPayments, error: paymentError } = await fetchAllRows(supabase, 'player_tournament');
 
       if (paymentError) {
         console.error('Error fetching player payments:', paymentError);
@@ -2231,7 +2241,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
 
           // Refetch team_registrations
-          const { data: registrations, error: regError } = await supabase.from('team_registrations').select('*');
+          const { data: registrations, error: regError } = await fetchAllRows(supabase, 'team_registrations', 'team_id');
 
           if (!teamsError && !regError) {
             // Map registeredTournaments onto each team and populate legacy fields
@@ -2429,7 +2439,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
 
           // Refetch team_registrations
-          const { data: registrations, error: regError } = await supabase.from('team_registrations').select('*');
+          const { data: registrations, error: regError } = await fetchAllRows(supabase, 'team_registrations', 'team_id');
 
           if (!teamsError && !regError) {
             // Fetch player_tournament data to determine Boston Pot status

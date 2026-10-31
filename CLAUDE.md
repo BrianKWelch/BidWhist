@@ -697,3 +697,4 @@ for candidates to resolve in a container.
 8. **HashRouter required** — GitHub Pages has no server-side routing; all navigation must use `#/` prefixed routes
 9. **`docs/` is the build output** — it's committed to git; rebuild and commit `docs/` to deploy
 10. **Score entry lock expires in 5 minutes** — stale `'entering'` rows are automatically cleaned up when a new entry attempt is made
+11. **Supabase returns at most 1000 rows per request.** Every whole-table read in the provider goes through `fetchAllRows` (orders by a column and pages with `.range`). A bare `.select('*')` on `games`, `matches`, `team_registrations` or `player_tournament` silently drops everything past row 1000 — this is what made league matches "vanish" and their scores look orphaned once the league passed ~1000 rows.
