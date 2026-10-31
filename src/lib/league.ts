@@ -885,3 +885,59 @@ export const leagueGridCsv = (weeks: LeagueWeek[], teams: Team[]): string => {
 
 /** Internal hooks for the balance test harness; not used by the app. */
 export const __leagueDebug = { initState, optimiseRooms, roomCost, swapDelta, applySwap, mulberry32 };
+
+/**
+ * Append-only repair for a week that already has scores: adds the games of
+ * teams that are missing from the week without touching any existing match.
+ * Each added team plays every team on its chosen side once (where no such game
+ * exists yet), then second games are added greedily between the two teams on
+ * a side with the fewest games until everyone on the side has a full card or
+ * no new pairing is possible. Ids continue the side's counter under `tag`.
+ */
+export const buildMissingTeamMatches = (
+  tournamentId: string,
+  week: number,
+  schedule: TournamentSchedule,
+  additions: { teamId: string; side: LeagueSide }[],
+  tag: string,
+): ScheduleMatch[] => {
+  const out: ScheduleMatch[] = [];
+  const existing = schedule.matches.filter(m => m.round === week && (m.table === 1 || m.table === 2));
+  (['A', 'B'] as LeagueSide[]).forEach(side => {
+    const added = additions.filter(a => a.side === side).map(a => a.teamId);
+    if (added.length === 0) return;
+    const sideMatches = existing.filter(m => leagueMatchInfo(m).side === side);
+    const room = new Set<string>();
+    for (const m of sideMatches) { room.add(String(m.teamA)); room.add(String(m.teamB)); }
+    for (const t of added) room.add(t);
+    const teams = [...room].sort(byTeamId);
+    const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+    const count = new Map<string, number>();            // games per pair this week on this side
+    const per = new Map<string, number>();              // games per team
+    for (const m of sideMatches) {
+      const a = String(m.teamA), b = String(m.teamB);
+      count.set(key(a, b), (count.get(key(a, b)) ?? 0) + 1);
+      per.set(a, (per.get(a) ?? 0) + 1); per.set(b, (per.get(b) ?? 0) + 1);
+    }
+    let n = 0;
+    for (const m of sideMatches) { const mm = /-[AB](\d+)(x2)?$/.exec(m.id); if (mm) n = Math.max(n, Number(mm[1])); }
+    const push = (a: string, b: string, dbl: boolean) => {
+      out.push({ id: `${tournamentId}-s${tag}-w${week}-${side}${++n}${dbl ? 'x2' : ''}`, teamA: a, teamB: b, round: week, tournamentId, table: SIDE_TABLE[side], isBye: false, isSameCity: false });
+      count.set(key(a, b), (count.get(key(a, b)) ?? 0) + 1);
+      per.set(a, (per.get(a) ?? 0) + 1); per.set(b, (per.get(b) ?? 0) + 1);
+    };
+    // First game against everyone on the side.
+    for (const t of added) for (const o of teams) if (o !== t && !count.has(key(t, o))) push(t, o, false);
+    // Second games: lowest-count pair that has met only once, until the side is full.
+    const full = teams.length;                           // (n-1) first games + 1 second game
+    for (let guard = 0; guard < 50; guard++) {
+      const short = teams.filter(t => (per.get(t) ?? 0) < full).sort((x, y) => (per.get(x) ?? 0) - (per.get(y) ?? 0));
+      let done = false;
+      for (let i = 0; i < short.length && !done; i++) for (let j = i + 1; j < short.length && !done; j++) {
+        if ((count.get(key(short[i], short[j])) ?? 0) === 1) { push(short[i], short[j], true); done = true; }
+      }
+      if (!done) break;
+    }
+  });
+  return out;
+};

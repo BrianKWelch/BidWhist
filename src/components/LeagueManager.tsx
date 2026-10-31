@@ -30,6 +30,7 @@ import {
   lockedLeagueWeeks,
   buildMakeupMatch,
   buildWeekMatchesFromSides,
+  buildMissingTeamMatches,
   pairGamesInSchedule,
   LEAGUE_GAMES_PER_WEEK,
   teamSideForWeek,
@@ -352,6 +353,30 @@ const LeagueManager: React.FC = () => {
       toast({ title: 'Could not save rooms', description: String(e), variant: 'destructive' });
     } finally {
       setSavingRooms(false);
+    }
+  };
+
+  // ---- Append-only repair for a locked week missing registered teams -------
+  const [fixSides, setFixSides] = useState<Record<string, LeagueSide>>({});
+  const [fixingWeek, setFixingWeek] = useState<number | null>(null);
+  const addMissingToWeek = async (w: LeagueWeek, missing: string[]) => {
+    if (!league || !schedule) return;
+    const smaller = (): LeagueSide => (w.sideA.length <= w.sideB.length ? 'A' : 'B');
+    const additions = missing.map(id => ({ teamId: id, side: fixSides[`${w.week}:${id}`] ?? smaller() }));
+    setFixingWeek(w.week);
+    try {
+      const fresh = buildMissingTeamMatches(league.id, w.week, schedule, additions, originalTag(schedule) ?? Date.now().toString(36));
+      if (fresh.length === 0) throw new Error('Nothing to add.');
+      const { supabase } = await import('../supabaseClient');
+      const rows = fresh.map(m => ({ id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: league.id, table_number: m.table ?? 0, is_bye: false, is_same_city: false }));
+      const { error } = await supabase.from('matches').insert(rows);
+      if (error) throw new Error(error.message);
+      await refreshSchedules();
+      toast({ title: `Week ${w.week}: ${rows.length} games added`, description: `Teams ${missing.map(no).join(', ')} are back in Week ${w.week}. No existing game or score was changed.` });
+    } catch (e) {
+      toast({ title: 'Could not add games', description: String(e), variant: 'destructive' });
+    } finally {
+      setFixingWeek(null);
     }
   };
 
@@ -769,7 +794,36 @@ const LeagueManager: React.FC = () => {
                             </div>
                           ))}
                           {locked.includes(w.week) ? (
-                            <div className="text-[11px] text-gray-500">Locked: has scores</div>
+                            <>
+                              <div className="text-[11px] text-gray-500">Locked: has scores</div>
+                              {(() => {
+                                const missing = registered.map(t => String(t.id)).filter(id => !w.sideA.includes(id) && !w.sideB.includes(id));
+                                if (missing.length === 0) return null;
+                                const smaller: LeagueSide = w.sideA.length <= w.sideB.length ? 'A' : 'B';
+                                return (
+                                  <div className="mt-2 p-2 rounded bg-orange-50 border border-orange-300 space-y-1" data-testid={`fix-week-${w.week}`}>
+                                    <div className="text-xs font-semibold text-orange-800">Missing from this week: {missing.map(no).join(', ')}</div>
+                                    <div className="text-[11px] text-gray-700">Pick a side for each, then add their games. Every existing game and score stays exactly as it is.</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {missing.map(id => {
+                                        const cur = fixSides[`${w.week}:${id}`] ?? smaller;
+                                        return (
+                                          <span key={id} className="inline-flex items-center gap-1 text-xs">
+                                            <span className="font-semibold">{no(id)}</span>
+                                            {(['A', 'B'] as LeagueSide[]).map(sd => (
+                                              <button key={sd} type="button" className={`px-1.5 py-0.5 rounded border font-bold ${cur === sd ? sideClasses[sd] : 'bg-white text-gray-400 border-gray-200'}`} onClick={() => setFixSides(p => ({ ...p, [`${w.week}:${id}`]: sd }))}>{sd}</button>
+                                            ))}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                    <Button size="sm" className="h-7 text-white" style={{ backgroundColor: BRAND }} disabled={fixingWeek === w.week} onClick={() => addMissingToWeek(w, missing)}>
+                                      {fixingWeek === w.week ? 'Adding…' : `Add games for ${missing.map(no).join(', ')}`}
+                                    </Button>
+                                  </div>
+                                );
+                              })()}
+                            </>
                           ) : (
                             <button type="button" className="text-xs underline text-gray-600" onClick={() => openRoomEditor(w.week)}>Edit rooms</button>
                           )}

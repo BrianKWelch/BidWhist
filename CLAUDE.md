@@ -294,6 +294,11 @@ normal `games` table and the normal entry/confirm/dispute flow.
   makeup added from a phone moments earlier cannot be lost to stale state.
   An orphaned score (its match gone) can be re-attached with the Data check
   card's Restore button, which recreates the match under its original id.
+  A locked week that is missing registered teams (their matches were deleted
+  while the week's other scores stayed) shows a "Missing from this week"
+  panel in Rooms by Week: pick a side per team, "Add games" appends only the
+  missing pairings and second games (`buildMissingTeamMatches`, ids continue
+  the side counter under the original tag); nothing existing is touched.
 
 ### Restoring a schedule after an accidental regenerate (`src/lib/leagueRecover.ts`)
 `generateLeagueSeason` seeds from `Date.now()` and `buildLeagueMatches` stamps
