@@ -31,6 +31,7 @@ import {
   buildMakeupMatch,
   buildWeekMatchesFromSides,
   buildMissingTeamMatches,
+  planOrphanFixes,
   pairGamesInSchedule,
   LEAGUE_GAMES_PER_WEEK,
   teamSideForWeek,
@@ -473,22 +474,37 @@ const LeagueManager: React.FC = () => {
   const [weekOnly, setWeekOnly] = useState<number>(0);
 
   const audit = useMemo(() => leagueAudit(games, schedule), [games, schedule]);
-  /** Recreate the missing match for an orphan score so it counts again (keeps its original id, week and makeup marker). */
-  const restoreOrphan = async (g: Game) => {
-    if (!league) return;
-    const id = String(g.matchId);
-    const wk = /-w(\d+)-/.exec(id);
-    const round = wk ? Number(wk[1]) : Number(g.round) || 1;
+  /** Bring orphan scores back: attach to an existing match for the pair when one is free, else recreate the match under its original id with its side. */
+  const [restoringOrphans, setRestoringOrphans] = useState(false);
+  const applyOrphanFixes = async (orphans: Game[]) => {
+    if (!league || !schedule) return;
+    const fixes = planOrphanFixes(schedule, games, orphans);
+    if (fixes.length === 0) { toast({ title: 'Nothing to restore' }); return; }
+    setRestoringOrphans(true);
+    let attached = 0, recreated = 0;
     try {
       const { supabase } = await import('../supabaseClient');
-      const { error } = await supabase.from('matches').insert([{ id, team_a: String(g.teamA), team_b: String(g.teamB), round, tournament_id: league.id, table_number: 0, is_bye: false, is_same_city: false }]);
-      if (error) throw new Error(error.message);
+      const rows = fixes.filter(f => f.action === 'recreate').map(f => ({ id: f.matchId, team_a: f.teamA, team_b: f.teamB, round: f.week, tournament_id: league.id, table_number: f.table, is_bye: false, is_same_city: false }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await supabase.from('matches').insert(rows.slice(i, i + 200));
+        if (error) throw new Error(`Recreate matches: ${error.message}`);
+      }
+      recreated = rows.length;
+      for (const f of fixes.filter(x => x.action === 'attach')) {
+        const { error } = await supabase.from('games').update({ matchId: f.matchId }).eq('id', f.gameId);
+        if (error) throw new Error(`Attach score: ${error.message}`);
+        attached++;
+      }
       await Promise.all([refreshSchedules(), refreshGamesFromSupabase()]);
-      toast({ title: `Restored Week ${round} game ${no(String(g.teamA))} vs ${no(String(g.teamB))}` });
+      toast({ title: `${orphans.length} score(s) restored`, description: `${recreated} game row(s) recreated, ${attached} score(s) moved onto an existing game. Standings now count them.` });
     } catch (e) {
       toast({ title: 'Restore failed', description: String(e), variant: 'destructive' });
+      await Promise.all([refreshSchedules(), refreshGamesFromSupabase()]);
+    } finally {
+      setRestoringOrphans(false);
     }
   };
+  const restoreOrphan = (g: Game) => applyOrphanFixes([g]);
   const removeExtraRows = async (ids: string[]) => {
     try {
       const { supabase } = await import('../supabaseClient');
@@ -798,12 +814,13 @@ const LeagueManager: React.FC = () => {
                               <div className="text-[11px] text-gray-500">Locked: has scores</div>
                               {(() => {
                                 const missing = registered.map(t => String(t.id)).filter(id => !w.sideA.includes(id) && !w.sideB.includes(id));
-                                if (missing.length === 0) return null;
                                 const smaller: LeagueSide = w.sideA.length <= w.sideB.length ? 'A' : 'B';
+                                const wouldAdd = schedule ? buildMissingTeamMatches(league!.id, w.week, schedule, missing.map(id => ({ teamId: id, side: fixSides[`${w.week}:${id}`] ?? smaller })), 'preview').length : 0;
+                                if (missing.length === 0 && wouldAdd === 0) return null;
                                 return (
                                   <div className="mt-2 p-2 rounded bg-orange-50 border border-orange-300 space-y-1" data-testid={`fix-week-${w.week}`}>
-                                    <div className="text-xs font-semibold text-orange-800">Missing from this week: {missing.map(no).join(', ')}</div>
-                                    <div className="text-[11px] text-gray-700">Pick a side for each, then add their games. Every existing game and score stays exactly as it is.</div>
+                                    <div className="text-xs font-semibold text-orange-800">{missing.length > 0 ? `Missing from this week: ${missing.map(no).join(', ')}` : 'This week is short of games'} · {wouldAdd} game{wouldAdd === 1 ? '' : 's'} would be added</div>
+                                    <div className="text-[11px] text-gray-700">{missing.length > 0 ? 'Pick a side for each, then add the games. ' : ''}Only pairings with no game yet are added. Every existing game and score stays exactly as it is.</div>
                                     <div className="flex flex-wrap gap-2">
                                       {missing.map(id => {
                                         const cur = fixSides[`${w.week}:${id}`] ?? smaller;
@@ -818,7 +835,7 @@ const LeagueManager: React.FC = () => {
                                       })}
                                     </div>
                                     <Button size="sm" className="h-7 text-white" style={{ backgroundColor: BRAND }} disabled={fixingWeek === w.week} onClick={() => addMissingToWeek(w, missing)}>
-                                      {fixingWeek === w.week ? 'Adding…' : `Add games for ${missing.map(no).join(', ')}`}
+                                      {fixingWeek === w.week ? 'Adding…' : missing.length > 0 ? `Add games for ${missing.map(no).join(', ')}` : `Add the ${wouldAdd} missing game${wouldAdd === 1 ? '' : 's'}`}
                                     </Button>
                                   </div>
                                 );
@@ -1162,7 +1179,13 @@ const LeagueManager: React.FC = () => {
                   )}
                   {audit.orphans.length > 0 && (
                     <div>
-                      <div className="font-semibold text-orange-800">Confirmed scores not attached to any game ({audit.orphans.length}), ignored by standings</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-orange-800">Confirmed scores not attached to any game ({audit.orphans.length}), ignored by standings</span>
+                        <Button size="sm" className="h-7 text-white" style={{ backgroundColor: BRAND }} disabled={restoringOrphans} onClick={() => applyOrphanFixes(audit.orphans)} data-testid="restore-all-orphans">
+                          <Check className="w-3 h-3 mr-1" /> {restoringOrphans ? 'Restoring…' : `Restore all ${audit.orphans.length}`}
+                        </Button>
+                      </div>
+                      <div className="text-xs text-gray-600 mt-0.5">Each score goes back onto its game with its side and week. No existing score is changed.</div>
                       {audit.orphans.map(g => {
                         const id = String(g.matchId);
                         const at = id.lastIndexOf('-for');

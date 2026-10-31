@@ -888,7 +888,8 @@ export const __leagueDebug = { initState, optimiseRooms, roomCost, swapDelta, ap
 
 /**
  * Append-only repair for a week that already has scores: adds the games of
- * teams that are missing from the week without touching any existing match.
+ * teams that are missing from the week, and any pairing on a side that has no
+ * match at all, without touching any existing match.
  * Each added team plays every team on its chosen side once (where no such game
  * exists yet), then second games are added greedily between the two teams on
  * a side with the fewest games until everyone on the side has a full card or
@@ -905,11 +906,11 @@ export const buildMissingTeamMatches = (
   const existing = schedule.matches.filter(m => m.round === week && (m.table === 1 || m.table === 2));
   (['A', 'B'] as LeagueSide[]).forEach(side => {
     const added = additions.filter(a => a.side === side).map(a => a.teamId);
-    if (added.length === 0) return;
     const sideMatches = existing.filter(m => leagueMatchInfo(m).side === side);
     const room = new Set<string>();
     for (const m of sideMatches) { room.add(String(m.teamA)); room.add(String(m.teamB)); }
     for (const t of added) room.add(t);
+    if (room.size < 2) return;
     const teams = [...room].sort(byTeamId);
     const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
     const count = new Map<string, number>();            // games per pair this week on this side
@@ -926,8 +927,8 @@ export const buildMissingTeamMatches = (
       count.set(key(a, b), (count.get(key(a, b)) ?? 0) + 1);
       per.set(a, (per.get(a) ?? 0) + 1); per.set(b, (per.get(b) ?? 0) + 1);
     };
-    // First game against everyone on the side.
-    for (const t of added) for (const o of teams) if (o !== t && !count.has(key(t, o))) push(t, o, false);
+    // Every pair on the side meets once (covers added teams and any pairing whose match was lost).
+    for (let i = 0; i < teams.length; i++) for (let j = i + 1; j < teams.length; j++) if (!count.has(key(teams[i], teams[j]))) push(teams[i], teams[j], false);
     // Second games: lowest-count pair that has met only once, until the side is full.
     const full = teams.length;                           // (n-1) first games + 1 second game
     for (let guard = 0; guard < 50; guard++) {
@@ -940,4 +941,55 @@ export const buildMissingTeamMatches = (
     }
   });
   return out;
+};
+
+export interface OrphanFix {
+  gameId: string;
+  /** attach: point the score at an existing match for the same pair; recreate: insert the match row the score names. */
+  action: 'attach' | 'recreate';
+  matchId: string;
+  week: number;
+  table: number;
+  teamA: string;
+  teamB: string;
+}
+
+/**
+ * Plans how to bring orphan scores back into the standings without creating
+ * extra games. For each orphan (newest confirmed first), if the week already
+ * has a match between the same two teams with no confirmed score, the score
+ * is moved onto it; otherwise the match it names is recreated under its
+ * original id, with the side read from that id (A/B), or from the week's
+ * rooms, or sideless as a last resort.
+ */
+export const planOrphanFixes = (schedule: TournamentSchedule, games: Game[], orphans: Game[]): OrphanFix[] => {
+  const fixes: OrphanFix[] = [];
+  const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const weeks = leagueWeeksFromSchedule(schedule);
+  const taken = new Set<string>();
+  for (const m of schedule.matches) if (games.some(g => g.status === 'confirmed' && gameBelongsToMatch(g, m))) taken.add(m.id);
+  const recreated = new Set<string>();
+  const sorted = orphans.slice().sort((x, y) => Number(y.status === 'confirmed') - Number(x.status === 'confirmed'));
+  for (const g of sorted) {
+    const id = String(g.matchId);
+    const a = String(g.teamA), b = String(g.teamB);
+    const wk = /-w(\d+)-/.exec(id);
+    const week = wk ? Number(wk[1]) : Number(g.round) || 1;
+    const makeup = id.lastIndexOf('-for') >= 0;
+    if (!makeup) {
+      const free = schedule.matches.find(m => m.round === week && key(String(m.teamA), String(m.teamB)) === key(a, b) && !taken.has(m.id) && !fixes.some(f => f.matchId === m.id));
+      if (free) { fixes.push({ gameId: g.id, action: 'attach', matchId: free.id, week, table: free.table ?? 0, teamA: a, teamB: b }); continue; }
+    }
+    if (recreated.has(id) || schedule.matches.some(m => m.id === id)) continue; // a sibling row already brings this match back
+    const sideTag = /-w\d+-([AB])\d+(x2)?$/.exec(id);
+    let table = sideTag ? SIDE_TABLE[sideTag[1] as LeagueSide] : 0;
+    if (!sideTag && !makeup) {
+      const w = weeks.find(x => x.week === week);
+      if (w && w.sideA.includes(a) && w.sideA.includes(b)) table = 1;
+      else if (w && w.sideB.includes(a) && w.sideB.includes(b)) table = 2;
+    }
+    recreated.add(id);
+    fixes.push({ gameId: g.id, action: 'recreate', matchId: id, week, table, teamA: a, teamB: b });
+  }
+  return fixes;
 };

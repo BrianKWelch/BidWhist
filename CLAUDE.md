@@ -292,13 +292,19 @@ normal `games` table and the normal entry/confirm/dispute flow.
   (`generateLeagueSeason(..., { startWeek })`) and deletes/inserts matches by
   `round >= nextWeek` directly in the database, never via `saveSchedule`, so a
   makeup added from a phone moments earlier cannot be lost to stale state.
-  An orphaned score (its match gone) can be re-attached with the Data check
-  card's Restore button, which recreates the match under its original id.
+  An orphaned score (its match gone) is brought back from the Data check card
+  (per row or "Restore all") via `planOrphanFixes`: the score is moved onto an
+  existing match for the same pair in that week when one has no confirmed
+  score yet, otherwise the match it names is recreated under its original id
+  with the side read from the id (`-w7-B12` → table 2), so the week stays a
+  sided week.
   A locked week that is missing registered teams (their matches were deleted
   while the week's other scores stayed) shows a "Missing from this week"
-  panel in Rooms by Week: pick a side per team, "Add games" appends only the
-  missing pairings and second games (`buildMissingTeamMatches`, ids continue
-  the side counter under the original tag); nothing existing is touched.
+  panel in Rooms by Week (also when a side is simply short of pairings): pick
+  a side per team, "Add games" appends only the pairings with no match yet and
+  the second games needed to fill each card (`buildMissingTeamMatches`, ids
+  continue the side counter under the original tag); nothing existing is
+  touched.
 
 ### Restoring a schedule after an accidental regenerate (`src/lib/leagueRecover.ts`)
 `generateLeagueSeason` seeds from `Date.now()` and `buildLeagueMatches` stamps
