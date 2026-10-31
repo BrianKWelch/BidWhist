@@ -306,10 +306,17 @@ weeks, rebuilt with the original tag so even the match ids come back.
 - `recoveryTarget(schedule, plannedWeeks)` finds the earliest tag, the weeks it
   still owns (verified) and the weeks it no longer covers (lost). Null when
   nothing is lost.
-- `findOriginalSeason` scans offsets 0..60 s on web workers
-  (`leagueRecover.worker.ts`, built as a separate chunk by Vite) and falls
-  back to the main thread. About 0.6 s of CPU per millisecond of offset, so a
-  generation that took 2 s in the browser takes a few minutes on 4 to 8 cores.
+- The team order the generator was fed (the admin's `registered` list at the
+  time) is not recorded, so the replay runs on positions 0..n-1 and
+  `matchPermutation` solves position -> team from the surviving weeks (side
+  pattern per week plus second-game partners). The planned length may also
+  have changed since, so every candidate seed is tried at several season
+  lengths (`weeksCandidates`). `findOriginalSeason` scans offsets 0..60 s on
+  web workers (`leagueRecover.worker.ts`, a separate Vite chunk) and falls
+  back to the main thread. Roughly 3 s of CPU per millisecond of offset with
+  five lengths, so a generation that took 1 s in the browser needs a couple
+  of minutes on 16 cores; a full bar means no match. "Copy diagnostics"
+  exports the target as JSON for an offline search.
 - `planRestore` lists inserts (original ids), deletes (the later tag's rows)
   and moves scores entered since onto the original game between the same two
   teams; a score between teams not in the same room that week is kept and

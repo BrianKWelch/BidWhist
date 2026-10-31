@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { History } from 'lucide-react';
 import { leagueTeamNo } from '@/lib/league';
-import { findOriginalSeason, planRestore, recoveryTarget, type RestorePlan, type SearchHit, type SearchProgress } from '@/lib/leagueRecover';
+import { findOriginalSeason, planRestore, recoveryDiagnostics, recoveryTarget, type RestorePlan, type SearchHit, type SearchProgress } from '@/lib/leagueRecover';
 
 const BRAND = '#213A5B';
 const MAX_SEARCH_MS = 60_000;
@@ -32,7 +32,7 @@ export const LeagueRestoreCard: React.FC<Props> = ({ league, schedule, games, te
   const target = useMemo(() => recoveryTarget(schedule, plannedWeeks), [schedule, plannedWeeks]);
   const [phase, setPhase] = useState<'idle' | 'searching' | 'found' | 'none' | 'restoring'>('idle');
   const [progress, setProgress] = useState<SearchProgress | null>(null);
-  const [orderNote, setOrderNote] = useState('');
+  const [diag, setDiag] = useState('');
   const [hit, setHit] = useState<SearchHit | null>(null);
   const [plan, setPlan] = useState<RestorePlan | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -40,37 +40,32 @@ export const LeagueRestoreCard: React.FC<Props> = ({ league, schedule, games, te
   const dismissKey = target ? `leagueRestoreDismissed:${league.id}:${target.laterTags.join(',')}:${target.lostWeeks.join(',')}` : '';
   const [dismissed, setDismissed] = useState(() => { try { return !!dismissKey && localStorage.getItem(dismissKey) === '1'; } catch { return false; } });
 
-  if (!target || !schedule || dismissed) return null;
+  // After a restore, weeks the original generation never covered are not "lost"; they are added with Generate Weeks.
+  const originalEnd = (() => { try { return target ? Number(localStorage.getItem(`leagueRestoreOriginalEnd:${league.id}:${target.tag}`) || 0) : 0; } catch { return 0; } })();
+  if (!target || !schedule || dismissed || (originalEnd > 0 && target.lostWeeks.every(w => w > originalEnd))) return null;
   const dismiss = () => { try { localStorage.setItem(dismissKey, '1'); } catch { /* ignore */ } setDismissed(true); };
   const no = (id: string) => leagueTeamNo(teams, id);
   const teamIdsInOriginal = [...new Set(target.verified.flatMap(v => [...v.sideA, ...v.sideB]))];
   const unregistered = teamIdsInOriginal.filter(id => !teams.find(t => String(t.id) === id)?.registeredTournaments?.includes(league.id));
-  const numOf = (id: string) => { const t = teams.find(tt => String(tt.id) === id); return Number(t?.teamNumber ?? t?.id ?? id); };
-  const orders: { label: string; ids: string[] }[] = [
-    { label: 'team number', ids: teamIdsInOriginal.slice().sort((x, y) => numOf(x) - numOf(y)) },
-    { label: 'team id', ids: teamIdsInOriginal.slice().sort((x, y) => Number(x) - Number(y)) },
-  ].filter((o, i, arr) => arr.findIndex(p => p.ids.join() === o.ids.join()) === i);
+  const diagnostics = () => recoveryDiagnostics(target, plannedWeeks, teamIdsInOriginal.map(id => {
+    const t = teams.find(tt => String(tt.id) === id);
+    return { id, no: no(id), name: t?.name ?? '', registered: !unregistered.includes(id) };
+  }));
 
   const search = async () => {
     cancel.current = { cancelled: false };
     setPhase('searching'); setHit(null); setPlan(null); setConfirm(false);
     const span = target.endWeek - target.startWeek + 1;
-    // The planned length is the first guess; a season planned one week shorter or longer at the time comes next.
-    const weekCounts = [span, span - 1, span + 1].filter(n => n >= 1);
-    let found: SearchHit | null = null;
-    outer: for (const weeks of weekCounts) {
-      for (const order of orders) {
-        setOrderNote(`Replaying a ${weeks}-week generation, teams in ${order.label} order`);
-        found = await findOriginalSeason(
-          { teamIds: order.ids, weeks, startWeek: target.startWeek, tagMs: target.tagMs, verified: target.verified },
-          { maxMs: MAX_SEARCH_MS, onProgress: setProgress, signal: cancel.current, workerFactory: makeWorker },
-        );
-        if (found || cancel.current.cancelled) break outer;
-      }
-    }
+    // The season may have been planned shorter or longer when it was first generated; every candidate is tried at each step.
+    const weeksCandidates = [...new Set([span - 1, span, span + 1, span - 2, span + 2].filter(n => n >= 1))];
+    const found = await findOriginalSeason(
+      { n: teamIdsInOriginal.length, weeksCandidates, startWeek: target.startWeek, tagMs: target.tagMs, verified: target.verified },
+      { maxMs: MAX_SEARCH_MS, onProgress: setProgress, signal: cancel.current, workerFactory: makeWorker },
+    );
     if (cancel.current.cancelled) { setPhase('idle'); return; }
     if (!found) { setPhase('none'); return; }
     setHit(found);
+    try { localStorage.setItem(`leagueRestoreOriginalEnd:${league.id}:${target.tag}`, String(Math.max(...found.season.weeks.map(w => w.week)))); } catch { /* ignore */ }
     setPlan(planRestore(league.id, schedule, games, target, found.season));
     setPhase('found');
   };
@@ -137,6 +132,14 @@ export const LeagueRestoreCard: React.FC<Props> = ({ league, schedule, games, te
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={search} className="text-white" style={{ backgroundColor: BRAND }}>Find original schedule</Button>
             <Button variant="outline" onClick={dismiss}>Dismiss (the current schedule is intended)</Button>
+            <Button variant="ghost" size="sm" onClick={() => setDiag(diagnostics())}>Copy diagnostics</Button>
+          </div>
+        )}
+        {diag && (
+          <div className="space-y-1">
+            <div className="text-xs text-gray-600">Diagnostics (select all and copy, or use the button):</div>
+            <textarea readOnly className="w-full h-24 text-[10px] font-mono border rounded p-1" value={diag} onFocus={e => e.currentTarget.select()} data-testid="restore-diag" />
+            <Button variant="outline" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(diag); toast({ title: 'Diagnostics copied' }); } catch { toast({ title: 'Select the text and copy it by hand', variant: 'destructive' }); } }}>Copy to clipboard</Button>
           </div>
         )}
         {phase === 'searching' && (
@@ -146,15 +149,18 @@ export const LeagueRestoreCard: React.FC<Props> = ({ league, schedule, games, te
               <span className="text-xs text-gray-600 tabular-nums">{progress ? `${(progress.checkedMs / 1000).toFixed(1)} s / ${(progress.maxMs / 1000).toFixed(0)} s` : 'starting…'}</span>
             </div>
             <div className="text-xs text-gray-600">
-              Searching on {progress?.workers ?? '…'} CPU core(s). Most searches finish within the first few seconds of the bar. Keep this tab open. {orderNote}
+              Searching on {progress?.workers ?? '…'} CPU core(s), trying every plausible season length at each step. A hit normally comes within the first few seconds of the bar; the full bar is the long way of saying no. Keep this tab open.
             </div>
             <Button variant="outline" size="sm" onClick={() => { cancel.current.cancelled = true; }}>Cancel</Button>
           </div>
         )}
         {phase === 'none' && (
           <div className="space-y-2">
-            <div className="text-red-700">No replay reproduced weeks {target.verified.map(v => v.week).join(', ')}. The original generation may have run on a different team list.</div>
-            <Button variant="outline" size="sm" onClick={search}>Try again</Button>
+            <div className="text-red-700">No replay reproduced weeks {target.verified.map(v => v.week).join(', ')}.</div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={search}>Try again</Button>
+              <Button variant="outline" size="sm" onClick={() => setDiag(diagnostics())}>Show diagnostics to send for help</Button>
+            </div>
           </div>
         )}
         {phase === 'found' && hit && plan && plan.weeks.length === 0 && (
@@ -165,7 +171,7 @@ export const LeagueRestoreCard: React.FC<Props> = ({ league, schedule, games, te
         )}
         {(phase === 'found' || phase === 'restoring') && hit && plan && plan.weeks.length > 0 && (
           <div className="space-y-3">
-            <div className="text-green-800 font-medium">Found. Weeks {target.verified.map(v => v.week).join(', ')} reproduced exactly; the original weeks {plan.weeks.join(', ')} are ready.</div>
+            <div className="text-green-800 font-medium">Found. Weeks {target.verified.map(v => v.week).join(', ')} reproduced exactly from a {hit.weeks}-week generation; the original weeks {plan.weeks.join(', ')} are ready.</div>
             <div className="overflow-x-auto">
               <table className="text-xs border-collapse">
                 <thead><tr className="bg-gray-100"><th className="px-2 py-1 text-left">Week</th><th className="px-2 py-1 text-left">Side A</th><th className="px-2 py-1 text-left">Side B</th></tr></thead>
@@ -182,6 +188,7 @@ export const LeagueRestoreCard: React.FC<Props> = ({ league, schedule, games, te
             </div>
             <ul className="text-xs text-gray-700 list-disc pl-5 space-y-0.5">
               <li>{plan.insert.length} original games go back; {plan.deleteIds.length} games from the regenerate are removed.</li>
+              {target.lostWeeks.some(w => !plan.weeks.includes(w)) && <li className="text-orange-700">Week(s) {target.lostWeeks.filter(w => !plan.weeks.includes(w)).join(', ')} were never part of the original generation (it ran weeks {hit.season.weeks[0].week} to {hit.season.weeks[hit.season.weeks.length - 1].week}). Add them afterwards with "Generate Weeks" below; existing weeks are not touched by that.</li>}
               <li>{plan.reattach.length} score(s) entered since are moved onto their original game.</li>
               {plan.unmatched.length > 0 && <li className="text-orange-700">{plan.unmatched.length} score(s) are between teams that were not in the same room that week in the original schedule. They are kept as they are and listed in Data check: {plan.unmatched.map(u => `Week ${u.week} ${no(u.teamA)} v ${no(u.teamB)}`).join('; ')}.</li>}
             </ul>

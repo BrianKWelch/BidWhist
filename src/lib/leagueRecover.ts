@@ -118,8 +118,10 @@ export const seasonMatchesTarget = (season: LeagueSeason, verified: VerifiedWeek
 };
 
 export interface SearchParams {
-  teamIds: string[];
-  weeks: number;
+  /** Number of teams in the original generation. */
+  n: number;
+  /** Season lengths to try at every candidate seed (the planned length may have changed since). */
+  weeksCandidates: number[];
   startWeek: number;
   tagMs: number;
   verified: VerifiedWeek[];
@@ -131,17 +133,104 @@ export const seedsForOffset = (tagMs: number, offsetMs: number): number[] => {
   return Array.from({ length: ATTEMPTS }, (_, k) => base + k * ATTEMPT_STRIDE);
 };
 
-/** Tests every seed for one millisecond offset. Returns the season on a hit. */
-export const tryOffset = (p: SearchParams, offsetMs: number): { season: LeagueSeason; seed: number } | null => {
+const indexIds = (n: number) => Array.from({ length: n }, (_, i) => String(i));
+
+/**
+ * The generator only sees team positions; which team sat at which position is
+ * whatever order the admin's screen had at the time, and that is not recorded.
+ * So the replay runs on positions 0..n-1 and this solves the position -> team
+ * mapping from the surviving weeks: a team's side in every verified week and
+ * its second-game partners must match a position's. Returns null when no
+ * assignment fits (i.e. this seed is not the one).
+ */
+export const matchPermutation = (season: LeagueSeason, verified: VerifiedWeek[], n: number): string[] | null => {
+  const weeks = verified.map(v => season.weeks.find(w => w.week === v.week));
+  if (weeks.some(w => !w)) return null;
+  const sigIdx: string[] = Array(n).fill('');
+  const dblIdx: Set<string>[] = weeks.map(() => new Set());
+  weeks.forEach((w, wi) => {
+    const a = new Set(w!.sideA);
+    for (let i = 0; i < n; i++) sigIdx[i] += a.has(String(i)) ? 'A' : 'B';
+    for (const p of w!.pairings) if (p.gameNo === 2) dblIdx[wi].add(pairKey(p.teamA, p.teamB));
+  });
+  const teams = [...new Set(verified.flatMap(v => [...v.sideA, ...v.sideB]))];
+  if (teams.length !== n) return null;
+  const sigTeam = new Map<string, string>();
+  const dblTeam: Set<string>[] = verified.map(v => new Set(v.doubles));
+  for (const t of teams) sigTeam.set(t, verified.map(v => (v.sideA.includes(t) ? 'A' : 'B')).join(''));
+  // Candidates per position: teams with the same side pattern.
+  const cands: string[][] = [];
+  for (let i = 0; i < n; i++) {
+    const c = teams.filter(t => sigTeam.get(t) === sigIdx[i]);
+    if (c.length === 0) return null;
+    cands.push(c);
+  }
+  const order = Array.from({ length: n }, (_, i) => i).sort((x, y) => cands[x].length - cands[y].length);
+  const assign: (string | null)[] = Array(n).fill(null);
+  const used = new Set<string>();
+  const consistent = (i: number, t: string): boolean => {
+    for (let j = 0; j < n; j++) {
+      const u = assign[j];
+      if (u === null) continue;
+      const kIdx = pairKey(String(i), String(j)), kTeam = pairKey(t, u);
+      for (let wi = 0; wi < weeks.length; wi++) if (dblIdx[wi].has(kIdx) !== dblTeam[wi].has(kTeam)) return false;
+    }
+    return true;
+  };
+  const solve = (k: number): boolean => {
+    if (k === n) return true;
+    const i = order[k];
+    for (const t of cands[i]) {
+      if (used.has(t) || !consistent(i, t)) continue;
+      assign[i] = t; used.add(t);
+      if (solve(k + 1)) return true;
+      assign[i] = null; used.delete(t);
+    }
+    return false;
+  };
+  return solve(0) ? (assign as string[]) : null;
+};
+
+/** Rewrites a position-level season onto real team ids. */
+export const remapSeason = (season: LeagueSeason, teamIds: string[]): LeagueSeason => {
+  const id = (x: string) => teamIds[Number(x)];
+  const sortIds = (xs: string[]) => xs.slice().sort((a, b) => {
+    const na = Number(a), nb = Number(b);
+    return !isNaN(na) && !isNaN(nb) ? na - nb : a.localeCompare(b);
+  });
+  const pairGames: Record<string, Record<string, number>> = {};
+  for (const a of Object.keys(season.pairGames)) {
+    pairGames[id(a)] = {};
+    for (const b of Object.keys(season.pairGames[a])) pairGames[id(a)][id(b)] = season.pairGames[a][b];
+  }
+  return {
+    weeks: season.weeks.map(w => ({
+      week: w.week,
+      sideA: sortIds(w.sideA.map(id)),
+      sideB: sortIds(w.sideB.map(id)),
+      pairings: w.pairings.map(p => ({ ...p, teamA: id(p.teamA), teamB: id(p.teamB) })),
+    })),
+    pairGames,
+    stats: season.stats,
+  };
+};
+
+export interface SearchHit { season: LeagueSeason; seed: number; offsetMs: number; weeks: number; teamOrder: string[] }
+
+/** Tests every seed and season length for one millisecond offset. Returns the season on a hit. */
+export const tryOffset = (p: SearchParams, offsetMs: number): SearchHit | null => {
+  const ids = indexIds(p.n);
   for (const seed of seedsForOffset(p.tagMs, offsetMs)) {
-    const season = buildSeasonOnce(p.teamIds, p.weeks, seed, p.startWeek);
-    if (seasonMatchesTarget(season, p.verified)) return { season, seed };
+    for (const weeks of p.weeksCandidates) {
+      const season = buildSeasonOnce(ids, weeks, seed, p.startWeek);
+      const perm = matchPermutation(season, p.verified, p.n);
+      if (perm) return { season: remapSeason(season, perm), seed, offsetMs, weeks, teamOrder: perm };
+    }
   }
   return null;
 };
 
 export interface SearchProgress { checkedMs: number; maxMs: number; workers: number }
-export interface SearchHit { season: LeagueSeason; seed: number; offsetMs: number }
 
 /**
  * Scans offsets 0..maxMs (how long the original generation took before it
@@ -182,7 +271,7 @@ export const findOriginalSeason = (
           opts.onProgress?.({ checkedMs: Math.min(...done), maxMs, workers: count });
         } else if (msg.type === 'found') {
           clearInterval(poll);
-          stop({ season: msg.season, seed: msg.seed, offsetMs: msg.offsetMs });
+          stop(msg.hit);
         } else if (msg.type === 'exhausted') {
           done[i] = maxMs;
           if (done.every(d => d >= maxMs)) { clearInterval(poll); stop(null); }
@@ -198,7 +287,7 @@ const scanOnThread = async (p: SearchParams, maxMs: number, onProgress?: (s: Sea
   for (let offset = 0; offset <= maxMs; offset++) {
     if (signal?.cancelled) return null;
     const hit = tryOffset(p, offset);
-    if (hit) return { ...hit, offsetMs: offset };
+    if (hit) return hit;
     if (offset % 5 === 0) {
       onProgress?.({ checkedMs: offset, maxMs, workers: 1 });
       await new Promise(r => setTimeout(r, 0));
@@ -212,11 +301,15 @@ export const scanSlice = (p: SearchParams, first: number, step: number, maxMs: n
   let n = 0;
   for (let offset = first; offset <= maxMs; offset += step) {
     const hit = tryOffset(p, offset);
-    if (hit) { post({ type: 'found', season: hit.season, seed: hit.seed, offsetMs: offset }); return; }
+    if (hit) { post({ type: 'found', hit }); return; }
     if (++n % 3 === 0) post({ type: 'progress', offsetMs: offset });
   }
   post({ type: 'exhausted' });
 };
+
+/** Everything the search needs, as text the admin can copy out for offline diagnosis. */
+export const recoveryDiagnostics = (target: RecoveryTarget, plannedWeeks: number, teams: { id: string; no: string; name: string; registered: boolean }[]) =>
+  JSON.stringify({ plannedWeeks, tag: target.tag, tagMs: target.tagMs, laterTags: target.laterTags, startWeek: target.startWeek, endWeek: target.endWeek, lostWeeks: target.lostWeeks, verified: target.verified, teams }, null, 0);
 
 // ---------------------------------------------------------------------------
 // Applying the recovered weeks
