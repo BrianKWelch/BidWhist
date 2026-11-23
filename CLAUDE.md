@@ -325,9 +325,17 @@ teams from earlier results; `bracketMatchesToCreate` returns the missing rows
 (two games per series up front, game 3 only at 1-1, F/P3 once both semis are
 decided) and both the admin panel and the portal insert them with
 `upsert(..., { ignoreDuplicates: true })`, so any screen carries the bracket
-forward. **Second tier** (teams 7+ minus `excluded`, built next): single
-round robin at 10 games each via `buildSkipRoundRobin` (teams in season rank
-order skip their rank neighbours; 13 teams → 65 games), top 4 to SF1/SF2/F/P3.
+forward. **Second tier** = every team outside the top six minus `excluded`
+("Not playing" checkboxes in the field table), generated from its own card
+once the playoffs exist: single round robin at 10 games each via
+`buildSkipRoundRobin` (teams in season rank order skip their rank
+neighbours, so 13 teams → 65 games with even strength of schedule; the
+director tells players the skips are random), top 4 to SF1/SF2/F/P3, winner
+take all. `PlayoffManager` renders one `TierPanel` per tier (prelim chips,
+standings with an "advances" tag, seed selects for the advancing seeds only,
+bracket, placings, reset); test ids carry the tier (`po-prelim-count-2`,
+`po-seed-2-N`, `po-seed-bracket-2`, `po-placings-2`). Both tiers play the
+same night.
 
 Admin flow: Playoffs tab → field table (top 6 highlighted, "Not playing"
 checkboxes for tier two) → "Create playoffs" (inserts the tournament,

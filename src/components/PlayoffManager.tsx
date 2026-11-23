@@ -9,7 +9,7 @@ import { Trophy, Pencil, Trash2, Play, Flag } from 'lucide-react';
 import { getLeagueStandings, leagueTeamNo, leagueWeeksOf } from '@/lib/league';
 import {
   BRACKET_ROUND, PRELIM_GAMES_PER_TEAM, TIER_NAME,
-  bracketMatchesToCreate, bracketPlacings, bracketState, buildDoubleRoundRobin,
+  bracketMatchesToCreate, bracketPlacings, bracketState, buildDoubleRoundRobin, buildSkipRoundRobin,
   parsePlayoffConfig, playoffForLeague, playoffMatchInfo, prelimComplete, prelimStandings, serializePlayoffConfig,
   type PlayoffConfig, type SeriesState, type Tier,
 } from '@/lib/playoff';
@@ -17,6 +17,7 @@ import { MatchScoreEditor, teamLabel } from '@/components/LeagueManager';
 
 const BRAND = '#213A5B';
 const CHAMPION_TIER_SIZE = 6;
+const SECOND_TIER_ADVANCE = 4;
 
 const matchRow = (pid: string, m: ScheduleMatch) => ({ id: m.id, team_a: m.teamA, team_b: m.teamB, round: m.round, tournament_id: pid, table_number: m.table ?? 0, is_bye: false, is_same_city: false });
 
@@ -49,36 +50,6 @@ const PlayoffManager: React.FC<{ league: Tournament }> = ({ league }) => {
   const [filterTeam, setFilterTeam] = useState<string>('');
   const [editing, setEditing] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-
-  // ---- Champion tier preliminary ---------------------------------------
-  const tier: Tier = 1;
-  const prelimMatches = useMemo(() => (pSchedule?.matches ?? []).filter(m => { const i = playoffMatchInfo(m); return i && i.round === 1 && i.tier === tier; }), [pSchedule]);
-  const prelim = useMemo(() => prelimComplete(pSchedule, games, tier), [pSchedule, games]);
-  const standings = useMemo(() => prelimStandings(teams, tier, champField, pSchedule, games, seasonRank), [teams, champField, pSchedule, games, seasonRank]);
-  const playedBy = (id: string) => prelimMatches.filter(m => (String(m.teamA) === id || String(m.teamB) === id) && confirmedGame(games, m)).length;
-
-  // ---- Bracket -----------------------------------------------------------
-  const seeds = cfg?.seeds[1];
-  const states = useMemo(() => bracketState(tier, seeds, pSchedule, games), [seeds, pSchedule, games]);
-  const placings = useMemo(() => bracketPlacings(states), [states]);
-  const bracketHasScores = states.some(s => s.games.some(g => anyGame(games, g.match)));
-  const [seedOrder, setSeedOrder] = useState<string[]>([]);
-  useEffect(() => { if (!seeds) setSeedOrder(standings.map(r => r.teamId)); }, [standings, seeds]);
-  const [confirmSeed, setConfirmSeed] = useState(false);
-
-  // Keep the bracket moving: later games and later series are created as results come in.
-  useEffect(() => {
-    if (!playoff || !seeds || !pSchedule) return;
-    const toCreate = bracketMatchesToCreate(playoff.id, tier, states);
-    if (toCreate.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      const { supabase } = await import('../supabaseClient');
-      const { error } = await supabase.from('matches').upsert(toCreate.map(m => matchRow(playoff.id, m)), { onConflict: 'id', ignoreDuplicates: true });
-      if (!error && !cancelled) await refreshSchedules();
-    })();
-    return () => { cancelled = true; };
-  }, [playoff, seeds, pSchedule, states, refreshSchedules]);
 
   // ---- Actions -----------------------------------------------------------
   const saveConfig = async (next: PlayoffConfig) => {
@@ -114,6 +85,29 @@ const PlayoffManager: React.FC<{ league: Tournament }> = ({ league }) => {
     }
   };
 
+  const secondTierField = useMemo(() => season.map(r => r.teamId).filter(id => !champField.includes(id) && !excluded.includes(id)), [season, champField, excluded]);
+  const createSecondTier = async () => {
+    if (!playoff || !cfg) return;
+    setBusy(true);
+    try {
+      const rows = buildSkipRoundRobin(playoff.id, 2, secondTierField).map(m => matchRow(playoff.id, m));
+      const { supabase } = await import('../supabaseClient');
+      const { data: regs } = await supabase.from('team_registrations').select('team_id').eq('tournament_id', playoff.id);
+      const have = new Set((regs ?? []).map((r: { team_id: string }) => String(r.team_id)));
+      const toReg = secondTierField.filter(id => !have.has(id)).map(team_id => ({ team_id, tournament_id: playoff.id }));
+      if (toReg.length) { const { error } = await supabase.from('team_registrations').insert(toReg); if (error) throw new Error(error.message); }
+      const { error: mErr } = await supabase.from('matches').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+      if (mErr) throw new Error(mErr.message);
+      await saveConfig({ ...cfg, tiers: { ...cfg.tiers, 2: secondTierField }, excluded });
+      await Promise.all([refreshTeams(), refreshSchedules()]);
+      toast({ title: `${TIER_NAME[2]} generated`, description: `${secondTierField.length} teams, ${rows.length} games.` });
+    } catch (e) {
+      toast({ title: 'Could not generate the second tier', description: String(e), variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const setLive = async (live: boolean) => {
     if (!playoff) return;
     setBusy(true);
@@ -131,109 +125,6 @@ const PlayoffManager: React.FC<{ league: Tournament }> = ({ league }) => {
       setBusy(false);
     }
   };
-
-  const seedBracket = async () => {
-    if (!playoff || !cfg) return;
-    if (new Set(seedOrder).size !== champField.length) { toast({ title: 'Each seed must be a different team', variant: 'destructive' }); return; }
-    if (!confirmSeed) { setConfirmSeed(true); return; }
-    setBusy(true);
-    try {
-      await saveConfig({ ...cfg, seeds: { ...cfg.seeds, 1: seedOrder } });
-      const { supabase } = await import('../supabaseClient');
-      const toCreate = bracketMatchesToCreate(playoff.id, tier, bracketState(tier, seedOrder, pSchedule, games));
-      const { error } = await supabase.from('matches').upsert(toCreate.map(m => matchRow(playoff.id, m)), { onConflict: 'id', ignoreDuplicates: true });
-      if (error) throw new Error(error.message);
-      await refreshSchedules();
-      setConfirmSeed(false);
-      toast({ title: 'Bracket seeded', description: `Seeds: ${seedOrder.map((id, i) => `${i + 1}·${no(id)}`).join('  ')}` });
-    } catch (e) {
-      toast({ title: 'Could not seed the bracket', description: String(e), variant: 'destructive' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const resetBracket = async () => {
-    if (!playoff || !cfg || bracketHasScores) return;
-    setBusy(true);
-    try {
-      const { supabase } = await import('../supabaseClient');
-      const { error } = await supabase.from('matches').delete().eq('tournament_id', playoff.id).eq('round', BRACKET_ROUND);
-      if (error) throw new Error(error.message);
-      const seedsLeft = { ...cfg.seeds }; delete seedsLeft[1];
-      await saveConfig({ ...cfg, seeds: seedsLeft });
-      await refreshSchedules();
-      toast({ title: 'Bracket reset', description: 'Seed it again when ready.' });
-    } catch (e) {
-      toast({ title: 'Could not reset', description: String(e), variant: 'destructive' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const clearScore = async (m: ScheduleMatch) => {
-    const { supabase } = await import('../supabaseClient');
-    const { error } = await supabase.from('games').delete().eq('matchId', m.id);
-    if (error) toast({ title: 'Could not clear', description: error.message, variant: 'destructive' });
-    await refreshGamesFromSupabase();
-  };
-
-  // ---- Rendering helpers ---------------------------------------------------
-  const seedOf = (id?: string) => (id && seeds ? seeds.indexOf(id) + 1 : 0);
-  const renderMatch = (m: ScheduleMatch, label: string) => {
-    const g = anyGame(games, m);
-    const confirmed = g && (g.confirmed || g.status === 'confirmed');
-    const status = !g ? 'not played' : confirmed ? 'confirmed' : g.status === 'entering' ? 'entering' : g.status === 'pending_confirmation' ? 'awaiting confirm' : g.status ?? '';
-    return (
-      <div key={m.id} className="rounded border bg-white p-2 text-sm" data-testid={`po-match-${m.id}`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-500 w-24">{label}</span>
-          <span className="font-semibold">{no(String(m.teamA))} · {teamLabel(teams, String(m.teamA))}</span>
-          <span className="text-gray-400">vs</span>
-          <span className="font-semibold">{no(String(m.teamB))} · {teamLabel(teams, String(m.teamB))}</span>
-          <span className="ml-auto flex items-center gap-2">
-            {confirmed ? (
-              <span className="font-bold">{g!.scoreA} – {g!.scoreB} <span className="text-xs font-normal text-gray-500">({no(g!.winner === 'teamA' ? String(g!.teamA) : String(g!.teamB))} won)</span></span>
-            ) : (
-              <Badge variant="outline" className="text-[10px]">{status}</Badge>
-            )}
-            {editing !== m.id && (
-              <Button size="sm" variant="outline" className="h-7" onClick={() => setEditing(m.id)}><Pencil className="w-3 h-3 mr-1" /> {confirmed ? 'Edit' : 'Score'}</Button>
-            )}
-            {g && <Button size="sm" variant="ghost" className="h-7 text-red-600" onClick={() => clearScore(m)}><Trash2 className="w-3 h-3" /></Button>}
-          </span>
-        </div>
-        {editing === m.id && <MatchScoreEditor match={m} teams={teams} tracksHands={false} existing={confirmed ? g : undefined} onDone={() => setEditing(null)} />}
-      </div>
-    );
-  };
-
-  const visiblePrelim = prelimMatches
-    .filter(m => !filterTeam || String(m.teamA) === filterTeam || String(m.teamB) === filterTeam)
-    .sort((x, y) => (Number(no(String(x.teamA))) - Number(no(String(y.teamA)))) || (Number(no(String(x.teamB))) - Number(no(String(y.teamB)))) || x.id.localeCompare(y.id));
-
-  const seriesCard = (st: SeriesState) => (
-    <div key={st.spec.key} className="rounded-lg border p-3 space-y-2" data-testid={`po-series-${st.spec.key}`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-bold">{st.spec.label}</span>
-        <span className="text-xs text-gray-500">best of 3</span>
-        {st.winner && <Badge className="bg-green-600 text-white text-[10px]">Winner: {no(st.winner)}</Badge>}
-      </div>
-      {st.teamA && st.teamB ? (
-        <>
-          <div className="text-sm">
-            <span className="font-semibold">({seedOf(st.teamA) || '-'}) {no(st.teamA)} · {teamLabel(teams, st.teamA)}</span>
-            <span className="mx-2 font-bold">{st.winsA} – {st.winsB}</span>
-            <span className="font-semibold">({seedOf(st.teamB) || '-'}) {no(st.teamB)} · {teamLabel(teams, st.teamB)}</span>
-          </div>
-          <div className="space-y-1">{st.games.map(g => renderMatch(g.match, `Game ${playoffMatchInfo(g.match)?.game}`))}</div>
-          {!st.winner && st.games.every(g => g.game) && st.games.length < 3 && st.winsA === st.winsB && <div className="text-xs text-gray-500">Game 3 is being added…</div>}
-        </>
-      ) : (
-        <div className="text-xs text-gray-500">Waiting on {('winnersOf' in st.spec.from ? 'the winners' : 'the losers')} of both semifinals.</div>
-      )}
-    </div>
-  );
 
   // ---- Render --------------------------------------------------------------
   return (
@@ -308,109 +199,286 @@ const PlayoffManager: React.FC<{ league: Tournament }> = ({ league }) => {
         </CardContent>
       </Card>
 
-      {playoff && (
+      {playoff && cfg && (
         <>
-          {/* Preliminary round */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex flex-wrap items-center gap-2">
-                {TIER_NAME[1]} · preliminary round
-                <Badge variant="outline" data-testid="po-prelim-count">{prelim.done} of {prelim.total} games confirmed</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="text-xs text-gray-500 mr-1">Teams:</span>
-                {champField.map(id => {
-                  const p = playedBy(id);
-                  return (
-                    <button key={id} type="button" onClick={() => setFilterTeam(filterTeam === id ? '' : id)}
-                      className={`px-2 py-0.5 rounded border text-xs font-semibold ${filterTeam === id ? 'text-white border-transparent' : p >= PRELIM_GAMES_PER_TEAM ? 'bg-green-50 border-green-300 text-green-800' : 'bg-white border-gray-300'}`}
-                      style={filterTeam === id ? { backgroundColor: BRAND } : undefined}>
-                      {no(id)} <span className="font-normal">{p}/{PRELIM_GAMES_PER_TEAM}</span>
-                    </button>
-                  );
-                })}
-                <label className="ml-auto flex items-center gap-1 text-xs"><input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} /> Show all games</label>
-              </div>
-              {(filterTeam || showAll) && (
-                <div className="space-y-1">
-                  {visiblePrelim.map(m => renderMatch(m, `Game ${playoffMatchInfo(m)?.game}`))}
+          <TierPanel tier={1} playoff={playoff} cfg={cfg} field={cfg.tiers[1] ?? []} seasonRank={seasonRank} saveConfig={saveConfig} />
+          {cfg.tiers[2] ? (
+            <TierPanel tier={2} playoff={playoff} cfg={cfg} field={cfg.tiers[2]} seasonRank={seasonRank} saveConfig={saveConfig} />
+          ) : (
+            <Card className="border-amber-300">
+              <CardHeader><CardTitle className="text-base">{TIER_NAME[2]} · not generated yet</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div>
+                  Every team outside the top {CHAMPION_TIER_SIZE} that is playing: <strong>{secondTierField.map(no).join(', ')}</strong> ({secondTierField.length} teams).
+                  Each plays {PRELIM_GAMES_PER_TEAM} games, one game per opponent; the top {SECOND_TIER_ADVANCE} go to the bracket (1 vs 4, 2 vs 3, final, third place), winner take all.
                 </div>
-              )}
-              <div>
-                <div className="font-semibold mb-1">Standings and seeds</div>
-                <table className="text-xs border-collapse min-w-[420px]">
-                  <thead><tr className="bg-gray-100"><th className="px-2 py-1">Seed</th><th className="px-2 py-1 text-left">Team</th><th className="px-2 py-1">GP</th><th className="px-2 py-1">W</th><th className="px-2 py-1">L</th><th className="px-2 py-1">Pts</th><th className="px-2 py-1">Bos</th><th className="px-2 py-1 text-left">Decided by</th></tr></thead>
-                  <tbody>
-                    {standings.map(r => (
-                      <tr key={r.teamId} className="border-t" data-testid={`po-seed-${r.seed}`}>
-                        <td className="px-2 py-1 text-center font-bold">{r.seed}</td>
-                        <td className="px-2 py-1 whitespace-nowrap">{no(r.teamId)} · {r.teamName}</td>
-                        <td className="px-2 py-1 text-center">{r.played}</td>
-                        <td className="px-2 py-1 text-center">{r.wins}</td>
-                        <td className="px-2 py-1 text-center">{r.losses}</td>
-                        <td className="px-2 py-1 text-center">{r.points}</td>
-                        <td className="px-2 py-1 text-center">{r.bostons}</td>
-                        <td className="px-2 py-1 text-gray-500">{r.tiebreak === 'h2h' ? 'head-to-head' : r.tiebreak === 'points' ? 'points' : r.tiebreak === 'season' ? 'season finish' : ''}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Bracket */}
-          <Card className={seeds ? '' : 'border-amber-300'}>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Flag className="w-4 h-4" /> {TIER_NAME[1]} · bracket</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {!seeds ? (
-                <>
-                  <div className="text-xs text-gray-600">
-                    {prelim.done < prelim.total ? `The preliminary round is not finished (${prelim.done} of ${prelim.total}). Seeding now uses the standings as they stand.` : 'Preliminary round complete. Check the seeds, adjust if a tie was settled off the table, then create the bracket.'}
-                  </div>
-                  <div className="grid gap-1 md:grid-cols-2">
-                    {seedOrder.map((id, i) => (
-                      <label key={i} className="flex items-center gap-2 text-sm">
-                        <span className="w-14 font-bold">Seed {i + 1}</span>
-                        <select className="border rounded px-2 py-1 bg-white" value={id} onChange={e => { const next = seedOrder.slice(); const j = next.indexOf(e.target.value); next[i] = e.target.value; if (j >= 0) next[j] = id; setSeedOrder(next); }} data-testid={`po-seed-select-${i + 1}`}>
-                          {champField.map(t => <option key={t} value={t}>{no(t)} · {teamLabel(teams, t)}</option>)}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button className="text-white" style={{ backgroundColor: confirmSeed ? '#b91c1c' : BRAND }} disabled={busy} onClick={seedBracket} data-testid="po-seed-bracket">
-                      {confirmSeed ? 'Yes, create the bracket with these seeds' : 'Seed the bracket'}
-                    </Button>
-                    {confirmSeed && <Button variant="outline" onClick={() => setConfirmSeed(false)}>Cancel</Button>}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-xs text-gray-600">Seeds: {seeds.map((id, i) => `${i + 1} · ${no(id)}`).join('   ')}</div>
-                  <div className="grid gap-3 md:grid-cols-2">{states.map(seriesCard)}</div>
-                  {placings.length > 0 && (
-                    <div>
-                      <div className="font-semibold mb-1">Final placings</div>
-                      <table className="text-sm border-collapse" data-testid="po-placings">
-                        <tbody>
-                          {placings.map(p => (
-                            <tr key={p.place} className="border-t"><td className="px-2 py-1 font-bold">{p.place === 1 ? 'Champion' : `${p.place}${p.place === 2 ? 'nd' : p.place === 3 ? 'rd' : 'th'}`}</td><td className="px-2 py-1">{no(p.teamId)} · {teamLabel(teams, p.teamId)}</td></tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  {!bracketHasScores && <button type="button" className="text-xs underline text-gray-500" onClick={resetBracket}>Reset bracket (no scores entered yet)</button>}
-                </>
-              )}
-            </CardContent>
-          </Card>
+                <div className="text-xs text-gray-600">Tick "Not playing" in the field table for any team that is out before generating. Opponents are assigned by season rank so every card has the same strength.</div>
+                <Button className="text-white" style={{ backgroundColor: BRAND }} disabled={busy || secondTierField.length < SECOND_TIER_ADVANCE} onClick={createSecondTier} data-testid="po-create-t2">
+                  {busy ? 'Generating…' : `Generate ${TIER_NAME[2]} games (${secondTierField.length} teams, ${(secondTierField.length * PRELIM_GAMES_PER_TEAM) / 2} games)`}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>
+  );
+};
+
+
+// ---------------------------------------------------------------------------
+// One tier: preliminary round, seeds, bracket
+// ---------------------------------------------------------------------------
+
+const TierPanel: React.FC<{ tier: Tier; playoff: Tournament; cfg: PlayoffConfig; field: string[]; seasonRank: Record<string, number>; saveConfig: (c: PlayoffConfig) => Promise<void> }> = ({ tier, playoff, cfg, field, seasonRank, saveConfig }) => {
+  const { teams, schedules, games, refreshSchedules, refreshGamesFromSupabase } = useAppContext();
+  const no = (id: string) => leagueTeamNo(teams, id);
+  const pSchedule = schedules.find(s => s.tournamentId === playoff.id) ?? null;
+  const champField = field;
+  const advance = tier === 1 ? field.length : SECOND_TIER_ADVANCE;
+  const [busy, setBusy] = useState(false);
+  const [filterTeam, setFilterTeam] = useState<string>('');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  // ---- Preliminary -----------------------------------------------------
+  const prelimMatches = useMemo(() => (pSchedule?.matches ?? []).filter(m => { const i = playoffMatchInfo(m); return i && i.round === 1 && i.tier === tier; }), [pSchedule]);
+  const prelim = useMemo(() => prelimComplete(pSchedule, games, tier), [pSchedule, games]);
+  const standings = useMemo(() => prelimStandings(teams, tier, champField, pSchedule, games, seasonRank), [teams, champField, pSchedule, games, seasonRank]);
+  const playedBy = (id: string) => prelimMatches.filter(m => (String(m.teamA) === id || String(m.teamB) === id) && confirmedGame(games, m)).length;
+
+  // ---- Bracket -----------------------------------------------------------
+  const seeds = cfg.seeds[tier];
+  const states = useMemo(() => bracketState(tier, seeds, pSchedule, games), [seeds, pSchedule, games]);
+  const placings = useMemo(() => bracketPlacings(states), [states]);
+  const bracketHasScores = states.some(s => s.games.some(g => anyGame(games, g.match)));
+  const [seedOrder, setSeedOrder] = useState<string[]>([]);
+  useEffect(() => { if (!seeds) setSeedOrder(standings.map(r => r.teamId)); }, [standings, seeds]);
+  const [confirmSeed, setConfirmSeed] = useState(false);
+
+  // Keep the bracket moving: later games and later series are created as results come in.
+  useEffect(() => {
+    if (!seeds || !pSchedule) return;
+    const toCreate = bracketMatchesToCreate(playoff.id, tier, states);
+    if (toCreate.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const { supabase } = await import('../supabaseClient');
+      const { error } = await supabase.from('matches').upsert(toCreate.map(m => matchRow(playoff.id, m)), { onConflict: 'id', ignoreDuplicates: true });
+      if (!error && !cancelled) await refreshSchedules();
+    })();
+    return () => { cancelled = true; };
+  }, [playoff.id, seeds, pSchedule, states, refreshSchedules]);
+
+  const seedBracket = async () => {
+    if (new Set(seedOrder).size !== champField.length) { toast({ title: 'Each seed must be a different team', variant: 'destructive' }); return; }
+    if (!confirmSeed) { setConfirmSeed(true); return; }
+    setBusy(true);
+    try {
+      await saveConfig({ ...cfg, seeds: { ...cfg.seeds, [tier]: seedOrder } });
+      const { supabase } = await import('../supabaseClient');
+      const toCreate = bracketMatchesToCreate(playoff.id, tier, bracketState(tier, seedOrder, pSchedule, games));
+      const { error } = await supabase.from('matches').upsert(toCreate.map(m => matchRow(playoff.id, m)), { onConflict: 'id', ignoreDuplicates: true });
+      if (error) throw new Error(error.message);
+      await refreshSchedules();
+      setConfirmSeed(false);
+      toast({ title: 'Bracket seeded', description: `Seeds: ${seedOrder.map((id, i) => `${i + 1}·${no(id)}`).join('  ')}` });
+    } catch (e) {
+      toast({ title: 'Could not seed the bracket', description: String(e), variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetBracket = async () => {
+    if (bracketHasScores) return;
+    setBusy(true);
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const { error } = await supabase.from('matches').delete().eq('tournament_id', playoff.id).eq('round', BRACKET_ROUND).eq('table_number', tier);
+      if (error) throw new Error(error.message);
+      const seedsLeft = { ...cfg.seeds }; delete seedsLeft[tier];
+      await saveConfig({ ...cfg, seeds: seedsLeft });
+      await refreshSchedules();
+      toast({ title: 'Bracket reset', description: 'Seed it again when ready.' });
+    } catch (e) {
+      toast({ title: 'Could not reset', description: String(e), variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearScore = async (m: ScheduleMatch) => {
+    const { supabase } = await import('../supabaseClient');
+    const { error } = await supabase.from('games').delete().eq('matchId', m.id);
+    if (error) toast({ title: 'Could not clear', description: error.message, variant: 'destructive' });
+    await refreshGamesFromSupabase();
+  };
+
+  // ---- Rendering helpers ---------------------------------------------------
+  const seedOf = (id?: string) => (id && seeds ? seeds.indexOf(id) + 1 : 0);
+  const renderMatch = (m: ScheduleMatch, label: string) => {
+    const g = anyGame(games, m);
+    const confirmed = g && (g.confirmed || g.status === 'confirmed');
+    const status = !g ? 'not played' : confirmed ? 'confirmed' : g.status === 'entering' ? 'entering' : g.status === 'pending_confirmation' ? 'awaiting confirm' : g.status ?? '';
+    return (
+      <div key={m.id} className="rounded border bg-white p-2 text-sm" data-testid={`po-match-${m.id}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-gray-500 w-24">{label}</span>
+          <span className="font-semibold">{no(String(m.teamA))} · {teamLabel(teams, String(m.teamA))}</span>
+          <span className="text-gray-400">vs</span>
+          <span className="font-semibold">{no(String(m.teamB))} · {teamLabel(teams, String(m.teamB))}</span>
+          <span className="ml-auto flex items-center gap-2">
+            {confirmed ? (
+              <span className="font-bold">{g!.scoreA} – {g!.scoreB} <span className="text-xs font-normal text-gray-500">({no(g!.winner === 'teamA' ? String(g!.teamA) : String(g!.teamB))} won)</span></span>
+            ) : (
+              <Badge variant="outline" className="text-[10px]">{status}</Badge>
+            )}
+            {editing !== m.id && (
+              <Button size="sm" variant="outline" className="h-7" onClick={() => setEditing(m.id)}><Pencil className="w-3 h-3 mr-1" /> {confirmed ? 'Edit' : 'Score'}</Button>
+            )}
+            {g && <Button size="sm" variant="ghost" className="h-7 text-red-600" onClick={() => clearScore(m)}><Trash2 className="w-3 h-3" /></Button>}
+          </span>
+        </div>
+        {editing === m.id && <MatchScoreEditor match={m} teams={teams} tracksHands={false} existing={confirmed ? g : undefined} onDone={() => setEditing(null)} />}
+      </div>
+    );
+  };
+
+  const visiblePrelim = prelimMatches
+    .filter(m => !filterTeam || String(m.teamA) === filterTeam || String(m.teamB) === filterTeam)
+    .sort((x, y) => (Number(no(String(x.teamA))) - Number(no(String(y.teamA)))) || (Number(no(String(x.teamB))) - Number(no(String(y.teamB)))) || x.id.localeCompare(y.id));
+
+  const seriesCard = (st: SeriesState) => (
+    <div key={st.spec.key} className="rounded-lg border p-3 space-y-2" data-testid={`po-series-${st.spec.key}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-bold">{st.spec.label}</span>
+        <span className="text-xs text-gray-500">best of 3</span>
+        {st.winner && <Badge className="bg-green-600 text-white text-[10px]">Winner: {no(st.winner)}</Badge>}
+      </div>
+      {st.teamA && st.teamB ? (
+        <>
+          <div className="text-sm">
+            <span className="font-semibold">({seedOf(st.teamA) || '-'}) {no(st.teamA)} · {teamLabel(teams, st.teamA)}</span>
+            <span className="mx-2 font-bold">{st.winsA} – {st.winsB}</span>
+            <span className="font-semibold">({seedOf(st.teamB) || '-'}) {no(st.teamB)} · {teamLabel(teams, st.teamB)}</span>
+          </div>
+          <div className="space-y-1">{st.games.map(g => renderMatch(g.match, `Game ${playoffMatchInfo(g.match)?.game}`))}</div>
+          {!st.winner && st.games.every(g => g.game) && st.games.length < 3 && st.winsA === st.winsB && <div className="text-xs text-gray-500">Game 3 is being added…</div>}
+        </>
+      ) : (
+        <div className="text-xs text-gray-500">Waiting on {('winnersOf' in st.spec.from ? 'the winners' : 'the losers')} of both semifinals.</div>
+      )}
+    </div>
+  );
+
+
+  const tierName = TIER_NAME[tier];
+  return (
+    <>
+      {/* Preliminary round */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex flex-wrap items-center gap-2">
+            {tierName} · preliminary round
+            <Badge variant="outline" data-testid={`po-prelim-count-${tier}`}>{prelim.done} of {prelim.total} games confirmed</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="text-xs text-gray-600">
+            {tier === 1 ? `Every team plays every other team twice (${PRELIM_GAMES_PER_TEAM} games each). All six are seeded 1 to 6.` : `Each team plays ${PRELIM_GAMES_PER_TEAM} games, one per opponent on its card. The top ${SECOND_TIER_ADVANCE} advance.`}
+            {' '}Seeds: wins, then head-to-head among tied teams, then points, then season finish.
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-xs text-gray-500 mr-1">Teams:</span>
+            {champField.map(id => {
+              const p = playedBy(id);
+              return (
+                <button key={id} type="button" onClick={() => setFilterTeam(filterTeam === id ? '' : id)}
+                  className={`px-2 py-0.5 rounded border text-xs font-semibold ${filterTeam === id ? 'text-white border-transparent' : p >= PRELIM_GAMES_PER_TEAM ? 'bg-green-50 border-green-300 text-green-800' : 'bg-white border-gray-300'}`}
+                  style={filterTeam === id ? { backgroundColor: BRAND } : undefined}>
+                  {no(id)} <span className="font-normal">{p}/{PRELIM_GAMES_PER_TEAM}</span>
+                </button>
+              );
+            })}
+            <label className="ml-auto flex items-center gap-1 text-xs"><input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} /> Show all games</label>
+          </div>
+          {(filterTeam || showAll) && (
+            <div className="space-y-1">
+              {visiblePrelim.map(m => renderMatch(m, `Game ${playoffMatchInfo(m)?.game}`))}
+            </div>
+          )}
+          <div>
+            <div className="font-semibold mb-1">Standings and seeds</div>
+            <table className="text-xs border-collapse min-w-[420px]">
+              <thead><tr className="bg-gray-100"><th className="px-2 py-1">Seed</th><th className="px-2 py-1 text-left">Team</th><th className="px-2 py-1">GP</th><th className="px-2 py-1">W</th><th className="px-2 py-1">L</th><th className="px-2 py-1">Pts</th><th className="px-2 py-1">Bos</th><th className="px-2 py-1 text-left">Decided by</th></tr></thead>
+              <tbody>
+                {standings.map(r => (
+                  <tr key={r.teamId} className={`border-t ${r.seed <= advance ? 'bg-amber-50' : ''}`} data-testid={`po-seed-${tier}-${r.seed}`}>
+                    <td className="px-2 py-1 text-center font-bold">{r.seed}</td>
+                    <td className="px-2 py-1 whitespace-nowrap">{no(r.teamId)} · {r.teamName}{tier === 2 && r.seed <= advance ? <span className="ml-1 text-[10px] text-amber-700 font-semibold">advances</span> : null}</td>
+                    <td className="px-2 py-1 text-center">{r.played}</td>
+                    <td className="px-2 py-1 text-center">{r.wins}</td>
+                    <td className="px-2 py-1 text-center">{r.losses}</td>
+                    <td className="px-2 py-1 text-center">{r.points}</td>
+                    <td className="px-2 py-1 text-center">{r.bostons}</td>
+                    <td className="px-2 py-1 text-gray-500">{r.tiebreak === 'h2h' ? 'head-to-head' : r.tiebreak === 'points' ? 'points' : r.tiebreak === 'season' ? 'season finish' : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bracket */}
+      <Card className={seeds ? '' : 'border-amber-300'}>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Flag className="w-4 h-4" /> {tierName} · bracket</CardTitle></CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {!seeds ? (
+            <>
+              <div className="text-xs text-gray-600">
+                {prelim.done < prelim.total ? `The preliminary round is not finished (${prelim.done} of ${prelim.total}). Seeding now uses the standings as they stand.` : 'Preliminary round complete. Check the seeds, adjust if a tie was settled off the table, then create the bracket.'}
+              </div>
+              <div className="grid gap-1 md:grid-cols-2">
+                {seedOrder.slice(0, advance).map((id, i) => (
+                  <label key={i} className="flex items-center gap-2 text-sm">
+                    <span className="w-14 font-bold">Seed {i + 1}</span>
+                    <select className="border rounded px-2 py-1 bg-white" value={id} onChange={e => { const next = seedOrder.slice(); const j = next.indexOf(e.target.value); next[i] = e.target.value; if (j >= 0) next[j] = id; setSeedOrder(next); }} data-testid={`po-seed-select-${tier}-${i + 1}`}>
+                      {champField.map(t => <option key={t} value={t}>{no(t)} · {teamLabel(teams, t)}</option>)}
+                    </select>
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button className="text-white" style={{ backgroundColor: confirmSeed ? '#b91c1c' : BRAND }} disabled={busy} onClick={seedBracket} data-testid={`po-seed-bracket-${tier}`}>
+                  {confirmSeed ? 'Yes, create the bracket with these seeds' : 'Seed the bracket'}
+                </Button>
+                {confirmSeed && <Button variant="outline" onClick={() => setConfirmSeed(false)}>Cancel</Button>}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-xs text-gray-600">Seeds: {seeds.slice(0, advance).map((id, i) => `${i + 1} · ${no(id)}`).join('   ')}</div>
+              <div className="grid gap-3 md:grid-cols-2">{states.map(seriesCard)}</div>
+              {placings.length > 0 && (
+                <div>
+                  <div className="font-semibold mb-1">Final placings</div>
+                  <table className="text-sm border-collapse" data-testid={`po-placings-${tier}`}>
+                    <tbody>
+                      {placings.map(p => (
+                        <tr key={p.place} className="border-t"><td className="px-2 py-1 font-bold">{p.place === 1 ? (tier === 1 ? 'Champion' : 'Winner') : `${p.place}${p.place === 2 ? 'nd' : p.place === 3 ? 'rd' : 'th'}`}</td><td className="px-2 py-1">{no(p.teamId)} · {teamLabel(teams, p.teamId)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {!bracketHasScores && <button type="button" className="text-xs underline text-gray-500" onClick={resetBracket}>Reset bracket (no scores entered yet)</button>}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 };
 

@@ -189,7 +189,7 @@ const PlayoffPortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sc
               <>
                 <div className="text-center mb-3">
                   <h2 className="text-xl font-bold text-gray-900">Preliminary round</h2>
-                  <p className="text-xs text-gray-600 mt-1">Play every team in your tier twice. No set order: when you and another team are both free, sit down and play.</p>
+                  <p className="text-xs text-gray-600 mt-1">{tier === 1 ? 'Play every team in your tier twice.' : 'Play each of the 10 teams on your card once. The top 4 advance.'} No set order: when you and another team are both free, sit down and play.</p>
                   <p className="text-xs text-gray-500 mt-1" data-testid="pp-prelim-progress">{playedPrelim} of {PRELIM_GAMES_PER_TEAM} games in{playedPrelim >= PRELIM_GAMES_PER_TEAM ? '. Waiting for the bracket.' : '.'}</p>
                 </div>
                 <div className="space-y-2">{myPrelim.map(card)}</div>
@@ -197,12 +197,12 @@ const PlayoffPortal: React.FC<{ team: Team; onLogout: () => void; ScoreEntry: Sc
             ) : (
               <>
                 <div className="text-center mb-3">
-                  <h2 className="text-xl font-bold text-gray-900">Bracket · you are seed {seedOf(myId)}</h2>
-                  <p className="text-xs text-gray-600 mt-1">Every series is best of three. Game 3 appears when a series is 1–1; the next round appears when both semifinals are done.</p>
+                  <h2 className="text-xl font-bold text-gray-900">{tier === 2 && seedOf(myId) > 4 ? `Preliminary round over · you finished seed ${seedOf(myId)}` : `Bracket · you are seed ${seedOf(myId)}`}</h2>
+                  <p className="text-xs text-gray-600 mt-1">{tier === 2 && seedOf(myId) > 4 ? 'The top 4 play the bracket, winner take all. Thanks for the season.' : 'Every series is best of three. Game 3 appears when a series is 1–1; the next round appears when both semifinals are done.'}</p>
                 </div>
                 <div className="space-y-2">
                   {mySeriesGames.map(card)}
-                  {mySeriesGames.length === 0 && <Card><CardContent className="pt-4 text-center text-gray-600 text-sm">{placings.find(p => p.teamId === myId) ? `You finished ${placings.find(p => p.teamId === myId)!.place === 1 ? 'as champion' : `in place ${placings.find(p => p.teamId === myId)!.place}`}.` : 'Your next series will appear here when the semifinals are decided.'}</CardContent></Card>}
+                  {mySeriesGames.length === 0 && !(tier === 2 && seedOf(myId) > 4) && <Card><CardContent className="pt-4 text-center text-gray-600 text-sm">{placings.find(p => p.teamId === myId) ? `You finished ${placings.find(p => p.teamId === myId)!.place === 1 ? 'as champion' : `in place ${placings.find(p => p.teamId === myId)!.place}`}.` : 'Your next series will appear here when the semifinals are decided.'}</CardContent></Card>}
                 </div>
               </>
             )}
