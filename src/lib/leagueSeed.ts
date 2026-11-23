@@ -41,7 +41,7 @@ const splitName = (full: string): { first: string; last: string } => {
 export const createLeagueTournament = async (supabase: SupabaseClient, name: string, weeks: number, status: 'active' | 'pending'): Promise<string> => {
   const { data, error } = await supabase
     .from('tournaments')
-    .insert([{ name, status, cost: 0, boston_pot_cost: 0, tracks_hands: false, scoring_mode: 'team', rotation_type: 'league', malt_rounds: weeks, sort_order: 'wins,points,hands' }])
+    .insert([{ id: Date.now().toString(), name, status, cost: 0, boston_pot_cost: 0, tracks_hands: false, scoring_mode: 'team', rotation_type: 'league', malt_rounds: weeks, sort_order: 'wins,points,hands' }])
     .select()
     .single();
   if (error) throw new Error(`Create league: ${error.message}`);

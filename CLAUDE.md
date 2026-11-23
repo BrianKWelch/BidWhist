@@ -737,7 +737,7 @@ for candidates to resolve in a container.
 
 1. **`games` table has mixed camelCase/snake_case columns** — always handle both: `g.teamA ?? g.team_a`, `g.handsA ?? g.hands_a`
 2. **`schedule.rounds` is computed from `Math.max(match.round)`** — it's always the highest generated round, not the total planned rounds. Use `tournament.maltRounds` for total planned.
-3. **`id` column on `tournaments` is TEXT** — always use string literals in WHERE clauses: `WHERE id = '4'`, not `WHERE id = 4`
+3. **`id` column on `tournaments` is TEXT with no default** — inserts must supply `id: Date.now().toString()` or the insert fails with a non-null violation; always use string literals in WHERE clauses: `WHERE id = '4'`, not `WHERE id = 4`
 4. **Import `supabaseClient` without extension** — `import('../supabaseClient')`, NOT `import('../supabaseClient.js')`
 5. **Static `import` vs dynamic `import()`** — many components use dynamic `import('../supabaseClient')` to lazy-load. This is fine; don't "fix" it.
 6. **`app_config` is partially implemented** — active tournament is primarily determined by `tournaments.status === 'active'`, not `app_config`

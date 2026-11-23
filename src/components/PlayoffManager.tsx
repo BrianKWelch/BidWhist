@@ -67,7 +67,7 @@ const PlayoffManager: React.FC<{ league: Tournament }> = ({ league }) => {
       const { supabase } = await import('../supabaseClient');
       const config: PlayoffConfig = { playoffOf: String(league.id), tiers: { 1: champField }, seeds: {}, excluded };
       const { data, error } = await supabase.from('tournaments')
-        .insert([{ name: `${league.name} Playoffs`, status: 'pending', cost: 0, boston_pot_cost: 0, tracks_hands: false, scoring_mode: 'team', rotation_type: 'playoff', malt_rounds: 2, sort_order: 'wins,points,hands', description: serializePlayoffConfig(config) }])
+        .insert([{ id: Date.now().toString(), name: `${league.name} Playoffs`, status: 'pending', cost: 0, boston_pot_cost: 0, tracks_hands: false, scoring_mode: 'team', rotation_type: 'playoff', malt_rounds: 2, sort_order: 'wins,points,hands', description: serializePlayoffConfig(config) }])
         .select().single();
       if (error) throw new Error(error.message);
       const pid = String(data.id);
