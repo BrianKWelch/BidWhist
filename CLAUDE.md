@@ -333,7 +333,9 @@ neighbours, so 13 teams → 65 games with even strength of schedule; the
 director tells players the skips are random), top 4 to SF1/SF2/F/P3, winner
 take all. `PlayoffManager` renders one `TierPanel` per tier (prelim chips,
 standings with an "advances" tag, seed selects for the advancing seeds only,
-bracket, placings, reset); test ids carry the tier (`po-prelim-count-2`,
+bracket, placings, reset); "Reset playoffs" on the status card (type RESET)
+deletes the playoff tournament with its matches, scores and registrations and
+makes the league active again, never touching league rows; test ids carry the tier (`po-prelim-count-2`,
 `po-seed-2-N`, `po-seed-bracket-2`, `po-placings-2`). Both tiers play the
 same night.
 

@@ -108,6 +108,39 @@ const PlayoffManager: React.FC<{ league: Tournament }> = ({ league }) => {
     }
   };
 
+  const [resetTyped, setResetTyped] = useState('');
+  const [showReset, setShowReset] = useState(false);
+  /** Removes the playoff tournament and everything that belongs to it; the league is untouched and made live again. */
+  const resetPlayoffs = async () => {
+    if (!playoff || resetTyped !== 'RESET') return;
+    setBusy(true);
+    try {
+      const { supabase } = await import('../supabaseClient');
+      const { data: ms, error: selErr } = await supabase.from('matches').select('id').eq('tournament_id', playoff.id);
+      if (selErr) throw new Error(selErr.message);
+      const ids = (ms ?? []).map((m: { id: string }) => String(m.id));
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await supabase.from('games').delete().in('matchId', ids.slice(i, i + 200));
+        if (error) throw new Error(`Scores: ${error.message}`);
+      }
+      const { error: e1 } = await supabase.from('matches').delete().eq('tournament_id', playoff.id);
+      if (e1) throw new Error(`Games: ${e1.message}`);
+      const { error: e2 } = await supabase.from('team_registrations').delete().eq('tournament_id', playoff.id);
+      if (e2) throw new Error(`Registrations: ${e2.message}`);
+      const { error: e3 } = await supabase.from('tournaments').delete().eq('id', playoff.id);
+      if (e3) throw new Error(`Tournament: ${e3.message}`);
+      const { error: e4 } = await supabase.from('tournaments').update({ status: 'active' }).eq('id', league.id);
+      if (e4) throw new Error(`League: ${e4.message}`);
+      await Promise.all([refreshTournaments(), refreshTeams(), refreshSchedules(), refreshGamesFromSupabase()]);
+      setShowReset(false); setResetTyped('');
+      toast({ title: 'Playoffs reset', description: `${ids.length} playoff games and their scores removed. The league is live again; the season is untouched.` });
+    } catch (e) {
+      toast({ title: 'Reset failed', description: String(e), variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const setLive = async (live: boolean) => {
     if (!playoff) return;
     setBusy(true);
@@ -148,6 +181,20 @@ const PlayoffManager: React.FC<{ league: Tournament }> = ({ league }) => {
             </div>
           ) : (
             <div className="text-xs text-gray-600">Not created yet. Set the field below.</div>
+          )}
+          {playoff && (
+            <div className="pt-2 border-t">
+              {!showReset ? (
+                <button type="button" className="text-xs underline text-gray-500" onClick={() => setShowReset(true)}>Reset playoffs (start over)</button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-red-700">Removes the playoff tournament with every playoff game, score and registration, and puts the league back in the portal. The league season is not touched. Type RESET to confirm.</span>
+                  <input className="border rounded px-2 py-1 w-28" placeholder="RESET" value={resetTyped} onChange={e => setResetTyped(e.target.value)} data-testid="po-reset-input" />
+                  <Button size="sm" variant="destructive" disabled={busy || resetTyped !== 'RESET'} onClick={resetPlayoffs} data-testid="po-reset">{busy ? 'Resetting…' : 'Reset playoffs'}</Button>
+                  <Button size="sm" variant="outline" onClick={() => { setShowReset(false); setResetTyped(''); }}>Cancel</Button>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
