@@ -12,6 +12,7 @@ import { toast } from '@/hooks/use-toast';
 import MessageBanner from './MessageBanner';
 import { getMaltNext } from '../lib/maltRotation';
 import LeaguePortal from './LeaguePortal';
+import PlayoffPortal from './PlayoffPortal';
 
 
 // Direct score entry component without the wrapper UI
@@ -843,6 +844,24 @@ const ScoreConfirmation = ({ team, match, onComplete }: { team: Team; match: any
            </CardContent>
          </Card>
        </div>
+    );
+  }
+
+  // League playoffs: preliminary games, seeds and best-of-three series.
+  if (getActiveTournament()?.rotationType === 'playoff') {
+    return (
+      <PlayoffPortal
+        team={team}
+        ScoreEntry={DirectScoreEntry}
+        Confirmation={ScoreConfirmation}
+        onLogout={() => {
+          localStorage.removeItem('portal_team_id');
+          setTeam(null);
+          setTestMode(false);
+          setAdminMode(false);
+          setSelectedTeamId('');
+        }}
+      />
     );
   }
 

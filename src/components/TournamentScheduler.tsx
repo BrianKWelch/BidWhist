@@ -338,12 +338,12 @@ export const TournamentScheduler: React.FC = () => {
     return acc;
   }, {} as { [city: string]: number });
 
-  if (tournament?.rotationType === 'league') {
+  if (tournament?.rotationType === 'league' || tournament?.rotationType === 'playoff') {
     return (
       <Card>
-        <CardHeader><CardTitle>{tournament.name} is a League</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{tournament.name} is {tournament.rotationType === 'playoff' ? 'a League Playoff' : 'a League'}</CardTitle></CardHeader>
         <CardContent className="text-sm text-gray-600">
-          League seasons are generated and managed from the <strong>League</strong> tab (weekly Side A / Side B rooms, score entry and standings). The tournament scheduler is not used for leagues.
+          League seasons and their playoffs are generated and managed from the <strong>League</strong> tab. The tournament scheduler is not used for them.
         </CardContent>
       </Card>
     );

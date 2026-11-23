@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Download, Printer, RefreshCw, Trophy, CalendarDays, ListChecks, AlertTriangle, Pencil, Trash2, Check, X, UserX } from 'lucide-react';
+import { Download, Printer, RefreshCw, Trophy, CalendarDays, ListChecks, AlertTriangle, Pencil, Trash2, Check, X, UserX, Flag } from 'lucide-react';
 import {
   FORFEIT_WIN_POINTS,
   buildForfeitRows,
@@ -41,6 +41,7 @@ import {
 import { createLeagueTournament, loadSeedWeek, type SeedWeekData } from '@/lib/leagueSeed';
 import week1Data from '@/data/league2026FallWeek1.json';
 import { LeagueRestoreCard } from '@/components/LeagueRestoreCard';
+import PlayoffManager from '@/components/PlayoffManager';
 import { originalTag } from '@/lib/leagueRecover';
 import LeagueLeadersPanel from './LeagueLeadersPanel';
 
@@ -65,7 +66,7 @@ const downloadText = (filename: string, text: string) => {
   URL.revokeObjectURL(url);
 };
 
-const teamLabel = (teams: Team[], id: string) => {
+export const teamLabel = (teams: Team[], id: string) => {
   const t = teams.find(tt => String(tt.id) === String(id));
   if (!t) return `Team ${id}`;
   const players = `${t.player1FirstName || ''}/${t.player2FirstName || ''}`;
@@ -77,7 +78,7 @@ const teamLabel = (teams: Team[], id: string) => {
 // Inline admin score editor for one league match
 // ---------------------------------------------------------------------------
 
-const MatchScoreEditor: React.FC<{
+export const MatchScoreEditor: React.FC<{
   match: ScheduleMatch;
   teams: Team[];
   tracksHands: boolean;
@@ -616,10 +617,11 @@ const LeagueManager: React.FC = () => {
 
       {league && (
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="season"><CalendarDays className="w-4 h-4 mr-1" /> Season Schedule</TabsTrigger>
             <TabsTrigger value="week"><ListChecks className="w-4 h-4 mr-1" /> Weekly Games</TabsTrigger>
             <TabsTrigger value="standings"><Trophy className="w-4 h-4 mr-1" /> Standings</TabsTrigger>
+            <TabsTrigger value="playoffs"><Flag className="w-4 h-4 mr-1" /> Playoffs</TabsTrigger>
           </TabsList>
 
           {/* ---------------- Season ---------------- */}
@@ -1229,6 +1231,9 @@ const LeagueManager: React.FC = () => {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+          <TabsContent value="playoffs" className="space-y-4">
+            {league && <PlayoffManager league={league} />}
           </TabsContent>
         </Tabs>
       )}

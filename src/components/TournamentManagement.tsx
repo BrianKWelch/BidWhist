@@ -40,7 +40,7 @@ const TournamentManagement: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [editPaymentModel, setEditPaymentModel] = useState<'four_way' | 'five_way'>('four_way');
   const [editAllowPrepay, setEditAllowPrepay] = useState(false);
-  const [editRotationType, setEditRotationType] = useState<'standard' | 'malt' | 'league'>('standard');
+  const [editRotationType, setEditRotationType] = useState<'standard' | 'malt' | 'league' | 'playoff'>('standard');
   const [editWeeks, setEditWeeks] = useState('9');
 
 
@@ -310,11 +310,12 @@ const TournamentManagement: React.FC = () => {
                           <select
                             className="border rounded p-1 text-sm w-full mt-1"
                             value={editRotationType}
-                            onChange={(e) => setEditRotationType(e.target.value as 'standard' | 'malt' | 'league')}
+                            onChange={(e) => setEditRotationType(e.target.value as 'standard' | 'malt' | 'league' | 'playoff')}
                           >
                             <option value="standard">Standard (pre-set round-robin)</option>
                             <option value="malt">MALT (win/loss determines next table)</option>
                             <option value="league">League (weekly Side A / Side B rooms)</option>
+                            <option value="playoff">League playoffs (created from the League tab)</option>
                           </select>
                         </div>
                         {editRotationType === 'league' && (
@@ -373,6 +374,9 @@ const TournamentManagement: React.FC = () => {
                             )}
                             {tournament.rotationType === 'league' && (
                               <Badge variant="outline" className="border-emerald-500 text-emerald-700">League · {tournament.maltRounds || 0} weeks</Badge>
+                            )}
+                            {tournament.rotationType === 'playoff' && (
+                              <Badge variant="outline" className="border-amber-500 text-amber-700">League playoffs</Badge>
                             )}
                           </div>
                         </div>

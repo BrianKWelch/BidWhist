@@ -1235,7 +1235,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return (typeof m.teamA === 'string' && regex.test(m.teamA as string)) || (typeof m.teamB === 'string' && regex.test(m.teamB as string));
     });
     // League play never uses placeholders or table-driven next rounds; every week is generated up front.
-    const isLeagueSchedule = tournaments.find(t => String(t.id) === String(tournamentId))?.rotationType === 'league';
+    const rot = tournaments.find(t => String(t.id) === String(tournamentId))?.rotationType;
+    const isLeagueSchedule = rot === 'league' || rot === 'playoff';
     const isOptionB = !isLeagueSchedule && (schedule.rounds <= 1 || schedule.matches.some(m => m.opponentPlaceholder) || hasStringPlaceholders);
     if (isOptionB) {
       const currentRound = match.round;

@@ -306,6 +306,44 @@ normal `games` table and the normal entry/confirm/dispute flow.
   continue the side counter under the original tag); nothing existing is
   touched.
 
+### Playoffs (`src/lib/playoff.ts`, `PlayoffManager.tsx`, `PlayoffPortal.tsx`)
+The playoffs are a **separate tournament** with `rotation_type = 'playoff'`,
+created from the League tab's Playoffs sub-tab, so the season's weeks, locks
+and standings are never touched. No schema changes: the link to the league
+and the playoff state live as JSON in the tournament `description`
+(`PlayoffConfig`: `playoffOf`, `tiers`, `seeds`, `excluded`). Match ids are
+`${pid}-t${tier}-r1-p${pair}-g${n}` (preliminary) and
+`${pid}-t${tier}-r2-${series}-g${k}` (bracket, k = 1..3); `table_number` =
+tier; scores use the normal `games` table and portal flow.
+
+Format (one night): **Champion tier** = top 6 of the final season standings;
+double round robin (30 games, 10 each) seeds 1 to 6 by wins, then head-to-head
+among tied teams, then points, then season finish (`prelimStandings`, with a
+`tiebreak` note per row). Bracket (`bracketSpec`): P5 5v6, SF1 1v4, SF2 2v3,
+F winners, P3 losers, all best of three. `bracketState` derives later series'
+teams from earlier results; `bracketMatchesToCreate` returns the missing rows
+(two games per series up front, game 3 only at 1-1, F/P3 once both semis are
+decided) and both the admin panel and the portal insert them with
+`upsert(..., { ignoreDuplicates: true })`, so any screen carries the bracket
+forward. **Second tier** (teams 7+ minus `excluded`, built next): single
+round robin at 10 games each via `buildSkipRoundRobin` (teams in season rank
+order skip their rank neighbours; 13 teams → 65 games), top 4 to SF1/SF2/F/P3.
+
+Admin flow: Playoffs tab → field table (top 6 highlighted, "Not playing"
+checkboxes for tier two) → "Create playoffs" (inserts the tournament,
+registers the six, writes 30 matches) → "Make playoffs live" (playoff
+`active`, league `finished`; reversible) → team chips / Show all games with
+the shared `MatchScoreEditor` → seeds table → "Seed the bracket" (seed
+selects prefilled from standings, two clicks; "Reset bracket" until a score
+exists) → series cards with per-game scoring → final placings.
+`PlayerPortalFixed` renders `PlayoffPortal` when the active tournament is a
+playoff: prelim cards with the same Score/Confirm/Retract flow, live seeds,
+then the team's series games and the bracket; teams outside the field see
+final season standings. The portal polls `tournaments` every 20 s because
+seeds have no realtime feed. `TournamentScheduler`, `CombinedResultsPage`,
+`QuickScoreEntry` and the provider's `confirmScore` treat `'playoff'` like
+`'league'`.
+
 ### Restoring a schedule after an accidental regenerate (`src/lib/leagueRecover.ts`)
 `generateLeagueSeason` seeds from `Date.now()` and `buildLeagueMatches` stamps
 ids with a base-36 `Date.now()` tag taken right after it returns, so a lost

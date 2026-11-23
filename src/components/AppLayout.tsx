@@ -90,7 +90,7 @@ const AppLayout = () => {
               paymentModel: t.payment_model || 'four_way',
               sortOrder: t.sort_order || 'wins,hands,points',
               prepaidCost: t.prepaid_cost || 40,
-              rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league',
+              rotationType: (t.rotation_type || 'standard') as 'standard' | 'malt' | 'league' | 'playoff',
               maltRounds: t.malt_rounds || 0
             }));
             setTournaments(mappedTournaments);

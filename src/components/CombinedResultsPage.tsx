@@ -289,13 +289,13 @@ const CombinedResultsPage = () => {
     );
   }
 
-  if (activeTournament.rotationType === 'league') {
+  if (activeTournament.rotationType === 'league' || activeTournament.rotationType === 'playoff') {
     return (
       <div className="space-y-6">
         <Card>
-          <CardHeader><CardTitle>{activeTournament.name} is a League</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{activeTournament.name} is {activeTournament.rotationType === 'playoff' ? 'a League Playoff' : 'a League'}</CardTitle></CardHeader>
           <CardContent>
-            <p className="text-gray-600 text-center">League standings, weekly results and score corrections live in the <strong>League</strong> tab.</p>
+            <p className="text-gray-600 text-center">League standings, playoff brackets and score corrections live in the <strong>League</strong> tab.</p>
           </CardContent>
         </Card>
       </div>
